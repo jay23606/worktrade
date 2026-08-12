@@ -766,13 +766,14 @@ function render() {
   else main.innerHTML = renderDiscover();
   hydrateNetworkSocial();
   if (navigated) window.scrollTo({ top: 0, behavior: "instant" });
-  if (pendingRenderFocus) {
-    const target = main.querySelector(pendingRenderFocus);
+  if (pendingRenderFocus && pendingRenderFocus.until > Date.now()) {
+    const target = main.querySelector(pendingRenderFocus.selector);
     if (target) {
-      pendingRenderFocus = null;
       target.setAttribute("tabindex", "-1");
       setTimeout(() => target.focus({ preventScroll: true }), 150);
     }
+  } else {
+    pendingRenderFocus = null;
   }
 }
 
@@ -1710,7 +1711,7 @@ document.addEventListener("submit", async (event) => {
       updateRequests((list) => [request, ...list]);
       closeModal();
       state.selectedId = request.id;
-      pendingRenderFocus = "h1";
+      pendingRenderFocus = { selector: "h1", until: Date.now() + 1500 };
       state.view = "detail";
       notify("Work request published on this device", "success");
     }
