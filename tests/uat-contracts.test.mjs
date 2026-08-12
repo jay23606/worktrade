@@ -103,6 +103,17 @@ test("moderation data is private and restrictions guard interaction writes", () 
   );
 });
 
+test("transactional email uses a private idempotent outbox with safe templates", () => {
+  assert.match(sql, /notification_id uuid not null unique/);
+  assert.match(sql, /for update skip locked/);
+  assert.match(sql, /attempts < 5/);
+  assert.match(sql, /email_delivery_attempts/);
+  assert.doesNotMatch(
+    sql,
+    /insert into public\.email_outbox[\s\S]{0,1000}new\.body/i,
+  );
+});
+
 test("client exposes the primary UAT journeys through backend operations", () => {
   for (const operation of [
     "createRemoteRequest",

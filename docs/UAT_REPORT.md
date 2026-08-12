@@ -20,6 +20,7 @@ The connected alpha has passed its automated two-user request lifecycle and thre
 - **P1 — Hosted lifecycle unverified:** the isolated two-account lifecycle now passes against hosted Supabase and runs from a protected GitHub Actions environment.
 - **P1 — Chain creation failed:** an ambiguous PL/pgSQL identifier in the proposer guard prevented valid chains from being created. The function now uses explicit record aliases and has hosted regression coverage.
 - **P1 — Moderation operations absent:** users can now submit private categorized reports, staff have a private review queue, restrictions block interaction writes, reporter updates exclude internal notes, appeals support reinstatement, and staff actions are immutable.
+- **P1 — Transactional delivery absent:** notification events now feed a private idempotent outbox with category preferences, bounded retries, delivery attempts, generic privacy-safe templates, and a scheduled sink-mode dispatcher.
 
 ## Automated hosted result
 
@@ -44,7 +45,7 @@ Run with three new accounts in separate browser profiles.
 ## Remaining findings
 
 - **P2:** The pilot has one administrator; add a second trained reviewer before expanding so appeals and coverage do not depend on one person.
-- **P1:** Transactional email delivery is not active.
+- **P1:** Production email remains intentionally disabled until a provider and authenticated sending domain are approved; the complete pipeline currently runs in non-delivering sink mode.
 - **P2:** `app.js` still contains domain rendering and event orchestration; continue extracting feature controllers after pilot behavior is stable.
 - **P2:** Circles and chains need dedicated routes for mobile use and deep linking.
 - **P2:** Loading states need localized retry and disabled-submit behavior.

@@ -860,12 +860,15 @@ function notificationsModal() {
 function preferencesModal() {
   const p = state.notificationPreferences || {};
   openModal(
-    `<span class="eyebrow">Notification preferences</span><h2>Choose what reaches you.</h2><p>Email delivery is queued for future activation; these preferences are already stored and will be honored.</p><form data-form="preferences" class="preference-form">${[
+    `<span class="eyebrow">Notification preferences</span><h2>Choose what reaches you.</h2><p>Email routing is active in safe sink mode while the production sending domain is being authorized. Your preferences are already enforced.</p><form data-form="preferences" class="preference-form">${[
       ["in_app", "In-app notifications"],
+      ["email_enabled", "Allow transactional email"],
       ["email_proposals", "Proposal emails"],
       ["email_messages", "Message emails"],
       ["email_agreements", "Agreement emails"],
       ["email_reminders", "Reminder emails"],
+      ["email_network", "Network and circle emails"],
+      ["email_safety", "Safety and account emails"],
     ]
       .map(
         ([name, label]) =>
@@ -1971,10 +1974,13 @@ document.addEventListener("submit", async (event) => {
     try {
       state.notificationPreferences = await saveNotificationPreferences({
         in_app: data.has("in_app"),
+        email_enabled: data.has("email_enabled"),
         email_proposals: data.has("email_proposals"),
         email_messages: data.has("email_messages"),
         email_agreements: data.has("email_agreements"),
         email_reminders: data.has("email_reminders"),
+        email_network: data.has("email_network"),
+        email_safety: data.has("email_safety"),
       });
       closeModal();
       notify("Notification preferences saved");

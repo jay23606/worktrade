@@ -1,0 +1,29 @@
+name: Dispatch transactional email
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+concurrency:
+  group: transactional-email-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: hosted-uat
+    steps:
+      - name: Claim and dispatch queued email
+        env:
+          WT_SUPABASE_URL: ${{ secrets.WT_SUPABASE_URL }}
+          WT_SUPABASE_SECRET_KEY: ${{ secrets.WT_SUPABASE_SECRET_KEY }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "apikey: ${WT_SUPABASE_SECRET_KEY}" \
+            --header "Authorization: Bearer ${WT_SUPABASE_SECRET_KEY}" \
+            --header "Content-Type: application/json" \
+            --data '{"limit":50}' \
+            "${WT_SUPABASE_URL}/functions/v1/email-dispatch"

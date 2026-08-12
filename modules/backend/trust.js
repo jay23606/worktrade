@@ -185,10 +185,13 @@ export async function getNotificationPreferences() {
     data || {
       profile_id: session.user.id,
       in_app: true,
+      email_enabled: true,
       email_proposals: true,
       email_messages: true,
       email_agreements: true,
       email_reminders: false,
+      email_network: true,
+      email_safety: true,
     }
   );
 }
