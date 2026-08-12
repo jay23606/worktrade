@@ -103,6 +103,9 @@ export async function closeRequest(requestId, expectedVersion, action) {
   return data;
 }
 
+export async function requestLifecycleAction(requestId,expectedVersion,action){const client=await getBackend();assertBackend(client);const {data,error}=await client.rpc("request_lifecycle_action",{target_request_id:requestId,expected_version:expectedVersion,requested_action:action});if(error)throw error;return data}
+export async function getMyRequests(){const client=await getBackend();assertBackend(client);const session=await getSession();if(!session)return[];const{data,error}=await client.from("work_requests").select("*, work_request_skills(skill)").eq("owner_id",session.user.id).order("updated_at",{ascending:false});if(error)throw error;return data}
+
 export async function submitOffer(requestId, input) {
   const client = await getBackend();
   assertBackend(client);
@@ -155,6 +158,10 @@ export async function getRequestOffers(requestId) {
   return data;
 }
 
+export async function getMyOffers(){const client=await getBackend();assertBackend(client);const session=await getSession();if(!session)return[];const{data,error}=await client.from("trade_offers").select("*, work_requests(title,stage,owner_id)").eq("provider_id",session.user.id).order("created_at",{ascending:false});if(error)throw error;return data}
+export async function reviseOffer(offerId,input){const client=await getBackend();assertBackend(client);const{data,error}=await client.rpc("revise_trade_offer",{target_offer_id:offerId,payload:input});if(error)throw error;return data}
+export async function withdrawOffer(offerId){const client=await getBackend();assertBackend(client);const{error}=await client.rpc("withdraw_trade_offer",{target_offer_id:offerId});if(error)throw error}
+
 export async function acceptOffer(offerId) {
   const client = await getBackend();
   assertBackend(client);
@@ -170,6 +177,9 @@ export async function getMyAgreements() {
   if (error) throw error;
   return data;
 }
+
+export async function getAgreementHistory(agreementId){const client=await getBackend();assertBackend(client);const{data,error}=await client.from("agreement_history").select("*, profiles!agreement_history_actor_id_fkey(display_name)").eq("agreement_id",agreementId).order("created_at");if(error)throw error;return data}
+export async function manageMilestone(agreementId,expectedVersion,action,payload){const client=await getBackend();assertBackend(client);const{data,error}=await client.rpc("manage_milestone",{target_agreement_id:agreementId,expected_version:expectedVersion,action,payload});if(error)throw error;return data}
 
 export async function getProjectMessages(requestId) {
   const client = await getBackend();

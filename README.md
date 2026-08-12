@@ -10,14 +10,17 @@ WorkTrade is a connected alpha for exchanging practical work through cash, barte
 - Post work to build, repair, install, fabricate, restore, maintain, inspect, or diagnose
 - Persist exchange modes, offered value, site constraints, location privacy, and request photos
 - Edit, close, cancel, or archive open requests with immutable change history
+- Save private drafts, publish when ready, duplicate prior requests, and reopen eligible requests
 - Make cash, barter, or hybrid proposals
 - Define exclusions, responsibilities, milestones, questions, and proposal expiration
+- Revise or withdraw pending proposals and compare owner-visible terms
 - Accept an offer through a server-authoritative transaction
 - Independently confirm terms before an agreement becomes active
 - Propose amendments that require counterparty acceptance and renewed confirmation
 - Exchange private participant messages
 - Keep persistent participant project journals
 - Track milestones and general dependency holds
+- Add assigned and dated milestones during the planning stages
 - Track each party's cash, service, labor, or goods obligations independently
 - Require counterpart approval of fulfilled obligations
 - Prevent completion until every obligation is approved
@@ -26,6 +29,8 @@ WorkTrade is a connected alpha for exchanging practical work through cash, barte
 - Leave contextual reviews tied to completed work
 - Maintain persistent `I need` and `I can offer` profile lists
 - Receive proposal, message, and agreement notifications with unread state
+- Review a readable agreement event history
+- Use an action-oriented dashboard for requests, proposals, approvals, active work, and completed history
 - Store notification preferences for future email delivery
 - Export personal data and deactivate an account
 - Use a resettable device-local sample experience while signed out

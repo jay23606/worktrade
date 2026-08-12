@@ -58,10 +58,16 @@ try {
   await rpc(owner.token, "set_my_profile", { payload: { display_name: owner.name, location_text: "Richmond, VA", bio: "Owner test account", needs: ["Carpentry"], offers: ["Photography"] } });
   await rpc(provider.token, "set_my_profile", { payload: { display_name: provider.name, location_text: "Richmond, VA", bio: "Provider test account", needs: ["Photography"], offers: ["Carpentry"] } });
 
+  const draftId=await rpc(owner.token,"create_work_request",{payload:{title:"Draft workshop planning request",description:"An intentionally unpublished draft for lifecycle testing.",kind:"build",publish:false,skills:["Planning"]}});
+  let draft=(await request(`/rest/v1/work_requests?id=eq.${draftId}&select=*`,{token:owner.token}))[0];assert.equal(draft.stage,"draft");
+  await rpc(owner.token,"request_lifecycle_action",{target_request_id:draftId,expected_version:draft.version,requested_action:"publish"});draft=(await request(`/rest/v1/work_requests?id=eq.${draftId}&select=*`,{token:owner.token}))[0];assert.equal(draft.stage,"open");
+  const duplicateId=await rpc(owner.token,"request_lifecycle_action",{target_request_id:draftId,expected_version:draft.version,requested_action:"duplicate"});const duplicate=(await request(`/rest/v1/work_requests?id=eq.${duplicateId}&select=*`,{token:owner.token}))[0];assert.equal(duplicate.stage,"draft");
+
   const requestId = await rpc(owner.token, "create_work_request", { payload: { title: "Build integration-test shelving", description: "Build and install two sturdy workshop shelves.", kind: "build", location: "Richmond, VA", urgency: "This month", cash_budget_cents: 30000, visibility: "public", skills: ["Carpentry"] } });
   let remoteRequest = (await request(`/rest/v1/work_requests?id=eq.${requestId}&select=*`, { token:owner.token }))[0];
   await rpc(owner.token,"update_work_request",{target_request_id:requestId,expected_version:remoteRequest.version,payload:{title:"Build integration-test workshop shelving",description:remoteRequest.description,kind:"build",location:"Richmond, VA",urgency:"Within two weeks",cash_budget_cents:30000,skills:["Carpentry","Installation"]}});
   const offerId = await rpc(provider.token, "submit_trade_offer", { target_request_id: requestId, payload: { mode: "hybrid", scope: "Build and install two shelves", exchange_summary: "$200 and a product photography session", duration: "One weekend",exclusions:"Wall painting",responsibilities:{provider:"Tools and labor",requester:"Lumber and site access"},milestones:[{title:"Confirm measurements",responsible:"requester",due_at:""},{title:"Build and install",responsible:"provider",due_at:""}],questions:"Is Saturday access available?",expires_at:new Date(Date.now()+604800000).toISOString() } });
+  await rpc(provider.token,"revise_trade_offer",{target_offer_id:offerId,payload:{mode:"hybrid",scope:"Build and install two reinforced shelves",exchange_summary:"$200 and a product photography session",duration:"One weekend",exclusions:"Wall painting",responsibilities:{provider:"Tools and labor",requester:"Lumber and access"},milestones:[{title:"Confirm measurements",responsible:"requester",due_at:""},{title:"Build and install",responsible:"provider",due_at:""}],questions:"Is Saturday access available?",expires_at:new Date(Date.now()+604800000).toISOString()}});
   let notifications = await rpc(owner.token,"get_my_notifications",{});
   assert.equal(notifications.some((row)=>row.notification.kind==="proposal"),true);
 
@@ -72,6 +78,7 @@ try {
   let agreement = rows.find((row) => row.agreement.id === agreementId);
   assert.equal(agreement.agreement.status, "proposed");
   assert.equal(agreement.obligations.length, 2);
+  await rpc(owner.token,"manage_milestone",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,action:"add",payload:{title:"Final fit check",responsible_profile_id:owner.id,due_at:""}});rows=await rpc(owner.token,"get_my_agreements",{});agreement=rows[0];assert.equal(agreement.milestones.some((m)=>m.title==="Final fit check"),true);
 
   await edgeAction(owner.token, "confirm", agreementId, agreement.agreement.version);
   rows = await rpc(provider.token, "get_my_agreements", {}); agreement = rows[0];
@@ -126,6 +133,7 @@ try {
   assert.equal(rows[0].agreement.status, "completed");
   assert.ok(rows[0].obligations.every((item) => item.status === "fulfilled"));
   assert.equal(rows[0].evidence.length, 1);
+  const history=await request(`/rest/v1/agreement_history?agreement_id=eq.${agreementId}&select=*`,{token:owner.token});assert.ok(history.length>=5);
   const exported=await rpc(owner.token,"export_my_data",{});
   assert.equal(exported.profile.id,owner.id);
   assert.equal(exported.agreements.length,1);
