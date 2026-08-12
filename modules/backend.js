@@ -94,6 +94,7 @@ export async function uploadRequestMedia(requestId,file,caption=""){
 }
 
 export async function getRequestMedia(requestId){const client=await getBackend();assertBackend(client);const {data,error}=await client.from("request_media").select("*").eq("request_id",requestId).order("position");if(error)throw error;return Promise.all(data.map(async(item)=>{const {data:signed,error:signedError}=await client.storage.from("request-media").createSignedUrl(item.asset_path,900);if(signedError)throw signedError;return {...item,url:signed.signedUrl}}))}
+export async function manageRequestMedia(mediaId,action,payload={}){const client=await getBackend();assertBackend(client);const{error}=await client.rpc("manage_request_media",{target_media_id:mediaId,action,payload});if(error)throw error}
 
 export async function closeRequest(requestId, expectedVersion, action) {
   const client = await getBackend();
@@ -180,6 +181,9 @@ export async function getMyAgreements() {
 
 export async function getAgreementHistory(agreementId){const client=await getBackend();assertBackend(client);const{data,error}=await client.from("agreement_history").select("*, profiles!agreement_history_actor_id_fkey(display_name)").eq("agreement_id",agreementId).order("created_at");if(error)throw error;return data}
 export async function manageMilestone(agreementId,expectedVersion,action,payload){const client=await getBackend();assertBackend(client);const{data,error}=await client.rpc("manage_milestone",{target_agreement_id:agreementId,expected_version:expectedVersion,action,payload});if(error)throw error;return data}
+export async function getProposalQuestions(offerId){const client=await getBackend();assertBackend(client);const{data,error}=await client.from("proposal_questions").select("*, profiles!proposal_questions_author_id_fkey(display_name)").eq("offer_id",offerId).order("created_at");if(error)throw error;return data}
+export async function askProposalQuestion(offerId,body){const client=await getBackend();assertBackend(client);const session=await getSession();const{data,error}=await client.from("proposal_questions").insert({offer_id:offerId,author_id:session.user.id,body}).select().single();if(error)throw error;return data}
+export async function setAgreementSchedule(agreementId,expectedVersion,payload){const client=await getBackend();assertBackend(client);const{data,error}=await client.rpc("set_agreement_schedule",{target_agreement_id:agreementId,expected_version:expectedVersion,payload});if(error)throw error;return data}
 
 export async function getProjectMessages(requestId) {
   const client = await getBackend();
