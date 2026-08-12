@@ -9,6 +9,7 @@ The connected alpha is suitable for a small, supervised pilot after the P1 hoste
 ## Issues fixed in this pass
 
 - **P1 — Deployment exposed repository internals:** Pages uploaded the repository root, including migrations and tests. It now builds a minimal browser-only artifact.
+- **P0 — Artifact dependency omission:** live smoke testing caught an empty application after `data.js` was omitted from the first allowlist. The dependency and its regression assertion are now included.
 - **P1 — Excess database privileges:** chain internals explicitly revoke client writes; validation and notification helpers cannot be called directly.
 - **P2 — Stale implementation:** obsolete demo network, fake people, and superseded renderers were removed.
 - **P2 — Modal keyboard behavior:** dialogs now have accessible names, trap focus, close with Escape, and restore focus.

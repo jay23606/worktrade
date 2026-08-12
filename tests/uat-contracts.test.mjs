@@ -23,7 +23,7 @@ test("production artifact excludes repository and backend internals", () => {
   assert.doesNotMatch(workflow, /path: \./);
   assert.match(
     workflow,
-    /cp index\.html styles\.css app\.js config\.js dist\//,
+    /cp index\.html styles\.css app\.js config\.js data\.js dist\//,
   );
 });
 
