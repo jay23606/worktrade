@@ -78,6 +78,22 @@ export async function createRequest(input) {
   return data;
 }
 
+export async function updateRequest(requestId, expectedVersion, input) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("update_work_request", { target_request_id: requestId, expected_version: expectedVersion, payload: input });
+  if (error) throw error;
+  return data;
+}
+
+export async function closeRequest(requestId, expectedVersion, action) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("close_work_request", { target_request_id: requestId, expected_version: expectedVersion, requested_action: action });
+  if (error) throw error;
+  return data;
+}
+
 export async function submitOffer(requestId, input) {
   const client = await getBackend();
   assertBackend(client);
@@ -161,6 +177,58 @@ export async function getEvidenceUrl(path) {
   const { data, error } = await client.storage.from("work-evidence").createSignedUrl(path, 900);
   if (error) throw error;
   return data.signedUrl;
+}
+
+export async function getNotifications() {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("get_my_notifications");
+  if (error) throw error;
+  return data.map((row) => row.notification);
+}
+
+export async function markNotificationsRead(ids = null) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("mark_notifications_read", { notification_ids: ids });
+  if (error) throw error;
+  return data;
+}
+
+export async function getNotificationPreferences() {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) return null;
+  const { data, error } = await client.from("notification_preferences").select("*").eq("profile_id", session.user.id).maybeSingle();
+  if (error) throw error;
+  return data || { profile_id: session.user.id, in_app: true, email_proposals: true, email_messages: true, email_agreements: true, email_reminders: false };
+}
+
+export async function saveNotificationPreferences(values) {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) throw new Error("Sign in to save preferences");
+  const { data, error } = await client.from("notification_preferences").upsert({ ...values, profile_id: session.user.id, updated_at: new Date().toISOString() }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function exportMyData() {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("export_my_data");
+  if (error) throw error;
+  return data;
+}
+
+export async function deactivateMyAccount() {
+  const client = await getBackend();
+  assertBackend(client);
+  const { error } = await client.rpc("deactivate_my_account");
+  if (error) throw error;
+  await client.auth.signOut();
 }
 
 export async function sendProjectMessage(requestId, body) {

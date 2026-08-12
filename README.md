@@ -22,6 +22,10 @@ WorkTrade is a local-first marketplace for practical work exchanged through cash
 - Persistent participant messages, milestones, dependency holds, and exchange obligations
 - Private JPG, PNG, and WebP evidence uploads tied to an agreement
 - Contextual completion reviews tied to completed work
+- Version-safe request editing, closure, cancellation, and archival with immutable history
+- Persistent proposal, message, and agreement notifications with unread state
+- Stored notification preferences ready for a future approved email sender
+- Downloadable personal-data exports and guarded account deactivation
 
 Run `npm test`, then `npm start` and open `http://localhost:8080`.
 
@@ -47,6 +51,8 @@ Never put the service-role key, email-provider credentials, payment credentials,
 - Trade chains remain proposed until every linked participant consents.
 
 Payments, identity verification, staff moderation operations, and jurisdiction-specific contracting remain intentionally unconfigured. Image evidence uploads are private to agreement participants and use short-lived signed URLs.
+
+Account deactivation immediately removes public profile details, capabilities, open requests, and pending proposals. Completed agreements retain a pseudonymous participant record so counterpart history remains coherent. Permanent authentication-record erasure remains deferred until a formal retention policy is adopted.
 
 ## Test scope
 

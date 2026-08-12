@@ -59,7 +59,11 @@ try {
   await rpc(provider.token, "set_my_profile", { payload: { display_name: provider.name, location_text: "Richmond, VA", bio: "Provider test account", needs: ["Photography"], offers: ["Carpentry"] } });
 
   const requestId = await rpc(owner.token, "create_work_request", { payload: { title: "Build integration-test shelving", description: "Build and install two sturdy workshop shelves.", kind: "build", location: "Richmond, VA", urgency: "This month", cash_budget_cents: 30000, visibility: "public", skills: ["Carpentry"] } });
+  let remoteRequest = (await request(`/rest/v1/work_requests?id=eq.${requestId}&select=*`, { token:owner.token }))[0];
+  await rpc(owner.token,"update_work_request",{target_request_id:requestId,expected_version:remoteRequest.version,payload:{title:"Build integration-test workshop shelving",description:remoteRequest.description,kind:"build",location:"Richmond, VA",urgency:"Within two weeks",cash_budget_cents:30000,skills:["Carpentry","Installation"]}});
   const offerId = await rpc(provider.token, "submit_trade_offer", { target_request_id: requestId, payload: { mode: "hybrid", scope: "Build and install two shelves", exchange_summary: "$200 and a product photography session", duration: "One weekend" } });
+  let notifications = await rpc(owner.token,"get_my_notifications",{});
+  assert.equal(notifications.some((row)=>row.notification.kind==="proposal"),true);
 
   await assert.rejects(() => rpc(provider.token, "accept_trade_offer", { target_offer_id: offerId }), /only the request owner/i);
   const agreementId = await rpc(owner.token, "accept_trade_offer", { target_offer_id: offerId });
@@ -78,6 +82,8 @@ try {
   await rpc(owner.token, "perform_agreement_action", { target_agreement_id: agreementId, expected_version: agreement.agreement.version, requested_action: "transition", payload: { status: "active" } });
   rows = await rpc(owner.token, "get_my_agreements", {}); agreement = rows[0];
   await request("/rest/v1/project_messages", { token: provider.token, method: "POST", headers: { Prefer: "return=minimal" }, body: { request_id: requestId, author_id: provider.id, body: "Materials are ready; arrival is scheduled for Saturday." } });
+  notifications=await rpc(owner.token,"get_my_notifications",{});
+  assert.equal(notifications.some((row)=>row.notification.kind==="message"),true);
   const evidencePath = `${agreementId}/${provider.id}/${crypto.randomUUID()}.png`;
   const pixel = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
   const uploadResponse = await fetch(`${base}/storage/v1/object/work-evidence/${evidencePath}`, { method: "POST", headers: { apikey: publishable, Authorization: `Bearer ${provider.token}`, "Content-Type": "image/png", "x-upsert": "false" }, body: pixel });
@@ -111,6 +117,13 @@ try {
   assert.equal(rows[0].agreement.status, "completed");
   assert.ok(rows[0].obligations.every((item) => item.status === "fulfilled"));
   assert.equal(rows[0].evidence.length, 1);
+  const exported=await rpc(owner.token,"export_my_data",{});
+  assert.equal(exported.profile.id,owner.id);
+  assert.equal(exported.agreements.length,1);
+  await rpc(owner.token,"deactivate_my_account",{});
+  const deactivated=(await request(`/rest/v1/profiles?id=eq.${owner.id}&select=display_name,is_active`,{token:owner.token}))[0];
+  assert.equal(deactivated.is_active,false);
+  assert.equal(deactivated.display_name,"Former WorkTrade member");
   console.log("WorkTrade two-user lifecycle passed against hosted Supabase.");
 } finally {
   await cleanup();

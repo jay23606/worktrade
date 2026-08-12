@@ -1,12 +1,12 @@
 import { createStore } from "./modules/store.js";
 import { cloneSeed } from "./data.js";
 import { confirmAgreement, proposeAgreement, transitionAgreement } from "./modules/agreements.js";
-import { acceptOffer, backendConfigured, createRequest as createRemoteRequest, getEvidenceUrl, getMyAgreements, getMyProfile, getProjectMessages, getRequestOffers, getSession, listPublicRequests, performAgreementAction, sendProjectMessage, signInWithEmail, signOut, submitOffer, submitReview, updateMyProfile, uploadWorkEvidence } from "./modules/backend.js";
+import { acceptOffer, backendConfigured, closeRequest, createRequest as createRemoteRequest, deactivateMyAccount, exportMyData, getEvidenceUrl, getMyAgreements, getMyProfile, getNotificationPreferences, getNotifications, getProjectMessages, getRequestOffers, getSession, listPublicRequests, markNotificationsRead, performAgreementAction, saveNotificationPreferences, sendProjectMessage, signInWithEmail, signOut, submitOffer, submitReview, updateMyProfile, updateRequest, uploadWorkEvidence } from "./modules/backend.js";
 
 const STORAGE_KEY = "worktrade:v1";
 const saved = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } })();
 const initial = saved?.requests ? saved : cloneSeed();
-const store = createStore({ view: "discover", query: "", category: "All", selectedId: null, session: null, remote: false, profile: initial.profile, requests: initial.requests });
+const store = createStore({ view: "discover", query: "", category: "All", selectedId: null, session: null, remote: false, profile: initial.profile, requests: initial.requests, notifications: [], notificationPreferences: null });
 const { state } = store;
 const main = document.querySelector("#main");
 const modalRoot = document.querySelector("#modal-root");
@@ -53,6 +53,7 @@ function renderDetail(request) {
   return shell(`<button class="back" data-nav="discover">← Back to requests</button>
     <div class="detail-grid"><article class="detail-main">
       <div class="card-top"><span class="category">${esc(request.category)}</span><span>${esc(request.status)}</span></div>
+      ${isOwner && state.remote && request.status === "open" ? `<div class="owner-actions"><button class="secondary" data-action="edit-request">Edit request</button><button class="text-btn" data-request-action="close">Close</button><button class="text-btn" data-request-action="archive">Archive</button><button class="danger-text" data-request-action="cancel">Cancel</button></div>` : ""}
       <h1>${esc(request.title)}</h1><p class="lede">${esc(request.description)}</p>
       <div class="facts"><div><small>Location</small><b>${esc(request.location)}</b></div><div><small>Timing</small><b>${esc(request.urgency)}</b></div><div><small>Cash range</small><b>${money(request.cashBudget)}</b></div></div>
       <section><span class="eyebrow">Skills and capabilities</span><div class="tags large">${request.skills.map((s) => `<span>${esc(s)}</span>`).join("")}</div></section>
@@ -188,9 +189,34 @@ function signInModal() {
   openModal(`<span class="eyebrow">Sign in</span><h2>Use a secure email link.</h2><p>No password is stored by WorkTrade. We will send a one-time sign-in link.</p><form data-form="sign-in" class="form-grid"><label class="wide">Email<input name="email" type="email" autocomplete="email" required></label><button class="primary wide">Send sign-in link</button></form>`);
 }
 
+function editRequestModal(request) {
+  openModal(`<span class="eyebrow">Edit work request</span><h2>Update the desired outcome.</h2><p>Once a proposal is selected, the request is frozen and changes belong in a mutually confirmed agreement amendment.</p><form data-form="edit-request" data-id="${request.id}" data-version="${request.version}" class="form-grid"><label class="wide">Title<input name="title" required value="${esc(request.title)}"></label><label>Type<select name="category">${categories.slice(1).map((c) => `<option ${c === request.category ? "selected" : ""}>${c}</option>`).join("")}</select></label><label>Location<input name="location" value="${esc(request.location)}"></label><label class="wide">Desired outcome<textarea name="description" required>${esc(request.description)}</textarea></label><label>Skills<input name="skills" value="${esc(request.skills.join(", "))}"></label><label>Cash budget<input name="budget" type="number" min="0" value="${request.cashBudget || ""}"></label><label class="wide">Timing<input name="urgency" value="${esc(request.urgency)}"></label><button class="primary wide">Save changes</button></form>`);
+}
+
+function notificationsModal() {
+  const unread = state.notifications.filter((item) => !item.read_at);
+  openModal(`<span class="eyebrow">Notifications</span><div class="section-title"><h2>What changed</h2>${unread.length ? `<button class="text-btn" data-action="read-all">Mark all read</button>` : ""}</div><div class="notification-list">${state.notifications.map((item) => `<button data-notification="${item.id}" data-request="${item.request_id || ""}" class="${item.read_at ? "" : "unread"}"><span>${esc(item.kind)}</span><b>${esc(item.title)}</b><p>${esc(item.body)}</p><small>${new Date(item.created_at).toLocaleString()}</small></button>`).join("") || `<p>No notifications yet.</p>`}</div>`);
+}
+
+function preferencesModal() {
+  const p = state.notificationPreferences || {};
+  openModal(`<span class="eyebrow">Notification preferences</span><h2>Choose what reaches you.</h2><p>Email delivery is queued for future activation; these preferences are already stored and will be honored.</p><form data-form="preferences" class="preference-form">${[["in_app","In-app notifications"],["email_proposals","Proposal emails"],["email_messages","Message emails"],["email_agreements","Agreement emails"],["email_reminders","Reminder emails"]].map(([name,label]) => `<label><span>${label}</span><input type="checkbox" name="${name}" ${p[name] ? "checked" : ""}></label>`).join("")}<button class="primary">Save preferences</button></form>`);
+}
+
 function profileModal() {
   const profile = state.profile;
   openModal(`<span class="eyebrow">Public profile</span><h2>Introduce the person behind the work.</h2><form data-form="profile" class="form-grid"><label class="wide">Display name<input name="display_name" required minlength="2" maxlength="80" value="${esc(profile.name)}"></label><label class="wide">General location<input name="location_text" maxlength="120" value="${esc(profile.location)}" placeholder="Richmond, VA"></label><label class="wide">Short biography<textarea name="bio" maxlength="500">${esc(profile.bio)}</textarea></label><button class="primary wide">Save profile</button></form>`);
+}
+
+function deactivateModal() {
+  openModal(`<span class="eyebrow">Deactivate account</span><h2>Remove your public presence.</h2><p>Open requests will be cancelled, pending proposals withdrawn, and profile details replaced. Completed agreement history remains pseudonymous for the other participant. Active agreements must be resolved first.</p><form data-form="deactivate" class="form-grid"><label class="wide">Type DEACTIVATE to confirm<input name="confirmation" required pattern="DEACTIVATE"></label><button class="primary wide">Deactivate and sign out</button></form>`);
+}
+
+function downloadExport(data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob); const link = document.createElement("a");
+  link.href = url; link.download = `worktrade-export-${new Date().toISOString().slice(0,10)}.json`; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 document.addEventListener("click", (event) => {
@@ -211,6 +237,12 @@ document.addEventListener("click", (event) => {
   if (action === "reset") { localStorage.removeItem(STORAGE_KEY); const seed = cloneSeed(); store.batch(() => { state.profile = seed.profile; state.requests = seed.requests; }); notify("Demo data reset"); }
   if (action === "sign-in") signInModal();
   if (action === "edit-profile") profileModal();
+  if (action === "edit-request") editRequestModal(state.requests.find((item) => item.id === state.selectedId));
+  if (action === "notifications") notificationsModal();
+  if (action === "notification-preferences") preferencesModal();
+  if (action === "read-all") markNotificationsRead().then(loadNotifications).then(notificationsModal).catch((error) => notify(error.message));
+  if (action === "export-data") exportMyData().then(downloadExport).then(() => notify("Your data export is ready")).catch((error) => notify(error.message));
+  if (action === "deactivate") deactivateModal();
   if (action === "sign-out") signOut().then(() => { const seed = cloneSeed(); store.batch(() => { state.session = null; state.remote = false; state.profile = seed.profile; state.requests = seed.requests; }); notify("Signed out — showing the device demo"); }).catch((error) => notify(error.message));
   const accept = event.target.closest("[data-accept]"); if (accept) { if (state.remote) acceptOffer(accept.dataset.accept).then(loadRemoteWorkspace).then(() => notify("Proposal selected — awaiting mutual confirmation")).catch((error) => notify(error.message)); else { updateRequests((list) => { const r = list.find((x) => x.id === accept.dataset.request); const o = r.offers.find((x) => x.id === accept.dataset.accept); r.agreement = { ...proposeAgreement({ offer: o, request: r, requesterId: r.ownerId, providerId: o.provider === state.profile.name ? "me" : `provider:${o.id}` }), provider: o.provider, progress: 0 }; r.agreement = confirmAgreement(r.agreement, r.ownerId); r.status = "proposed"; r.milestones = [{ title: "Confirm scope", done: false }, { title: "Prepare inputs", done: false }, { title: "Complete work", done: false }, { title: "Review exchange", done: false }]; r.updates.push({ id: crypto.randomUUID(), author: r.owner, text: `Selected ${o.provider}'s proposal. Both parties must confirm before work starts.`, date: "Today" }); return list; }); notify("Proposal selected — awaiting mutual confirmation"); } }
   const agreementAction = event.target.closest("[data-agreement]")?.dataset.agreement;
@@ -220,6 +252,8 @@ document.addEventListener("click", (event) => {
   const remove = event.target.closest("[data-remove]"); if (remove) { const [list, index] = remove.dataset.remove.split(":"); const profile = structuredClone(state.profile); profile[list].splice(Number(index), 1); if (state.remote) updateMyProfile({ display_name: profile.name, location_text: profile.location, bio: profile.bio, needs: profile.needs, offers: profile.offers }).then(() => { state.profile = profile; notify("Profile updated"); }).catch((error) => notify(error.message)); else { state.profile = profile; persist(); } }
   const followPerson = event.target.closest("[data-follow-person]"); if (followPerson) { const profile = structuredClone(state.profile); profile.following ||= []; profile.following = profile.following.includes(followPerson.dataset.followPerson) ? profile.following.filter((id) => id !== followPerson.dataset.followPerson) : [...profile.following, followPerson.dataset.followPerson]; state.profile = profile; persist(); notify("Following updated"); }
   const circle = event.target.closest("[data-circle]"); if (circle) { const profile = structuredClone(state.profile); profile.joinedCircles ||= []; profile.joinedCircles = profile.joinedCircles.includes(circle.dataset.circle) ? profile.joinedCircles.filter((id) => id !== circle.dataset.circle) : [...profile.joinedCircles, circle.dataset.circle]; state.profile = profile; persist(); notify("Circle membership updated"); }
+  const requestAction = event.target.closest("[data-request-action]"); if (requestAction) { const request = state.requests.find((item) => item.id === state.selectedId); if (confirm(`${requestAction.dataset.requestAction[0].toUpperCase() + requestAction.dataset.requestAction.slice(1)} this request?`)) closeRequest(request.id, request.version, requestAction.dataset.requestAction).then(async () => { state.view="workspace"; await loadRemoteWorkspace(); notify("Request updated"); }).catch((error) => notify(error.message)); }
+  const notification = event.target.closest("[data-notification]"); if (notification) { markNotificationsRead([notification.dataset.notification]).then(loadNotifications); closeModal(); if (notification.dataset.request) { state.selectedId=notification.dataset.request; state.view="detail"; } }
 });
 
 document.addEventListener("input", (event) => { if (event.target.id === "search") { state.query = event.target.value; } });
@@ -246,6 +280,9 @@ document.addEventListener("submit", async (event) => {
   if (form.dataset.form === "evidence") { const file = form.elements.photo.files[0]; if (!file || file.size > 10485760) return notify("Choose a JPG, PNG, or WebP under 10 MB."); try { await uploadWorkEvidence(form.dataset.agreement, file, { skill: data.get("skill"), description: data.get("description") }); form.reset(); await loadRemoteWorkspace(); notify("Work evidence added"); } catch (error) { notify(error.message); } }
   if (form.dataset.form === "sign-in") { signInWithEmail(data.get("email")).then(() => { closeModal(); notify("Check your email for the secure link"); }).catch((error) => notify(error.message)); }
   if (form.dataset.form === "profile") { const profile = { ...structuredClone(state.profile), name: data.get("display_name"), location: data.get("location_text"), bio: data.get("bio") }; try { if (state.remote) await updateMyProfile({ display_name: profile.name, location_text: profile.location, bio: profile.bio, needs: profile.needs, offers: profile.offers }); state.profile = profile; if (!state.remote) persist(); closeModal(); notify("Profile saved"); } catch (error) { notify(error.message); } }
+  if (form.dataset.form === "edit-request") { try { await updateRequest(form.dataset.id, Number(form.dataset.version), { title:data.get("title"), description:data.get("description"), kind:data.get("category").toLowerCase(), location:data.get("location"), urgency:data.get("urgency"), cash_budget_cents:(Number(data.get("budget"))||0)*100, skills:data.get("skills").split(",").map((x)=>x.trim()).filter(Boolean) }); closeModal(); await loadRemoteWorkspace(); notify("Request updated with history preserved"); } catch(error) { notify(error.message); } }
+  if (form.dataset.form === "preferences") { try { state.notificationPreferences = await saveNotificationPreferences({ in_app:data.has("in_app"), email_proposals:data.has("email_proposals"), email_messages:data.has("email_messages"), email_agreements:data.has("email_agreements"), email_reminders:data.has("email_reminders") }); closeModal(); notify("Notification preferences saved"); } catch(error) { notify(error.message); } }
+  if (form.dataset.form === "deactivate") { try { await deactivateMyAccount(); const seed=cloneSeed(); store.batch(()=>{state.session=null;state.remote=false;state.profile=seed.profile;state.requests=seed.requests;state.notifications=[];}); closeModal(); notify("Account deactivated; showing device demo"); } catch(error) { notify(error.message); } }
 });
 
 store.subscribe(render, true);
@@ -253,7 +290,7 @@ document.querySelector("#mode-badge").textContent = backendConfigured ? "Connect
 
 function mapRemoteRequest(request) {
   const name = request.profiles?.display_name || "WorkTrade member";
-  return { id: request.id, ownerId: request.owner_id, owner: name, initials: name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(), title: request.title, category: request.kind[0].toUpperCase() + request.kind.slice(1), location: request.location_text || "Location shared privately", distance: "—", urgency: request.urgency_text || "Flexible", status: request.stage, description: request.description, skills: (request.work_request_skills || []).map((item) => item.skill), exchange: ["cash", "barter", "hybrid"], cashBudget: request.cash_budget_cents ? Math.round(request.cash_budget_cents / 100) : 0, offersInReturn: ["Open to a fair proposal"], createdAt: request.created_at, offers: [], updates: [], messages: [], followers: [], reports: [] };
+  return { id: request.id, version: request.version, ownerId: request.owner_id, owner: name, initials: name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(), title: request.title, category: request.kind[0].toUpperCase() + request.kind.slice(1), location: request.location_text || "Location shared privately", distance: "—", urgency: request.urgency_text || "Flexible", status: request.stage, description: request.description, skills: (request.work_request_skills || []).map((item) => item.skill), exchange: ["cash", "barter", "hybrid"], cashBudget: request.cash_budget_cents ? Math.round(request.cash_budget_cents / 100) : 0, offersInReturn: ["Open to a fair proposal"], createdAt: request.created_at, offers: [], updates: [], messages: [], followers: [], reports: [] };
 }
 
 async function loadRemoteWorkspace() {
@@ -283,13 +320,20 @@ async function loadRemoteWorkspace() {
   });
 }
 
+async function loadNotifications() {
+  if (!state.remote) return;
+  state.notifications = await getNotifications();
+  const badge=document.querySelector("#unread-count"); const count=state.notifications.filter((item)=>!item.read_at).length;
+  if (badge) badge.textContent=count ? String(count) : "";
+}
+
 async function hydrateAccount() {
   if (!backendConfigured || state.view !== "profile") return;
   const panel = document.querySelector("#account-panel");
   if (!panel) return;
   try {
     const session = state.session || await getSession();
-    panel.innerHTML = session ? `<b>${esc(session.user.email)}</b><p>Your session is encrypted and managed by Supabase Auth.</p><button class="secondary" data-action="sign-out">Sign out</button>` : `<b>Ready for a real account</b><p>Sign in with a secure email link.</p><button class="primary" data-action="sign-in">Sign in</button>`;
+    panel.innerHTML = session ? `<b>${esc(session.user.email)}</b><p>Your session is encrypted and managed by Supabase Auth.</p><div class="account-actions"><button class="secondary" data-action="notification-preferences">Notifications</button><button class="secondary" data-action="export-data">Export my data</button><button class="secondary" data-action="sign-out">Sign out</button><button class="danger-text" data-action="deactivate">Deactivate account</button></div>` : `<b>Ready for a real account</b><p>Sign in with a secure email link.</p><button class="primary" data-action="sign-in">Sign in</button>`;
   } catch (error) { panel.innerHTML = `<p>Account service unavailable: ${esc(error.message)}</p>`; }
 }
 
@@ -300,7 +344,7 @@ async function bootstrapBackend() {
   try {
     const session = await getSession();
     state.session = session;
-    if (session) await loadRemoteWorkspace();
+    if (session) { await loadRemoteWorkspace(); state.notificationPreferences=await getNotificationPreferences(); await loadNotifications(); }
   } catch (error) { notify(`Connected service unavailable: ${error.message}`); }
 }
 bootstrapBackend();
