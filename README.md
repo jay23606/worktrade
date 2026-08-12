@@ -1,119 +1,158 @@
 # WorkTrade
 
-WorkTrade is a connected alpha for exchanging practical work through cash, barter, or both. It adapts OpenStart's browser-native architecture and server-authoritative operational model to work requests, proposals, agreements, dependency holds, milestones, and evidence-backed reputation.
+WorkTrade is a community platform for getting useful work done through cash, barter, services, goods, shared resources, or a negotiated combination. It supports ordinary two-person work agreements and closed reciprocal exchanges among several members without creating platform credits.
 
-[Open the live alpha](https://jay23606.github.io/worktrade/) | [View the repository](https://github.com/jay23606/worktrade)
+[Open WorkTrade](https://jay23606.github.io/worktrade/) · [Repository](https://github.com/jay23606/worktrade) · [UAT report](docs/UAT_REPORT.md)
 
-## Connected alpha capabilities
+> WorkTrade is a connected pilot build, not an unrestricted public marketplace. Payments and barter settlement happen directly between participants. WorkTrade does not hold funds, guarantee work, or verify professional competence.
 
-- Discover and filter public work requests
-- Post work to build, repair, install, fabricate, restore, maintain, inspect, or diagnose
-- Persist exchange modes, offered value, site constraints, location privacy, and request photos
-- Edit, close, cancel, or archive open requests with immutable change history
-- Save private drafts, publish when ready, duplicate prior requests, and reopen eligible requests
-- Make cash, barter, or hybrid proposals
-- Define exclusions, responsibilities, milestones, questions, and proposal expiration
-- Revise or withdraw pending proposals and compare owner-visible terms
-- Accept an offer through a server-authoritative transaction
-- Independently confirm terms before an agreement becomes active
-- Propose amendments that require counterparty acceptance and renewed confirmation
-- Exchange private participant messages
-- Keep persistent participant project journals
-- Track milestones and general dependency holds
-- Add assigned and dated milestones during the planning stages
-- Track each party's cash, service, labor, or goods obligations independently
-- Require counterpart approval of fulfilled obligations
-- Prevent completion until every obligation is approved
-- Require final approval from the counterparty who did not request completion
-- Upload private JPG, PNG, or WebP work evidence
-- Leave contextual reviews tied to completed work
-- Maintain persistent `I need` and `I can offer` profile lists
-- Discover public work profiles by skill, need, location, exchange preference, or remote availability
-- See reciprocal match reasons based on what you need and another member can offer
-- Browse an activity feed of public requests and verified completion stories
-- Follow useful collaborators without popularity rankings
-- Send consent-gated collaboration invitations that state both sides of a proposed exchange
-- Open private introduction messages only after an invitation is accepted
-- Accept, decline, or mute introductions and receive network notifications
-- Save collaborators and reusable network searches
-- Switch between community activity and a following-only work feed
-- Negotiate shared scope, responsibilities, materials, exclusions, exchange terms, and availability before creating work
-- Require both people to confirm the same planning-workspace version
-- Convert mutually confirmed introductions into private work drafts
-- Archive introductions and delete saved searches
-- Enforce invitation rate limits and declined-contact cooldowns
-- Report or block directly from an introduction
-- Create public-discovery or private invite-only circles with explicit rules
-- Invite members, request access, moderate membership, and assign moderator roles
-- Post work visible only to active circle members
-- Share tools, equipment, workspace, vehicles, materials, and access
-- See circle-scoped activity and completed-work reputation
-- Enforce private-circle membership in database row-level policies
-- Discover explainable three-person barter loops inside trusted circles
-- Build and revise closed reciprocal chains without artificial exchange credits
-- Require every participant to accept the same version before activation
-- Run chains simultaneously, sequentially, or with explicit conditions
-- Track each contribution, fulfillment, recipient approval, due date, and dependency hold
-- Keep shared chain messages and an immutable activity history
-- Complete only when every contribution has been approved
-- Cancel or dispute a chain without rewriting its prior record
-- Renegotiate an unfulfilled active chain or replace a participant, resetting unanimous consent
-- Publish completed agreements as evidence-backed portfolio stories with explicit visibility
-- Receive proposal, message, and agreement notifications with unread state
-- Review a readable agreement event history
-- Use an action-oriented dashboard for requests, proposals, approvals, active work, and completed history
-- Store notification preferences for future email delivery
-- Export personal data and deactivate an account
-- Use a resettable device-local sample experience while signed out
+## What makes it different
 
-## Hosted environment
+- **Value is negotiated, not tokenized.** People may exchange money, labor, services, materials, goods, equipment, space, access, or a combination.
+- **Reputation is tied to outcomes.** Reviews, evidence, portfolios, and activity reference completed work rather than popularity.
+- **Conversation requires consent.** A profile invitation states both the need and offer; private messaging opens only after acceptance.
+- **Communities create trust boundaries.** Invite-only circles can keep members, resources, work, reputation, and barter chains private.
+- **Multi-person barter is operational.** A chain forms one closed loop, requires unanimous versioned consent, and tracks every contribution independently.
 
-The live alpha is connected to a dedicated Supabase project in `us-east-1`. Database migrations, row-level policies, private evidence storage, authentication callbacks, and the `wt-agreement-action` Edge Function are deployed. `config.js` contains only browser-safe public configuration.
+## Product status
 
-Signed-out visitors use device-local sample records. Signed-in users use hosted authentication and persistence.
+| Area                       | Status                | Notes                                                                                            |
+| -------------------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
+| Accounts and profiles      | Connected             | Email-link authentication, privacy, availability, offers, needs, and resources                   |
+| Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
+| Agreements                 | Connected             | Mutual confirmation, amendments, scheduling, milestones, holds, obligations, completion approval |
+| Evidence and reputation    | Connected             | Private evidence, contextual reviews, verified completion stories, public portfolios             |
+| Social network             | Connected             | Explainable matches, follows, saved profiles/searches, activity, notifications                   |
+| Introductions              | Connected             | Consent gate, private messaging, shared planning workspace, conversion to work                   |
+| Trusted circles            | Connected pilot       | Membership workflows, roles, private work, resources, rules, scoped reputation                   |
+| Multi-person barter chains | Connected pilot       | Circle-only discovery, unanimous consent, execution modes, holds, approvals, disputes            |
+| Moderation operations      | Incomplete            | Reports exist; staff review console and operating procedures do not                              |
+| Transactional email        | Incomplete            | Preferences persist; production delivery is not active                                           |
+| Payments or escrow         | Not planned for pilot | Participants settle directly                                                                     |
 
-Never put service-role keys, secret API keys, email-provider credentials, payment credentials, or identity-verification secrets in this repository.
+## Primary journeys
 
-## Trust boundary
+### Request → agreement → verified outcome
 
-- Important agreement mutations are authorized and locked in PostgreSQL.
-- Both parties independently confirm terms.
-- A responsible party cannot approve its own fulfilled obligation.
-- Accepted requests cannot be silently rewritten.
-- Active agreements block conflicting request closure and account deactivation.
-- Evidence images remain private and use short-lived signed URLs.
-- Reports are private and blocks are unilateral.
-- Payments and barter settlement happen directly between participants.
-- WorkTrade does not hold funds, create exchange credits, guarantee work, or verify professional competence.
-- Trade-chain validation exists as domain groundwork but is not yet part of the connected workflow.
+1. A member publishes work with the desired outcome, constraints, skills, location privacy, and acceptable exchange modes.
+2. Another member proposes scope, exclusions, responsibilities, milestones, timing, and value exchanged.
+3. The requester selects a proposal; both people independently confirm the same terms.
+4. Participants message, schedule, resolve dependencies, complete milestones, and approve each side of the exchange.
+5. Completion requires counterparty approval. Evidence, contextual reviews, and an optional portfolio story remain tied to the agreement.
 
-Account deactivation removes public profile details, capabilities, open requests, and pending proposals. Completed agreements retain a pseudonymous participant record so counterpart history remains coherent. Permanent authentication-record erasure is deferred until a formal retention policy is adopted.
+### Profile → introduction → work
+
+1. Explainable matching shows how one member's offers and needs overlap another's.
+2. A collaboration invitation states both sides of a possible exchange.
+3. The recipient accepts, declines, or mutes it. Messaging opens only after acceptance.
+4. Both people negotiate scope, responsibilities, materials, exclusions, exchange, and availability in a versioned workspace.
+5. Both confirm the same version before it becomes a private work draft.
+
+### Circle → reciprocal barter chain
+
+1. Active members of the same trusted circle discover or manually build a closed loop of at least three contributions.
+2. Every participant reviews the entire loop and accepts the same version. Any revision resets all consent.
+3. The chain runs simultaneously, sequentially, or conditionally. Dependencies can pause the whole chain or one link.
+4. Providers submit fulfillment and recipients approve it. The chain completes only when every link is approved.
+5. Unfulfilled chains may be renegotiated; active chains may be cancelled or disputed without rewriting history.
+
+## Trust and privacy boundaries
+
+- PostgreSQL security-definer workflows authorize consequential mutations and lock current versions.
+- Row-level security limits private requests, messages, evidence, circle data, and chains to eligible participants.
+- Accepted request terms and chain versions cannot be silently rewritten.
+- Agreement and chain revisions reset prior confirmations.
+- A contributor cannot approve their own obligation.
+- Private introduction messaging requires acceptance and honors blocks, cooldowns, and invitation rate limits.
+- Circle member directories, resources, work, and chains require active membership.
+- Evidence uses private object storage and short-lived signed URLs.
+- Account deactivation removes public presence while preserving pseudonymous counterpart history.
+- The public Pages artifact contains browser runtime files only; migrations, tests, and repository internals are not deployed.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Browser["Browser-native UI"] --> Facade["Backend facade"]
+  Facade --> Domains["Request · Agreement · Network · Circle · Chain modules"]
+  Domains --> Auth["Supabase Auth"]
+  Domains --> DB["PostgreSQL RPCs + RLS"]
+  Domains --> Storage["Private evidence storage"]
+  DB --> History["Versioned terms + audit history"]
+  GH["GitHub Pages"] --> Browser
+```
+
+The client is plain HTML, CSS, and ES modules. `modules/backend.js` is a stable compatibility facade; implementations live in domain modules under `modules/backend/`. High-risk transitions are database functions or the agreement Edge Function rather than client-side table writes.
+
+## Repository map
+
+```text
+app.js                         UI composition and interaction handlers
+modules/backend.js             stable backend export facade
+modules/backend/               account, request, agreement, network, circle, chain, trust domains
+modules/agreements.js          pure agreement and chain invariants
+modules/store.js               reactive client state
+supabase/migrations/           append-only hosted schema and authorization changes
+supabase/functions/            server-authoritative agreement action function
+tests/                         unit and UAT contract tests
+scripts/integration-test.mjs   destructive temporary-user hosted lifecycle test
+docs/UAT_REPORT.md             findings, release gates, and manual pilot checklist
+```
 
 ## Run locally
 
+Requirements: a recent Node.js release and Python available as `python`.
+
 ```bash
 npm test
+npm run test:uat
 npm start
 ```
 
-Then open `http://localhost:8080`. Copy `config.example.js` to `config.js` and provide browser-safe Supabase configuration when connecting another deployment.
+Open `http://localhost:8080`.
 
-## Test scope
+The committed `config.js` contains browser-safe public Supabase configuration only. For another deployment, copy `config.example.js` to `config.js` and provide that project's URL and publishable key. Never commit service-role keys, email-provider credentials, payment credentials, or identity-verification secrets.
 
-Run `npm run test:uat` for deployment and authorization contract checks. The current findings and manual three-account pilot script are in [docs/UAT_REPORT.md](docs/UAT_REPORT.md).
+## Supabase deployment
 
-`npm test` checks browser modules and agreement invariants. `npm run test:integration` creates two temporary hosted users and exercises the real request → offer → agreement → message → milestone → dependency → reciprocal fulfillment → completion → evidence → review lifecycle. It also checks important authorization failures, data export, notifications, and deactivation before deleting temporary identities and evidence.
+Link the CLI to the intended project, review the target, then apply migrations in order:
 
-The integration test requires short-lived environment configuration and is not run by the public Pages workflow.
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+supabase functions deploy wt-agreement-action
+```
 
-## Not yet ready
+Do not edit an applied migration. Add a later migration that replaces the affected policy or function.
 
-- Staff moderation dashboard and operational report handling
-- Prohibited and regulated-work enforcement
-- Production transactional email delivery
-- Permanent account erasure policy and workflow
-- Terms, privacy, safety, and marketplace disclosures
-- Public multi-person trade chains
-- Integrated payment collection or escrow
+## Testing
 
-Until those safeguards are complete, WorkTrade should be treated as an internal alpha rather than an open public marketplace.
+```bash
+npm test             # syntax, domain invariants, store tests, UAT contracts
+npm run test:uat     # deployment and authorization contract checks only
+npm run test:integration
+```
+
+The hosted integration test creates temporary users, exercises the real request-to-completion workflow, validates authorization failures, and removes its test identities and evidence in `finally`. It requires short-lived protected environment variables:
+
+- `WT_SUPABASE_URL`
+- `WT_SUPABASE_PUBLISHABLE_KEY`
+- `WT_SUPABASE_SECRET_KEY`
+
+Do not place the secret key in GitHub Pages configuration or public CI logs. The current manual three-account circle and chain script is in [docs/UAT_REPORT.md](docs/UAT_REPORT.md).
+
+## Deployment
+
+Pushing `main` runs the Pages workflow. It builds an explicit allowlisted artifact containing only the browser application and then deploys it. Database migrations and Edge Functions are deployed separately through Supabase.
+
+## Release gates
+
+Before opening registration beyond a supervised 5–15 person pilot:
+
+- Build the staff moderation console and operating procedures.
+- Activate transactional email for time-sensitive invitations and approvals.
+- Establish prohibited-work, safety, privacy, terms, retention, and permanent-erasure policies.
+- Run the protected hosted UAT with three clean accounts, including nonparticipant REST authorization attempts.
+- Resolve all P1 findings in [the UAT report](docs/UAT_REPORT.md).
+
+Integrated payment collection, custody, exchange credits, and escrow are intentionally outside the pilot.

@@ -12,6 +12,8 @@ The connected alpha is suitable for a small, supervised pilot after the P1 hoste
 - **P0 — Artifact dependency omission:** live smoke testing caught an empty application after `data.js` was omitted from the first allowlist. The dependency and its regression assertion are now included.
 - **P1 — Excess database privileges:** chain internals explicitly revoke client writes; validation and notification helpers cannot be called directly.
 - **P2 — Stale implementation:** obsolete demo network, fake people, and superseded renderers were removed.
+- **P2 — Oversized backend module:** the backend is now split into request, agreement, network, circle, chain, trust, and core domains behind a stable facade.
+- **P2 — Repeated UI infrastructure:** formatting, escaping, modal focus management, and remote request mapping now live in focused modules.
 - **P2 — Modal keyboard behavior:** dialogs now have accessible names, trap focus, close with Escape, and restore focus.
 - **P2 — Missing contract tests:** automated UAT contracts cover deployment, private-circle visibility, introduction consent, rate limiting, and unanimous chain consent.
 
@@ -37,7 +39,7 @@ Run with three new accounts in separate browser profiles.
 - **P1:** Hosted integration testing needs short-lived admin credentials in protected CI.
 - **P1:** A staff moderation console and operational report workflow do not exist.
 - **P1:** Transactional email delivery is not active.
-- **P2:** `app.js` and `modules/backend.js` remain oversized and should be split by domain.
+- **P2:** `app.js` still contains domain rendering and event orchestration; continue extracting feature controllers after pilot behavior is stable.
 - **P2:** Circles and chains need dedicated routes for mobile use and deep linking.
 - **P2:** Loading states need localized retry and disabled-submit behavior.
 - **P2:** Temporary profiles from interrupted integration runs need an authorized cleanup job.

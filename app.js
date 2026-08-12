@@ -1,5 +1,7 @@
 import { createStore } from "./modules/store.js";
 import { cloneSeed } from "./data.js";
+import { createModalController, esc, money, modeLabel } from "./modules/ui.js";
+import { mapRemoteRequest } from "./modules/request-mapper.js";
 import {
   confirmAgreement,
   proposeAgreement,
@@ -127,7 +129,7 @@ const store = createStore({
 const { state } = store;
 const main = document.querySelector("#main");
 const modalRoot = document.querySelector("#modal-root");
-let modalReturnFocus = null;
+const modalController = createModalController(modalRoot);
 const categories = [
   "All",
   "Build",
@@ -141,18 +143,6 @@ const categories = [
   "Diagnose",
 ];
 
-const esc = (value = "") =>
-  String(value).replace(
-    /[&<>'"]/g,
-    (char) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[
-        char
-      ],
-  );
-const money = (value) =>
-  value ? `$${Number(value).toLocaleString()}` : "Open budget";
-const modeLabel = (mode) =>
-  ({ cash: "Cash", barter: "Barter", hybrid: "Cash + barter" })[mode] || mode;
 const persist = () =>
   localStorage.setItem(
     STORAGE_KEY,
@@ -714,19 +704,10 @@ function render() {
 }
 
 function openModal(content) {
-  modalReturnFocus = document.activeElement;
-  modalRoot.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">${content}<button class="modal-x" data-modal-close aria-label="Close dialog">×</button></section></div>`;
-  const heading = modalRoot.querySelector("h2");
-  if (heading) heading.id = "modal-title";
-  setTimeout(
-    () => modalRoot.querySelector("input, select, textarea")?.focus(),
-    0,
-  );
+  modalController.open(content);
 }
 function closeModal() {
-  modalRoot.innerHTML = "";
-  if (modalReturnFocus instanceof HTMLElement) modalReturnFocus.focus();
-  modalReturnFocus = null;
+  modalController.close();
 }
 
 function postModal() {
@@ -1548,24 +1529,7 @@ document.addEventListener("change", (event) => {
   }
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Tab" && modalRoot.firstElementChild) {
-    const focusable = [
-      ...modalRoot.querySelectorAll(
-        "button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]",
-      ),
-    ].filter((item) => item.offsetParent !== null);
-    if (focusable.length) {
-      const first = focusable[0],
-        last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-  }
+  modalController.trapFocus(event);
   const card = event.target.closest("[data-open]");
   if (card && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
@@ -2308,47 +2272,6 @@ store.subscribe(render, true);
 document.querySelector("#mode-badge").textContent = backendConfigured
   ? "Connected"
   : "Demo mode";
-
-function mapRemoteRequest(request) {
-  const name = request.profiles?.display_name || "WorkTrade member";
-  return {
-    id: request.id,
-    version: request.version,
-    ownerId: request.owner_id,
-    owner: name,
-    initials: name
-      .split(/\s+/)
-      .map((part) => part[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase(),
-    title: request.title,
-    category: request.kind[0].toUpperCase() + request.kind.slice(1),
-    location:
-      request.location_visibility === "region"
-        ? request.location_text || "Region not specified"
-        : "Location shared with participants",
-    distance: "—",
-    urgency: request.urgency_text || "Flexible",
-    status: request.stage,
-    description: request.description,
-    constraints: request.constraints || "",
-    skills: (request.work_request_skills || []).map((item) => item.skill),
-    exchange: request.exchange_modes || ["cash", "barter", "hybrid"],
-    cashBudget: request.cash_budget_cents
-      ? Math.round(request.cash_budget_cents / 100)
-      : 0,
-    offersInReturn: request.exchange_summary
-      ? [request.exchange_summary]
-      : ["Open to a fair proposal"],
-    createdAt: request.created_at,
-    offers: [],
-    updates: [],
-    messages: [],
-    followers: [],
-    reports: [],
-  };
-}
 
 async function loadRemoteWorkspace() {
   const [profile, requests, ownedRows, agreementRows, myOffers] =

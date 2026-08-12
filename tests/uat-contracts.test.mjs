@@ -4,7 +4,23 @@ import { readFile, readdir } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
 const app = await readFile(new URL("app.js", root), "utf8");
-const backend = await readFile(new URL("modules/backend.js", root), "utf8");
+const backendFiles = [
+  "backend.js",
+  "backend/core.js",
+  "backend/requests.js",
+  "backend/agreements.js",
+  "backend/network.js",
+  "backend/circles.js",
+  "backend/chains.js",
+  "backend/trust.js",
+];
+const backend = (
+  await Promise.all(
+    backendFiles.map((name) =>
+      readFile(new URL(`modules/${name}`, root), "utf8"),
+    ),
+  )
+).join("\n");
 const workflow = await readFile(
   new URL(".github/workflows/pages.yml", root),
   "utf8",
@@ -69,4 +85,17 @@ test("legacy network renderers are not retained", () => {
   assert.doesNotMatch(app, /function renderLegacyNetwork/);
   assert.doesNotMatch(app, /function renderNetworkBase/);
   assert.doesNotMatch(app, /function peopleCards/);
+});
+
+test("backend facade preserves domain API after module split", async () => {
+  const facade = await import(new URL("modules/backend.js", root));
+  for (const operation of [
+    "createRequest",
+    "performAgreementAction",
+    "sendCollaborationInvitation",
+    "createCircle",
+    "createTradeChain",
+    "submitReview",
+  ])
+    assert.equal(typeof facade[operation], "function");
 });
