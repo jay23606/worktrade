@@ -28,6 +28,11 @@ WorkTrade is a connected alpha for exchanging practical work through cash, barte
 - Upload private JPG, PNG, or WebP work evidence
 - Leave contextual reviews tied to completed work
 - Maintain persistent `I need` and `I can offer` profile lists
+- Discover public work profiles by skill, need, location, exchange preference, or remote availability
+- See reciprocal match reasons based on what you need and another member can offer
+- Browse an activity feed of public requests and verified completion stories
+- Follow useful collaborators without popularity rankings
+- Publish completed agreements as evidence-backed portfolio stories with explicit visibility
 - Receive proposal, message, and agreement notifications with unread state
 - Review a readable agreement event history
 - Use an action-oriented dashboard for requests, proposals, approvals, active work, and completed history
