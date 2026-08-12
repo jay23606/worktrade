@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "start": "python -m http.server 8080",
-    "test": "node --check app.js && node --check modules/store.js && node --test tests/*.test.mjs"
+    "test": "node --check app.js && node --check modules/store.js && node --check modules/agreements.js && node --test tests/*.test.mjs"
   }
 }

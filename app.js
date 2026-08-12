@@ -1,5 +1,6 @@
 import { createStore } from "./modules/store.js";
 import { cloneSeed } from "./data.js";
+import { confirmAgreement, proposeAgreement, transitionAgreement } from "./modules/agreements.js";
 
 const STORAGE_KEY = "worktrade:v1";
 const saved = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } })();
@@ -63,7 +64,7 @@ function renderDetail(request) {
       </section>
     </article>
     <aside class="detail-side"><div class="person"><span class="avatar big">${request.initials}</span><div><small>Posted by</small><h3>${esc(request.owner)}</h3><p>${esc(request.location)}</p></div></div>
-      ${request.agreement ? agreementCard(request.agreement) : `<button class="primary full" data-action="offer" data-id="${request.id}">Propose a trade</button>`}
+      ${request.agreement ? agreementCard(request) : `<button class="primary full" data-action="offer" data-id="${request.id}">Propose a trade</button>`}
       <div class="side-note"><b>Choose your own exchange</b><p>Cash, goods, services, labor, access, or a combination. WorkTrade does not assign artificial credits.</p></div>
       ${request.offers.length ? `<section class="proposals"><span class="eyebrow">Proposals</span>${request.offers.map((o) => offerCard(o, isOwner, request.id)).join("")}</section>` : ""}
     </aside></div>`, "Work request");
@@ -73,8 +74,18 @@ function offerCard(offer, isOwner, requestId) {
   return `<article class="offer"><div><span class="mini-avatar">${offer.initials}</span><b>${esc(offer.provider)}</b><span class="mode">${modeLabel(offer.mode)}</span></div><p><strong>Will provide:</strong> ${esc(offer.gives)}</p><p><strong>In exchange:</strong> ${esc(offer.wants)}</p><small>${esc(offer.duration)} · ${esc(offer.note)}</small>${isOwner ? `<button class="secondary full" data-accept="${offer.id}" data-request="${requestId}">Accept and start</button>` : ""}</article>`;
 }
 
-function agreementCard(agreement) {
-  return `<div class="agreement"><span class="eyebrow">Active agreement</span><h3>${esc(agreement.provider)}</h3><p>${esc(agreement.summary)}</p><div class="progress"><span style="width:${agreement.progress}%"></span></div><small>${agreement.progress}% of milestones complete</small></div>`;
+function agreementCard(request) {
+  const agreement = request.agreement;
+  const modern = Array.isArray(agreement.parties);
+  const confirmed = modern && agreement.confirmations.includes("me");
+  const controls = modern ? agreementControls(agreement, confirmed) : "";
+  return `<div class="agreement"><span class="eyebrow">${esc(agreement.status)} agreement${agreement.version ? ` · v${agreement.version}` : ""}</span><h3>${esc(agreement.provider || "Shared terms")}</h3><p>${esc(agreement.exchange || agreement.summary)}</p><div class="progress"><span style="width:${agreement.progress || 0}%"></span></div><small>${agreement.progress || 0}% of milestones complete</small>${controls}</div>`;
+}
+
+function agreementControls(agreement, confirmed) {
+  if (agreement.status === "proposed") return confirmed ? `<small class="agreement-note">Waiting for the other party to confirm.</small>` : `<button class="secondary full" data-agreement="confirm">Confirm terms</button>`;
+  const next = { agreed: ["scheduled", "Schedule work"], scheduled: ["active", "Start work"], active: ["review", "Request review"], review: ["completed", "Approve completion"] }[agreement.status];
+  return `${next ? `<button class="secondary full" data-agreement="${next[0]}">${next[1]}</button>` : ""}${!["completed", "cancelled", "disputed"].includes(agreement.status) ? `<div class="agreement-links"><button data-agreement="disputed">Raise concern</button><button data-agreement="cancelled">Cancel</button></div>` : ""}`;
 }
 
 function holdCard(hold) {
@@ -155,7 +166,9 @@ document.addEventListener("click", (event) => {
   if (action === "hold") holdModal(state.selectedId);
   if (action === "resolve-hold") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.hold = null; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: "Resolved the dependency hold. Work can move forward.", date: "Today" }); return list; }); notify("Dependency resolved"); }
   if (action === "reset") { localStorage.removeItem(STORAGE_KEY); const seed = cloneSeed(); store.batch(() => { state.profile = seed.profile; state.requests = seed.requests; }); notify("Demo data reset"); }
-  const accept = event.target.closest("[data-accept]"); if (accept) { updateRequests((list) => { const r = list.find((x) => x.id === accept.dataset.request); const o = r.offers.find((x) => x.id === accept.dataset.accept); r.agreement = { provider: o.provider, mode: o.mode, summary: o.wants, status: "active", progress: 0 }; r.status = "active"; r.milestones = [{ title: "Confirm scope", done: false }, { title: "Prepare inputs", done: false }, { title: "Complete work", done: false }, { title: "Review exchange", done: false }]; r.updates.push({ id: crypto.randomUUID(), author: r.owner, text: `Accepted ${o.provider}'s proposal and opened the work agreement.`, date: "Today" }); return list; }); notify("Trade accepted — agreement started"); }
+  const accept = event.target.closest("[data-accept]"); if (accept) { updateRequests((list) => { const r = list.find((x) => x.id === accept.dataset.request); const o = r.offers.find((x) => x.id === accept.dataset.accept); r.agreement = { ...proposeAgreement({ offer: o, request: r, requesterId: r.ownerId, providerId: o.provider === state.profile.name ? "me" : `provider:${o.id}` }), provider: o.provider, progress: 0 }; r.agreement = confirmAgreement(r.agreement, r.ownerId); r.status = "proposed"; r.milestones = [{ title: "Confirm scope", done: false }, { title: "Prepare inputs", done: false }, { title: "Complete work", done: false }, { title: "Review exchange", done: false }]; r.updates.push({ id: crypto.randomUUID(), author: r.owner, text: `Selected ${o.provider}'s proposal. Both parties must confirm before work starts.`, date: "Today" }); return list; }); notify("Proposal selected — awaiting mutual confirmation"); }
+  const agreementAction = event.target.closest("[data-agreement]")?.dataset.agreement;
+  if (agreementAction) { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); if (agreementAction === "confirm") r.agreement = confirmAgreement(r.agreement, "me"); else r.agreement = transitionAgreement(r.agreement, agreementAction, "me"); r.status = r.agreement.status; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: agreementAction === "confirm" ? "Confirmed the current agreement terms." : `Moved the agreement to ${agreementAction}.`, date: "Today" }); return list; }); notify(agreementAction === "confirm" ? "Terms confirmed" : `Agreement moved to ${agreementAction}`); }
   const milestone = event.target.closest("[data-milestone]"); if (milestone) { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.milestones[Number(milestone.dataset.milestone)].done = !r.milestones[Number(milestone.dataset.milestone)].done; const done = r.milestones.filter((m) => m.done).length; r.agreement.progress = Math.round(done / r.milestones.length * 100); if (done === r.milestones.length) r.status = "completed"; return list; }); }
   const remove = event.target.closest("[data-remove]"); if (remove) { const [list, index] = remove.dataset.remove.split(":"); const profile = structuredClone(state.profile); profile[list].splice(Number(index), 1); state.profile = profile; persist(); }
 });
