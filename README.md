@@ -26,7 +26,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Introductions              | Connected             | Consent gate, private messaging, shared planning workspace, conversion to work                   |
 | Trusted circles            | Connected pilot       | Membership workflows, roles, private work, resources, rules, scoped reputation                   |
 | Multi-person barter chains | Connected pilot       | Circle-only discovery, unanimous consent, execution modes, holds, approvals, disputes            |
-| Moderation operations      | Core implemented      | Private reports, staff queue, restrictions, appeals, and immutable actions; first staff assignment and procedures remain |
+| Moderation operations      | Pilot ready           | Private reports, staff queue, restrictions, appeals, immutable actions, initial admin, and an operating runbook |
 | Transactional email        | Incomplete            | Preferences persist; production delivery is not active                                           |
 | Payments or escrow         | Not planned for pilot | Participants settle directly                                                                     |
 
@@ -97,6 +97,7 @@ supabase/functions/            server-authoritative agreement action function
 tests/                         unit and UAT contract tests
 scripts/integration-test.mjs   destructive temporary-user hosted lifecycle test
 docs/UAT_REPORT.md             findings, release gates, and manual pilot checklist
+docs/MODERATION_RUNBOOK.md     staff triage, action, appeal, and escalation procedure
 ```
 
 ## Run locally
@@ -151,7 +152,7 @@ Pushing `main` runs the Pages workflow. It builds an explicit allowlisted artifa
 
 Before opening registration beyond a supervised 5–15 person pilot:
 
-- Assign the initial administrator and adopt documented moderation operating procedures.
+- Review moderation staffing and response coverage before expanding beyond the supervised pilot.
 - Activate transactional email for time-sensitive invitations and approvals.
 - Establish prohibited-work, safety, privacy, terms, retention, and permanent-erasure policies.
 - Keep both protected hosted UAT lifecycles passing, including nonparticipant REST authorization attempts.

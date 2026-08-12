@@ -43,7 +43,7 @@ Run with three new accounts in separate browser profiles.
 
 ## Remaining findings
 
-- **P1:** The initial administrator has not been assigned and written moderation procedures have not been adopted.
+- **P2:** The pilot has one administrator; add a second trained reviewer before expanding so appeals and coverage do not depend on one person.
 - **P1:** Transactional email delivery is not active.
 - **P2:** `app.js` still contains domain rendering and event orchestration; continue extracting feature controllers after pilot behavior is stable.
 - **P2:** Circles and chains need dedicated routes for mobile use and deep linking.
