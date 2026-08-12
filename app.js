@@ -69,6 +69,15 @@ import {
   confirmIntroductionWorkspace,
   convertIntroductionToRequest,
   manageNetworkItem,
+  getCircleHub,
+  createCircle,
+  requestCircleMembership,
+  inviteCircleMember,
+  manageCircleMembership,
+  saveCircleResource,
+  deleteCircleResource,
+  createCircleRequest,
+  updateCircleSettings,
 } from "./modules/backend.js";
 
 const STORAGE_KEY = "worktrade:v1";
@@ -104,6 +113,8 @@ const store = createStore({
     saved_profiles: [],
     saved_searches: [],
   },
+  circleHub: { circles: [], members: [], resources: [], requests: [] },
+  selectedCircleId: null,
 });
 const { state } = store;
 const main = document.querySelector("#main");
@@ -515,6 +526,47 @@ function hydrateNetworkSocial() {
         "afterbegin",
         `<div class="saved-searches"><span>Saved searches</span>${saved.map((search) => `<button class="chip" data-saved-search="${search.id}">${esc(search.name)}</button><button class="saved-search-delete" data-network-manage="search:delete:${search.id}" aria-label="Delete ${esc(search.name)}">×</button>`).join("")}</div>`,
       );
+  if (state.session) {
+    const hub = state.circleHub || {
+      circles: [],
+      members: [],
+      resources: [],
+      requests: [],
+    };
+    const selected = hub.circles.find(
+      (circle) => circle.id === state.selectedCircleId,
+    );
+    document
+      .querySelector(".network-inbox")
+      ?.insertAdjacentHTML(
+        "beforebegin",
+        `<section class="circles-hub"><div class="section-title"><div><span class="eyebrow">Trusted circles</span><h2>Exchange within communities you know.</h2></div><button class="primary" data-action="create-circle">Create circle</button></div><div class="circle-grid">${hub.circles.map((circle) => `<article class="circle"><span class="category">${esc(circle.visibility)}</span><h3>${esc(circle.name)}</h3><p>${esc(circle.description || "")}</p><small>${circle.member_count} members · ${circle.request_count} open work</small><button class="secondary" data-open-circle="${circle.id}">${circle.membership?.status === "active" ? "Open circle" : circle.membership?.status === "requested" ? "Requested" : circle.membership?.status === "invited" ? "Review invitation" : "Request access"}</button></article>`).join("") || '<div class="empty"><p>No circles are visible yet.</p></div>'}</div>${selected ? circleDetail(selected, hub) : ""}</section>`,
+      );
+    if (["owner", "moderator"].includes(selected?.membership?.role))
+      document
+        .querySelector(".circle-detail .section-title>div:last-child")
+        ?.insertAdjacentHTML(
+          "beforeend",
+          `<button class="text-btn" data-circle-settings="${selected.id}">Edit rules</button>`,
+        );
+  }
+}
+
+function circleDetail(circle, hub) {
+  const membership = circle.membership;
+  if (!membership)
+    return `<section class="circle-detail"><h2>${esc(circle.name)}</h2><p>${esc(circle.description || "")}</p><button class="primary" data-circle-membership="request:${circle.id}:${state.profile.id}">Request access</button></section>`;
+  if (membership.status === "invited")
+    return `<section class="circle-detail"><h2>${esc(circle.name)}</h2><p>You were invited to this ${esc(circle.visibility)} circle.</p><button class="primary" data-circle-membership="accept:${circle.id}:${state.profile.id}">Accept invitation</button><button class="text-btn" data-circle-membership="decline:${circle.id}:${state.profile.id}">Decline</button></section>`;
+  if (membership.status !== "active")
+    return `<section class="circle-detail"><h2>${esc(circle.name)}</h2><p>Your membership request is ${esc(membership.status)}.</p></section>`;
+  const members = hub.members.filter((item) => item.circle_id === circle.id);
+  const resources = hub.resources.filter(
+    (item) => item.circle_id === circle.id,
+  );
+  const requests = hub.requests.filter((item) => item.circle_id === circle.id);
+  const moderator = ["owner", "moderator"].includes(membership.role);
+  return `<section class="circle-detail"><div class="section-title"><div><span class="eyebrow">${esc(membership.role)} · ${esc(circle.visibility)}</span><h2>${esc(circle.name)}</h2><p>${esc(circle.description || "")}</p></div><div><button class="secondary" data-circle-post="${circle.id}">Post private work</button><button class="secondary" data-circle-resource="${circle.id}">Share resource</button>${membership.role !== "owner" ? `<button class="text-btn" data-circle-membership="leave:${circle.id}:${state.profile.id}">Leave</button>` : ""}</div></div><div class="circle-rules"><b>Circle rules</b><p>${esc(circle.rules || "No additional rules have been posted.")}</p></div><div class="circle-columns"><section><h3>Members and circle work</h3>${members.map((member) => `<article class="circle-member"><b>${esc(member.display_name)}</b><span>${esc(member.role)} · ${member.completed_inside} completed here</span>${moderator && member.profile_id !== state.profile.id ? `${member.status === "requested" ? `<button data-circle-membership="approve:${circle.id}:${member.profile_id}">Approve</button><button data-circle-membership="decline:${circle.id}:${member.profile_id}">Decline</button>` : `<button data-circle-membership="remove:${circle.id}:${member.profile_id}">Remove</button>`}${membership.role === "owner" && member.status === "active" ? `<button data-circle-role="${circle.id}:${member.profile_id}:${member.role === "moderator" ? "member" : "moderator"}">${member.role === "moderator" ? "Make member" : "Make moderator"}</button>` : ""}` : ""}</article>`).join("")}<button class="text-btn" data-circle-invite="${circle.id}">Invite profile</button></section><section><h3>Shared resources</h3>${resources.map((resource) => `<article class="circle-resource"><span class="category">${esc(resource.kind)}</span><b>${esc(resource.name)}</b><p>${esc(resource.description)}</p><small>${esc(resource.owner_name)} · ${esc(resource.availability_text || "Ask about availability")}</small>${resource.owner_id === state.profile.id || moderator ? `<button class="text-btn" data-delete-circle-resource="${resource.id}">Remove</button>` : ""}</article>`).join("") || "<p>No shared resources yet.</p>"}</section></div><section><h3>Private circle activity</h3>${requests.map((request) => `<article class="activity-card"><span class="category">${esc(request.stage)}</span><h3>${esc(request.title)}</h3><p>${esc(request.description)}</p><small>${esc(request.owner_name)}</small></article>`).join("") || "<p>No circle work has been posted yet.</p>"}</section></section>`;
 }
 
 function invitationModal(profile) {
@@ -546,6 +598,46 @@ function workspaceModal(invitation) {
   };
   openModal(
     `<span class="eyebrow">Shared planning workspace · v${w.version}</span><h2>Shape the work before committing.</h2><p>Any edit clears both confirmations. Both people must confirm the same version before conversion.</p><form data-form="intro-workspace" data-invitation="${invitation.id}" data-version="${w.version}" class="form-grid"><label class="wide">Scope and desired outcome<textarea name="scope" required>${esc(w.scope)}</textarea></label><label>My responsibilities<textarea name="mine">${esc(w.responsibilities?.[state.profile.id] || "")}</textarea></label><label>Their responsibilities<textarea name="theirs">${esc(w.responsibilities?.other || "")}</textarea></label><label class="wide">Materials, tools, and access<textarea name="materials">${esc(w.materials)}</textarea></label><label class="wide">Exclusions and boundaries<textarea name="exclusions">${esc(w.exclusions)}</textarea></label><label class="wide">Exchange terms<textarea name="exchange_terms" required>${esc(w.exchange_terms)}</textarea></label><label>Proposed availability<textarea name="proposed_windows" placeholder="Saturday mornings; after 5pm weekdays">${esc(w.proposed_windows)}</textarea></label><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><button class="secondary wide">Save revised terms</button></form>${invitation.workspace ? `<button class="primary full" data-confirm-workspace="${invitation.id}:${w.version}">Confirm current terms</button>` : ""}`,
+  );
+}
+
+function createCircleModal() {
+  openModal(
+    `<span class="eyebrow">New trusted circle</span><h2>Create a place for known collaborators.</h2><form data-form="create-circle" class="form-grid"><label class="wide">Circle name<input name="name" required minlength="2" maxlength="100"></label><label class="wide">Purpose<textarea name="description" required maxlength="1000"></textarea></label><label>Visibility<select name="visibility"><option value="private">Invite-only</option><option value="public">Publicly discoverable</option></select></label><label class="wide">Rules<textarea name="rules" required placeholder="Who belongs, what may be posted, safety expectations, and moderation norms"></textarea></label><button class="primary wide">Create circle</button></form>`,
+  );
+}
+function circleSettingsModal(circle) {
+  openModal(
+    `<span class="eyebrow">Circle settings</span><h2>Edit rules and visibility.</h2><form data-form="circle-settings" data-circle="${circle.id}" class="form-grid"><label class="wide">Purpose<textarea name="description" required>${esc(circle.description || "")}</textarea></label><label>Visibility<select name="visibility"><option value="private">Invite-only</option><option value="public">Publicly discoverable</option></select></label><label class="wide">Rules<textarea name="rules" required>${esc(circle.rules || "")}</textarea></label><button class="primary wide">Save circle settings</button></form>`,
+  );
+  modalRoot.querySelector("[name=visibility]").value = circle.visibility;
+}
+
+function circleResourceModal(circleId) {
+  openModal(
+    `<span class="eyebrow">Shared circle resource</span><h2>What can members coordinate around?</h2><form data-form="circle-resource" data-circle="${circleId}" class="form-grid"><label>Type<select name="kind"><option>tool</option><option>equipment</option><option>workspace</option><option>vehicle</option><option>material</option><option>access</option><option>other</option></select></label><label>Name<input name="name" required maxlength="120"></label><label class="wide">Description<textarea name="description"></textarea></label><label class="wide">Availability and conditions<input name="availability"></label><button class="primary wide">Share with circle</button></form>`,
+  );
+}
+function circleInviteModal(circleId) {
+  openModal(
+    `<span class="eyebrow">Circle invitation</span><h2>Invite a visible WorkTrade profile.</h2><form data-form="circle-invite" data-circle="${circleId}" class="form-grid"><label class="wide">Profile<select name="profile" required>${(
+      state.networkProfiles || []
+    )
+      .filter((p) => p.id !== state.profile.id)
+      .map((p) => `<option value="${p.id}">${esc(p.display_name)}</option>`)
+      .join(
+        "",
+      )}</select></label><button class="primary wide">Send invitation</button></form>`,
+  );
+}
+function circlePostModal(circleId) {
+  openModal(
+    `<span class="eyebrow">Private circle work</span><h2>Post work only members can see.</h2><form data-form="circle-post" data-circle="${circleId}" class="form-grid"><label class="wide">Title<input name="title" required minlength="5" maxlength="140"></label><label>Type<select name="kind">${categories
+      .slice(1)
+      .map((c) => `<option value="${c.toLowerCase()}">${c}</option>`)
+      .join(
+        "",
+      )}<option value="other">Other</option></select></label><label>Location<input name="location"></label><label class="wide">Desired outcome<textarea name="description" required></textarea></label><label>Skills<input name="skills" placeholder="Carpentry, design"></label><label>Timing<input name="urgency" placeholder="Flexible"></label><label class="wide">Exchange terms<input name="exchange_summary" required placeholder="Garden help for welding, cash, or a mix"></label><label class="wide">Constraints<textarea name="constraints"></textarea></label><button class="primary wide">Post inside circle</button></form>`,
   );
 }
 
@@ -759,6 +851,7 @@ document.addEventListener("click", (event) => {
   const action = event.target.closest("[data-action]")?.dataset.action;
   if (action === "post") postModal();
   if (action === "save-search") saveSearchModal();
+  if (action === "create-circle") createCircleModal();
   if (action === "offer")
     offerModal(event.target.closest("[data-id]").dataset.id);
   if (action === "interest")
@@ -1255,6 +1348,64 @@ document.addEventListener("click", (event) => {
       loadNetwork();
     }
   }
+  const openCircle = event.target.closest("[data-open-circle]");
+  if (openCircle) {
+    const circle = state.circleHub.circles.find(
+      (item) => item.id === openCircle.dataset.openCircle,
+    );
+    if (
+      circle?.membership?.status === "active" ||
+      circle?.membership?.status === "invited"
+    )
+      state.selectedCircleId = circle.id;
+    else if (circle)
+      requestCircleMembership(circle.id)
+        .then(loadNetwork)
+        .then(() => notify("Membership requested"))
+        .catch((error) => notify(error.message));
+  }
+  const circleMembership = event.target.closest("[data-circle-membership]");
+  if (circleMembership) {
+    const [memberAction, circleId, profileId] =
+      circleMembership.dataset.circleMembership.split(":");
+    const operation =
+      memberAction === "request"
+        ? requestCircleMembership(circleId)
+        : manageCircleMembership(circleId, profileId, memberAction);
+    operation
+      .then(loadNetwork)
+      .then(() => notify("Circle membership updated"))
+      .catch((error) => notify(error.message));
+  }
+  const circleRole = event.target.closest("[data-circle-role]");
+  if (circleRole) {
+    const [circleId, profileId, role] =
+      circleRole.dataset.circleRole.split(":");
+    manageCircleMembership(circleId, profileId, "role", role)
+      .then(loadNetwork)
+      .then(() => notify("Circle role updated"))
+      .catch((error) => notify(error.message));
+  }
+  const circleResource = event.target.closest("[data-circle-resource]");
+  if (circleResource)
+    circleResourceModal(circleResource.dataset.circleResource);
+  const circleSettings = event.target.closest("[data-circle-settings]");
+  if (circleSettings) {
+    const circle = state.circleHub.circles.find(
+      (item) => item.id === circleSettings.dataset.circleSettings,
+    );
+    if (circle) circleSettingsModal(circle);
+  }
+  const circleInvite = event.target.closest("[data-circle-invite]");
+  if (circleInvite) circleInviteModal(circleInvite.dataset.circleInvite);
+  const circlePost = event.target.closest("[data-circle-post]");
+  if (circlePost) circlePostModal(circlePost.dataset.circlePost);
+  const deleteResource = event.target.closest("[data-delete-circle-resource]");
+  if (deleteResource && confirm("Remove this shared resource?"))
+    deleteCircleResource(deleteResource.dataset.deleteCircleResource)
+      .then(loadNetwork)
+      .then(() => notify("Resource removed"))
+      .catch((error) => notify(error.message));
 });
 
 document.addEventListener("input", (event) => {
@@ -1854,6 +2005,86 @@ document.addEventListener("submit", async (event) => {
       notify(error.message);
     }
   }
+  if (form.dataset.form === "create-circle") {
+    try {
+      const id = await createCircle({
+        name: data.get("name"),
+        description: data.get("description"),
+        visibility: data.get("visibility"),
+        rules: data.get("rules"),
+      });
+      closeModal();
+      state.selectedCircleId = id;
+      await loadNetwork();
+      notify("Trusted circle created");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "circle-resource") {
+    try {
+      await saveCircleResource(form.dataset.circle, null, {
+        kind: data.get("kind"),
+        name: data.get("name"),
+        description: data.get("description"),
+        availability: data.get("availability"),
+      });
+      closeModal();
+      await loadNetwork();
+      notify("Resource shared with circle");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "circle-invite") {
+    try {
+      await inviteCircleMember(form.dataset.circle, data.get("profile"));
+      closeModal();
+      await loadNetwork();
+      notify("Circle invitation sent");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "circle-post") {
+    try {
+      await createCircleRequest(form.dataset.circle, {
+        title: data.get("title"),
+        description: data.get("description"),
+        kind: data.get("kind"),
+        location: data.get("location"),
+        urgency: data.get("urgency"),
+        cash_budget_cents: "",
+        publish: true,
+        skills: String(data.get("skills") || "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+        exchange_modes: ["barter", "hybrid"],
+        exchange_summary: data.get("exchange_summary"),
+        constraints: data.get("constraints"),
+      });
+      closeModal();
+      await loadNetwork();
+      notify("Private circle work posted");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "circle-settings") {
+    try {
+      await updateCircleSettings(form.dataset.circle, {
+        description: data.get("description"),
+        visibility: data.get("visibility"),
+        rules: data.get("rules"),
+      });
+      closeModal();
+      await loadNetwork();
+      notify("Circle settings updated");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
 });
 
 store.subscribe(render, true);
@@ -2083,7 +2314,7 @@ async function loadNotifications() {
 async function loadNetwork() {
   if (!backendConfigured) return;
   try {
-    const [profiles, activity, inbox] = await Promise.all([
+    const [profiles, activity, inbox, circleHub] = await Promise.all([
       discoverProfiles({
         query: state.networkQuery || "",
         exchange: state.networkExchange || null,
@@ -2098,11 +2329,20 @@ async function loadNetwork() {
             saved_profiles: [],
             saved_searches: [],
           }),
+      state.session
+        ? getCircleHub()
+        : Promise.resolve({
+            circles: [],
+            members: [],
+            resources: [],
+            requests: [],
+          }),
     ]);
     store.batch(() => {
       state.networkProfiles = profiles || [];
       state.networkActivity = activity || [];
       state.networkInbox = inbox;
+      state.circleHub = circleHub;
       if (state.session)
         state.profile = {
           ...state.profile,

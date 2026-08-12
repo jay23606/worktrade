@@ -43,6 +43,12 @@ WorkTrade is a connected alpha for exchanging practical work through cash, barte
 - Archive introductions and delete saved searches
 - Enforce invitation rate limits and declined-contact cooldowns
 - Report or block directly from an introduction
+- Create public-discovery or private invite-only circles with explicit rules
+- Invite members, request access, moderate membership, and assign moderator roles
+- Post work visible only to active circle members
+- Share tools, equipment, workspace, vehicles, materials, and access
+- See circle-scoped activity and completed-work reputation
+- Enforce private-circle membership in database row-level policies
 - Publish completed agreements as evidence-backed portfolio stories with explicit visibility
 - Receive proposal, message, and agreement notifications with unread state
 - Review a readable agreement event history
