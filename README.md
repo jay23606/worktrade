@@ -1,59 +1,76 @@
 # WorkTrade
 
-WorkTrade is a local-first marketplace for practical work exchanged through cash, barter, or both. It adapts OpenStart's browser-native architecture and operational lifecycle to work requests, proposals, agreements, dependency holds, milestones, and social proof.
+WorkTrade is a connected alpha for exchanging practical work through cash, barter, or both. It adapts OpenStart's browser-native architecture and server-authoritative operational model to work requests, proposals, agreements, dependency holds, milestones, and evidence-backed reputation.
 
-[Live demo](https://jay23606.github.io/worktrade/) · [Repository](https://github.com/jay23606/worktrade)
+[Open the live alpha](https://jay23606.github.io/worktrade/) | [View the repository](https://github.com/jay23606/worktrade)
 
-## Included in the connected alpha
+## Connected alpha capabilities
 
 - Discover and filter public work requests
 - Post work to build, repair, install, fabricate, restore, maintain, inspect, or diagnose
-- Make cash, barter, or hybrid offers
-- Accept an offer into a tracked agreement
-- Add project updates and dependency holds
-- Maintain `I need` and `I can offer` profile lists
-- Device-local persistence with resettable demo data
-- Supabase-ready relational schema in `supabase/migrations`
-- Mutual agreement confirmation, controlled transitions, and version checks
-- Project conversations, follows, circles, blocking, and private safety reports
-- Evidence-backed skill history and a validated reciprocal trade-chain model
-- Hosted magic-link accounts and persistent profiles
-- Server-authoritative offer acceptance and mutual term confirmation
-- Persistent participant messages, milestones, dependency holds, and exchange obligations
-- Private JPG, PNG, and WebP evidence uploads tied to an agreement
-- Contextual completion reviews tied to completed work
-- Version-safe request editing, closure, cancellation, and archival with immutable history
-- Persistent proposal, message, and agreement notifications with unread state
-- Stored notification preferences ready for a future approved email sender
-- Downloadable personal-data exports and guarded account deactivation
+- Edit, close, cancel, or archive open requests with immutable change history
+- Make cash, barter, or hybrid proposals
+- Accept an offer through a server-authoritative transaction
+- Independently confirm terms before an agreement becomes active
+- Exchange private participant messages
+- Track milestones and general dependency holds
+- Track each party's cash, service, labor, or goods obligations independently
+- Require counterpart approval of fulfilled obligations
+- Prevent completion until every obligation is approved
+- Upload private JPG, PNG, or WebP work evidence
+- Leave contextual reviews tied to completed work
+- Maintain persistent `I need` and `I can offer` profile lists
+- Receive proposal, message, and agreement notifications with unread state
+- Store notification preferences for future email delivery
+- Export personal data and deactivate an account
+- Use a resettable device-local sample experience while signed out
 
-Run `npm test`, then `npm start` and open `http://localhost:8080`.
+## Hosted environment
 
-Signed-out visitors receive a clearly labeled device-local demonstration. Signed-in users use the dedicated hosted Supabase project for the connected workflow.
+The live alpha is connected to a dedicated Supabase project in `us-east-1`. Database migrations, row-level policies, private evidence storage, authentication callbacks, and the `wt-agreement-action` Edge Function are deployed. `config.js` contains only browser-safe public configuration.
 
-## Production activation
+Signed-out visitors use device-local sample records. Signed-in users use hosted authentication and persistence.
 
-1. Create a dedicated Supabase project in the chosen organization and region.
-2. Run the migrations in order and deploy `wt-agreement-action`.
-3. Copy the public project URL and publishable key into `config.js`.
-4. Allow the production and local callback URLs in Supabase Auth.
-5. Verify row-level policies and transactional functions against a staging project before accepting real users.
+Never put service-role keys, secret API keys, email-provider credentials, payment credentials, or identity-verification secrets in this repository.
 
-Never put the service-role key, email-provider credentials, payment credentials, or identity-verification secrets in this repository.
+## Trust boundary
 
-## Current trust boundary
-
-- The demo stores records only in the current browser.
-- Production clients may request privileged agreement actions, but database functions lock and authorize the affected record.
+- Important agreement mutations are authorized and locked in PostgreSQL.
 - Both parties independently confirm terms.
 - A responsible party cannot approve its own fulfilled obligation.
-- Reports are private; blocks are unilateral.
-- Trade chains remain proposed until every linked participant consents.
+- Accepted requests cannot be silently rewritten.
+- Active agreements block conflicting request closure and account deactivation.
+- Evidence images remain private and use short-lived signed URLs.
+- Reports are private and blocks are unilateral.
+- Payments and barter settlement happen directly between participants.
+- WorkTrade does not hold funds, create exchange credits, guarantee work, or verify professional competence.
+- Trade-chain validation exists as domain groundwork but is not yet part of the connected workflow.
 
-Payments, identity verification, staff moderation operations, and jurisdiction-specific contracting remain intentionally unconfigured. Image evidence uploads are private to agreement participants and use short-lived signed URLs.
+Account deactivation removes public profile details, capabilities, open requests, and pending proposals. Completed agreements retain a pseudonymous participant record so counterpart history remains coherent. Permanent authentication-record erasure is deferred until a formal retention policy is adopted.
 
-Account deactivation immediately removes public profile details, capabilities, open requests, and pending proposals. Completed agreements retain a pseudonymous participant record so counterpart history remains coherent. Permanent authentication-record erasure remains deferred until a formal retention policy is adopted.
+## Run locally
+
+```bash
+npm test
+npm start
+```
+
+Then open `http://localhost:8080`. Copy `config.example.js` to `config.js` and provide browser-safe Supabase configuration when connecting another deployment.
 
 ## Test scope
 
-`npm test` checks browser modules and agreement invariants. `npm run test:integration` creates two temporary hosted users, exercises the real request → offer → agreement → message → milestone → dependency → reciprocal fulfillment → completion → review lifecycle, checks important authorization failures, and deletes the temporary users and evidence afterward. The integration test requires short-lived environment configuration and is not run by the public Pages workflow.
+`npm test` checks browser modules and agreement invariants. `npm run test:integration` creates two temporary hosted users and exercises the real request → offer → agreement → message → milestone → dependency → reciprocal fulfillment → completion → evidence → review lifecycle. It also checks important authorization failures, data export, notifications, and deactivation before deleting temporary identities and evidence.
+
+The integration test requires short-lived environment configuration and is not run by the public Pages workflow.
+
+## Not yet ready
+
+- Staff moderation dashboard and operational report handling
+- Prohibited and regulated-work enforcement
+- Production transactional email delivery
+- Permanent account erasure policy and workflow
+- Terms, privacy, safety, and marketplace disclosures
+- Public multi-person trade chains
+- Integrated payment collection or escrow
+
+Until those safeguards are complete, WorkTrade should be treated as an internal alpha rather than an open public marketplace.
