@@ -154,7 +154,7 @@ function render() {
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
-function openModal(content) { modalRoot.innerHTML = `<div class="modal-backdrop" data-close><section class="modal" role="dialog" aria-modal="true">${content}<button class="modal-x" data-close aria-label="Close">×</button></section></div>`; setTimeout(() => modalRoot.querySelector("input, select, textarea")?.focus(), 0); }
+function openModal(content) { modalRoot.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal" role="dialog" aria-modal="true">${content}<button class="modal-x" data-modal-close aria-label="Close">×</button></section></div>`; setTimeout(() => modalRoot.querySelector("input, select, textarea")?.focus(), 0); }
 function closeModal() { modalRoot.innerHTML = ""; }
 
 function postModal() {
@@ -223,7 +223,7 @@ document.addEventListener("click", (event) => {
   const nav = event.target.closest("[data-nav]"); if (nav) { state.view = nav.dataset.nav; state.selectedId = null; return; }
   const card = event.target.closest("[data-open]"); if (card) { state.selectedId = card.dataset.open; state.view = "detail"; return; }
   const category = event.target.closest("[data-category]"); if (category) { state.category = category.dataset.category; return; }
-  if (event.target.closest("[data-close]")) closeModal();
+  if (event.target.closest("[data-modal-close]") || event.target === modalRoot.querySelector("[data-modal-backdrop]")) closeModal();
   const action = event.target.closest("[data-action]")?.dataset.action;
   if (action === "post") postModal();
   if (action === "offer") offerModal(event.target.closest("[data-id]").dataset.id);
