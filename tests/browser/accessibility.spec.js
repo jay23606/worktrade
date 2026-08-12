@@ -69,6 +69,28 @@ test("PWA shell registers and reloads while offline", async ({ page, context }) 
   await context.setOffline(false);
 });
 
+test("PWA install and connectivity controls explain their state", async ({ page, context }) => {
+  await page.evaluate(() => {
+    const event = new Event("beforeinstallprompt");
+    Object.defineProperties(event, {
+      prompt: { value: async () => {} },
+      userChoice: { value: Promise.resolve({ outcome: "accepted" }) },
+    });
+    dispatchEvent(event);
+  });
+  const install = page.locator("#install-app");
+  await expect(install).toBeVisible();
+  await install.click();
+  await expect(install).toBeHidden();
+  await context.setOffline(true);
+  await page.evaluate(() => dispatchEvent(new Event("offline")));
+  await expect(page.getByText(/You’re offline/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await context.setOffline(false);
+  await page.evaluate(() => dispatchEvent(new Event("online")));
+  await expect(page.getByRole("status").last()).toContainText("Connection restored");
+});
+
 test("posting dialog is labeled, traps focus, and restores focus", async ({
   page,
 }) => {
@@ -95,7 +117,8 @@ test("major screens remain coherent in both color themes", async ({ page }) => {
     await page.evaluate((nextTheme) => localStorage.setItem("worktrade:theme", nextTheme), theme);
     await page.reload();
     for (const destination of ["discover", "workspace", "network", "profile"]) {
-      await page.locator(`[data-nav="${destination}"]`).first().click();
+      const scope = destination === "profile" ? page : page.getByRole("navigation", { name: "Primary" });
+      await scope.locator(`[data-nav="${destination}"]`).last().click();
       await expect(page.locator("main h1").first()).toBeVisible();
       const dimensions = await page.evaluate(() => ({
         viewport: document.documentElement.clientWidth,
@@ -182,8 +205,9 @@ test("visible interactive controls have accessible names and usable targets", as
 test("primary demo journeys remain operable without duplicate submission", async ({
   page,
 }) => {
-  for (const name of ["My work", "Network", "Open profile", "Discover"]) {
-    await page.getByRole("button", { name }).click();
+  for (const destination of ["workspace", "network", "profile", "discover"]) {
+    const scope = destination === "profile" ? page : page.getByRole("navigation", { name: "Primary" });
+    await scope.locator(`[data-nav="${destination}"]`).last().click();
     await expect(page.locator("main")).not.toBeEmpty();
   }
   const initialCards = await page.locator("article[data-open]").count();

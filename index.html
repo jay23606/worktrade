@@ -23,11 +23,13 @@
     <nav aria-label="Primary">
       <button data-nav="discover">Discover</button><button data-nav="workspace">My work</button><button data-nav="network">Network</button>
     </nav>
-    <div class="account-cluster"><span class="demo-badge" id="mode-badge">Demo mode</span><button class="theme-toggle" data-action="theme" aria-label="Switch color theme" title="Switch color theme"><span aria-hidden="true">◐</span></button><button class="notification-button" data-action="notifications" aria-label="Open notifications">●<span id="unread-count"></span></button><button class="avatar" data-nav="profile" aria-label="Open profile">JL</button></div>
+    <div class="account-cluster"><span class="demo-badge" id="mode-badge">Demo mode</span><button class="install-button" id="install-app" hidden>Install</button><button class="theme-toggle" data-action="theme" aria-label="Switch color theme" title="Switch color theme"><span aria-hidden="true">◐</span></button><button class="notification-button" data-action="notifications" aria-label="Open notifications">●<span id="unread-count"></span></button><button class="avatar" data-nav="profile" aria-label="Open profile">JL</button></div>
   </header>
+  <div class="connection-banner" id="connection-banner" role="status" aria-live="polite" hidden><span></span><button id="retry-connection">Try again</button></div>
+  <div class="update-banner" id="update-banner" role="status" hidden><span>A newer WorkTrade version is ready.</span><button id="apply-update">Update now</button></div>
   <main id="main"></main>
   <div id="modal-root"></div>
   <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="app.js?v=20260812f"></script>
+  <script type="module" src="app.js?v=20260812g"></script>
 </body>
 </html>

@@ -1,9 +1,9 @@
-const CACHE = "worktrade-v20260812f";
+const CACHE = "worktrade-v20260812g";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20260812d",
-  "./app.js?v=20260812f",
+  "./app.js?v=20260812g",
   "./config.js",
   "./data.js",
   "./manifest.webmanifest",
@@ -28,7 +28,10 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

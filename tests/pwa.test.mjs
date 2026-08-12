@@ -19,6 +19,10 @@ test("the installable shell wires a scoped manifest and versioned service worker
   assert.match(worker, /const CACHE = "worktrade-v[\da-z]+"/);
   assert.match(worker, /assets\/worktrade-hero\.webp/);
   assert.match(worker, /caches\.match\("\.\/index\.html"\)/);
+  assert.match(worker, /SKIP_WAITING/);
+  assert.match(app, /beforeinstallprompt/);
+  assert.match(app, /navigator\.onLine/);
+  assert.match(app, /controllerchange/);
   assert.match(deployment, /manifest\.webmanifest service-worker\.js/);
   assert.match(deployment, /cp -r assets dist\//);
 });
