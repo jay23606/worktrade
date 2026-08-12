@@ -34,6 +34,20 @@ test("responsive layouts do not overflow horizontally", async ({ page }) => {
   await expect(page.locator("article[data-open]").first()).toBeVisible();
 });
 
+test("inline submissions preserve the current scroll position", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /Network/ }).click();
+  await expect(page.getByRole("heading", { name: /Find people/ })).toBeVisible();
+  const form = page.locator('form[data-form="network-search"]');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const before = await page.evaluate(() => window.scrollY);
+  expect(before).toBeGreaterThan(100);
+  await form.evaluate((element) => element.requestSubmit());
+  await expect(form).toBeVisible();
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => window.scrollY);
+  expect(after).toBeGreaterThan(before - 80);
+});
+
 test("color theme can be changed and persists across reloads", async ({ page }) => {
   await page.getByRole("button", { name: /Switch color theme|Switch to dark mode/ }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

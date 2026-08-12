@@ -743,7 +743,12 @@ function renderProfile() {
   );
 }
 
+let renderedLocation = null;
+
 function render() {
+  const nextLocation = `${state.view}:${state.view === "detail" ? state.selectedId || "" : ""}`;
+  const navigated = renderedLocation !== null && renderedLocation !== nextLocation;
+  renderedLocation = nextLocation;
   document
     .querySelectorAll("[data-nav]")
     .forEach((b) => b.classList.toggle("active", b.dataset.nav === state.view));
@@ -756,7 +761,7 @@ function render() {
   else if (state.view === "profile") main.innerHTML = renderProfile();
   else main.innerHTML = renderDiscover();
   hydrateNetworkSocial();
-  window.scrollTo({ top: 0, behavior: "instant" });
+  if (navigated) window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 function openModal(content) {
