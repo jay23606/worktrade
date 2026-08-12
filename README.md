@@ -1,5 +1,7 @@
 # WorkTrade
 
+WorkTrade includes a responsive editorial landing experience, an original community-work hero illustration, and persistent light and dark color themes that follow the device preference on first visit.
+
 WorkTrade is a community platform for getting useful work done through cash, barter, services, goods, shared resources, or a negotiated combination. It supports ordinary two-person work agreements and closed reciprocal exchanges among several members without creating platform credits.
 
 [Open WorkTrade](https://jay23606.github.io/worktrade/) · [Repository](https://github.com/jay23606/worktrade) · [UAT report](docs/UAT_REPORT.md)

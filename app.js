@@ -137,6 +137,13 @@ const { state } = store;
 const main = document.querySelector("#main");
 const modalRoot = document.querySelector("#modal-root");
 const modalController = createModalController(modalRoot);
+const currentTheme = document.documentElement.dataset.theme;
+document.querySelector(".theme-toggle").setAttribute(
+  "aria-label",
+  `Switch to ${currentTheme === "dark" ? "light" : "dark"} mode`,
+);
+document.querySelector('meta[name="theme-color"]').content =
+  currentTheme === "dark" ? "#111914" : "#f4f0e6";
 const categories = [
   "All",
   "Build",
@@ -182,9 +189,9 @@ function renderDiscover() {
   );
   return shell(`
     <section class="hero">
-      <div><h1>Useful work.<br><em>Fairly exchanged.</em></h1><p>Build, fix, install, restore, or maintain—trade money, skills, goods, or a thoughtful mix.</p>
+      <div class="hero-copy"><span class="hero-kicker">A better way to get things done</span><h1>Useful work.<br><em>Fairly exchanged.</em></h1><p>Build, fix, install, restore, or maintain—trade money, skills, goods, or a thoughtful mix.</p>
       <div class="hero-actions"><button class="primary" data-action="post">Post work</button><button class="secondary" data-nav="network">Explore the network</button></div></div>
-      <div class="balance-card"><span>Community pulse</span><strong>${state.requests.length} active stories</strong><div><b>12</b> skills offered <b>8</b> needs matched</div><p>No platform credits. People agree on value together.</p></div>
+      <div class="hero-visual"><img src="assets/worktrade-hero.webp" alt="Neighbors sharing tools and skills while building and repairing together"><div class="balance-card"><span>Community pulse</span><strong>${state.requests.length} active stories</strong><div><b>12</b> skills offered <b>8</b> needs matched</div><p>No platform credits. People agree on value together.</p></div></div>
     </section>
     <section class="controls"><label class="search"><span>⌕</span><input id="search" value="${esc(state.query)}" placeholder="Search work, skills, or outcomes"></label><div class="chips">${categories.map((c) => `<button class="chip ${state.category === c ? "active" : ""}" data-category="${c}">${c}</button>`).join("")}</div></section>
     <div class="section-title"><div><span class="eyebrow">Open requests</span><h2>What can you help move forward?</h2></div><span>${filtered.length} matches</span></div>
@@ -929,6 +936,14 @@ document.addEventListener("click", (event) => {
   )
     closeModal();
   const action = event.target.closest("[data-action]")?.dataset.action;
+  if (action === "theme") {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem("worktrade:theme", next);
+    document.querySelector('meta[name="theme-color"]').content = next === "dark" ? "#111914" : "#f4f0e6";
+    event.target.closest("[data-action=theme]").setAttribute("aria-label", `Switch to ${next === "dark" ? "light" : "dark"} mode`);
+    return;
+  }
   if (action === "post") postModal();
   if (action === "save-search") saveSearchModal();
   if (action === "create-circle") createCircleModal();

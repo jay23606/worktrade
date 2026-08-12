@@ -29,6 +29,14 @@ test("responsive layouts do not overflow horizontally", async ({ page }) => {
   await expect(page.locator("article[data-open]").first()).toBeVisible();
 });
 
+test("color theme can be changed and persists across reloads", async ({ page }) => {
+  await page.getByRole("button", { name: /Switch color theme|Switch to dark mode/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("button", { name: "Switch to light mode" })).toBeVisible();
+});
+
 test("posting dialog is labeled, traps focus, and restores focus", async ({
   page,
 }) => {

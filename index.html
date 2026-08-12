@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#17231d">
+  <meta name="theme-color" content="#f4f0e6">
   <meta name="description" content="Exchange practical work through cash, barter, or both.">
   <title>WorkTrade — Work and value, exchanged openly</title>
-  <link rel="stylesheet" href="styles.css?v=20260812b">
+  <script>document.documentElement.dataset.theme=localStorage.getItem("worktrade:theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")</script>
+  <link rel="stylesheet" href="styles.css?v=20260812c">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -15,7 +16,7 @@
     <nav aria-label="Primary">
       <button data-nav="discover">Discover</button><button data-nav="workspace">My work</button><button data-nav="network">Network</button>
     </nav>
-    <div class="account-cluster"><span class="demo-badge" id="mode-badge">Demo mode</span><button class="notification-button" data-action="notifications" aria-label="Open notifications">●<span id="unread-count"></span></button><button class="avatar" data-nav="profile" aria-label="Open profile">JL</button></div>
+    <div class="account-cluster"><span class="demo-badge" id="mode-badge">Demo mode</span><button class="theme-toggle" data-action="theme" aria-label="Switch color theme" title="Switch color theme"><span aria-hidden="true">◐</span></button><button class="notification-button" data-action="notifications" aria-label="Open notifications">●<span id="unread-count"></span></button><button class="avatar" data-nav="profile" aria-label="Open profile">JL</button></div>
   </header>
   <main id="main"></main>
   <div id="modal-root"></div>
