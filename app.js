@@ -23,7 +23,7 @@ function shell(content, eyebrow = "Local work exchange") {
 }
 
 function renderDiscover() {
-  const filtered = state.requests.filter((request) => request.status === "open" && (state.category === "All" || request.category === state.category)
+  const filtered = state.requests.filter((request) => request.status === "open" && !(state.profile.blocked || []).includes(request.ownerId) && (state.category === "All" || request.category === state.category)
     && `${request.title} ${request.description} ${request.skills.join(" ")}`.toLowerCase().includes(state.query.toLowerCase()));
   return shell(`
     <section class="hero">
@@ -62,10 +62,15 @@ function renderDetail(request) {
         <div class="timeline">${request.updates.map((u) => `<div><span class="dot"></span><p><b>${esc(u.author)}</b> ${esc(u.text)}<small>${esc(u.date)}</small></p></div>`).join("") || "<p>No updates yet.</p>"}</div>
         ${request.status !== "open" ? `<form data-form="update" class="inline-form"><input name="text" required placeholder="Share a progress update"><button class="secondary">Post</button></form>` : ""}
       </section>
+      <section><div class="section-title"><div><span class="eyebrow">Conversation</span><h2>Keep decisions beside the work.</h2></div></div>
+        <div class="messages">${(request.messages || []).map((m) => `<div class="message ${m.authorId === "me" ? "mine" : ""}"><b>${esc(m.author)}</b><p>${esc(m.text)}</p><small>${esc(m.date)}</small></div>`).join("") || `<p>No messages yet. Ask a clear, project-specific question.</p>`}</div>
+        <form data-form="message" class="inline-form"><input name="text" required maxlength="1000" placeholder="Ask about scope, access, timing, or value"><button class="secondary">Send</button></form>
+      </section>
     </article>
     <aside class="detail-side"><div class="person"><span class="avatar big">${request.initials}</span><div><small>Posted by</small><h3>${esc(request.owner)}</h3><p>${esc(request.location)}</p></div></div>
       ${request.agreement ? agreementCard(request) : `<button class="primary full" data-action="offer" data-id="${request.id}">Propose a trade</button>`}
       <div class="side-note"><b>Choose your own exchange</b><p>Cash, goods, services, labor, access, or a combination. WorkTrade does not assign artificial credits.</p></div>
+      <div class="safety-actions"><button class="text-btn" data-action="follow">${(request.followers || []).includes("me") ? "Following" : "Follow project"}</button><button class="text-btn" data-action="report">Report concern</button><button class="text-btn" data-action="block" data-person="${request.ownerId}">Block user</button></div>
       ${request.offers.length ? `<section class="proposals"><span class="eyebrow">Proposals</span>${request.offers.map((o) => offerCard(o, isOwner, request.id)).join("")}</section>` : ""}
     </aside></div>`, "Work request");
 }
@@ -108,11 +113,16 @@ function renderWorkspace() {
 function renderNetwork() {
   return shell(`<section class="network-hero"><span class="eyebrow">Needs + offers</span><h1>The useful things around us<br>are closer than we think.</h1><p>Find reciprocal matches between what people need and what their neighbors can offer.</p></section>
     <div class="match-card"><div><span class="match-label">Potential three-way trade</span><h2>A chain no one could complete alone</h2><p>You offer product photography to Maya. Maya offers a produce share to Sam. Sam offers carpentry for your workshop shelving.</p><div class="trade-chain"><span>You<small>Photography</small></span><i>→</i><span>Maya<small>Produce</small></span><i>→</i><span>Sam<small>Carpentry</small></span><i>→</i><span>You</span></div></div><button class="secondary" data-action="interest">I’m interested</button></div>
-    <div class="two-col"><section><span class="eyebrow">People nearby</span><h2>Built on demonstrated capability</h2>${peopleCards()}</section><section><span class="eyebrow">Community circles</span><h2>Start with people you trust</h2><div class="circle"><b>Richmond Makers</b><span>128 members · 34 skills</span><p>Fabrication, electronics, woodworking, and shared shop access.</p></div><div class="circle"><b>Manchester Neighbors</b><span>76 members · 19 active needs</span><p>Local maintenance, gardens, tools, and mutual aid.</p></div></section></div>`, "Community network");
+    <div class="two-col"><section><span class="eyebrow">People nearby</span><h2>Built on demonstrated capability</h2>${peopleCards()}</section><section><span class="eyebrow">Community circles</span><h2>Start with people you trust</h2>${circleCard("circle-makers","Richmond Makers","128 members · 34 skills","Fabrication, electronics, woodworking, and shared shop access.")}${circleCard("circle-neighbors","Manchester Neighbors","76 members · 19 active needs","Local maintenance, gardens, tools, and mutual aid.")}</section></div>`, "Community network");
+}
+
+function circleCard(id, name, meta, description) {
+  const joined = state.profile.joinedCircles?.includes(id);
+  return `<div class="circle"><b>${name}</b><span>${meta}</span><p>${description}</p><button class="secondary" data-circle="${id}">${joined ? "Joined" : "Join circle"}</button></div>`;
 }
 
 function peopleCards() {
-  return [{ name: "Sam Rivera", initials: "SR", offers: "Carpentry · Site work", needs: "Photography · Bookkeeping", proof: 18 }, { name: "Asha Patel", initials: "AP", offers: "Electronics · Diagnostics", needs: "Studio shelving", proof: 27 }].map((p) => `<article class="person-card"><span class="avatar big">${p.initials}</span><div><h3>${p.name}</h3><p><b>Offers:</b> ${p.offers}</p><p><b>Needs:</b> ${p.needs}</p><small>${p.proof} verified work records</small></div></article>`).join("");
+  return [{ id: "sam", name: "Sam Rivera", initials: "SR", offers: "Carpentry · Site work", needs: "Photography · Bookkeeping", proof: 18 }, { id: "asha", name: "Asha Patel", initials: "AP", offers: "Electronics · Diagnostics", needs: "Studio shelving", proof: 27 }].map((p) => `<article class="person-card"><span class="avatar big">${p.initials}</span><div><h3>${p.name}</h3><p><b>Offers:</b> ${p.offers}</p><p><b>Needs:</b> ${p.needs}</p><small>${p.proof} verified work records</small><button class="text-btn" data-follow-person="${p.id}">${state.profile.following?.includes(p.id) ? "Following" : "Follow"}</button></div></article>`).join("");
 }
 
 function renderProfile() {
@@ -154,6 +164,10 @@ function holdModal(id) {
   openModal(`<span class="eyebrow">Dependency hold</span><h2>What does the work depend on?</h2><form data-form="hold" data-id="${id}" class="form-grid"><label>Type<select name="type"><option>Materials</option><option>Equipment</option><option>Weather</option><option>Access or permission</option><option>Customer decision</option><option>Specialist</option><option>Third party</option><option>Custom</option></select></label><label>Next action owner<input name="owner" required placeholder="Customer, provider, conditions…"></label><label class="wide">What is needed?<input name="detail" required placeholder="A dry 48-hour weather window"></label><label>Review date<input name="reviewDate" type="date" required></label><button class="primary wide">Place hold</button></form>`);
 }
 
+function reportModal(id) {
+  openModal(`<span class="eyebrow">Safety report</span><h2>Tell moderators what happened.</h2><p>Reports are private. Immediate danger should be reported to local emergency services.</p><form data-form="report" data-id="${id}" class="form-grid"><label>Concern<select name="reason"><option>Unsafe work or conditions</option><option>Fraud or misrepresentation</option><option>Harassment</option><option>Regulated or prohibited work</option><option>Spam</option><option>Other</option></select></label><label class="wide">Details<textarea name="detail" required maxlength="2000"></textarea></label><button class="primary wide">Submit private report</button></form>`);
+}
+
 document.addEventListener("click", (event) => {
   const nav = event.target.closest("[data-nav]"); if (nav) { state.view = nav.dataset.nav; state.selectedId = null; return; }
   const card = event.target.closest("[data-open]"); if (card) { state.selectedId = card.dataset.open; state.view = "detail"; return; }
@@ -164,6 +178,9 @@ document.addEventListener("click", (event) => {
   if (action === "offer") offerModal(event.target.closest("[data-id]").dataset.id);
   if (action === "interest") notify("Interest noted — introductions are next on the roadmap.");
   if (action === "hold") holdModal(state.selectedId);
+  if (action === "follow") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.followers ||= []; r.followers = r.followers.includes("me") ? r.followers.filter((id) => id !== "me") : [...r.followers, "me"]; return list; }); notify("Project follow updated"); }
+  if (action === "report") reportModal(state.selectedId);
+  if (action === "block") { const person = event.target.closest("[data-person]").dataset.person; const profile = structuredClone(state.profile); profile.blocked ||= []; if (!profile.blocked.includes(person)) profile.blocked.push(person); state.profile = profile; persist(); state.view = "discover"; notify("User blocked on this device"); }
   if (action === "resolve-hold") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.hold = null; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: "Resolved the dependency hold. Work can move forward.", date: "Today" }); return list; }); notify("Dependency resolved"); }
   if (action === "reset") { localStorage.removeItem(STORAGE_KEY); const seed = cloneSeed(); store.batch(() => { state.profile = seed.profile; state.requests = seed.requests; }); notify("Demo data reset"); }
   const accept = event.target.closest("[data-accept]"); if (accept) { updateRequests((list) => { const r = list.find((x) => x.id === accept.dataset.request); const o = r.offers.find((x) => x.id === accept.dataset.accept); r.agreement = { ...proposeAgreement({ offer: o, request: r, requesterId: r.ownerId, providerId: o.provider === state.profile.name ? "me" : `provider:${o.id}` }), provider: o.provider, progress: 0 }; r.agreement = confirmAgreement(r.agreement, r.ownerId); r.status = "proposed"; r.milestones = [{ title: "Confirm scope", done: false }, { title: "Prepare inputs", done: false }, { title: "Complete work", done: false }, { title: "Review exchange", done: false }]; r.updates.push({ id: crypto.randomUUID(), author: r.owner, text: `Selected ${o.provider}'s proposal. Both parties must confirm before work starts.`, date: "Today" }); return list; }); notify("Proposal selected — awaiting mutual confirmation"); }
@@ -171,6 +188,8 @@ document.addEventListener("click", (event) => {
   if (agreementAction) { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); if (agreementAction === "confirm") r.agreement = confirmAgreement(r.agreement, "me"); else r.agreement = transitionAgreement(r.agreement, agreementAction, "me"); r.status = r.agreement.status; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: agreementAction === "confirm" ? "Confirmed the current agreement terms." : `Moved the agreement to ${agreementAction}.`, date: "Today" }); return list; }); notify(agreementAction === "confirm" ? "Terms confirmed" : `Agreement moved to ${agreementAction}`); }
   const milestone = event.target.closest("[data-milestone]"); if (milestone) { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.milestones[Number(milestone.dataset.milestone)].done = !r.milestones[Number(milestone.dataset.milestone)].done; const done = r.milestones.filter((m) => m.done).length; r.agreement.progress = Math.round(done / r.milestones.length * 100); if (done === r.milestones.length) r.status = "completed"; return list; }); }
   const remove = event.target.closest("[data-remove]"); if (remove) { const [list, index] = remove.dataset.remove.split(":"); const profile = structuredClone(state.profile); profile[list].splice(Number(index), 1); state.profile = profile; persist(); }
+  const followPerson = event.target.closest("[data-follow-person]"); if (followPerson) { const profile = structuredClone(state.profile); profile.following ||= []; profile.following = profile.following.includes(followPerson.dataset.followPerson) ? profile.following.filter((id) => id !== followPerson.dataset.followPerson) : [...profile.following, followPerson.dataset.followPerson]; state.profile = profile; persist(); notify("Following updated"); }
+  const circle = event.target.closest("[data-circle]"); if (circle) { const profile = structuredClone(state.profile); profile.joinedCircles ||= []; profile.joinedCircles = profile.joinedCircles.includes(circle.dataset.circle) ? profile.joinedCircles.filter((id) => id !== circle.dataset.circle) : [...profile.joinedCircles, circle.dataset.circle]; state.profile = profile; persist(); notify("Circle membership updated"); }
 });
 
 document.addEventListener("input", (event) => { if (event.target.id === "search") { state.query = event.target.value; } });
@@ -185,6 +204,8 @@ document.addEventListener("submit", (event) => {
   if (form.dataset.form === "offer") { updateRequests((list) => { const r = list.find((x) => x.id === form.dataset.id); r.offers.push({ id: crypto.randomUUID(), provider: state.profile.name, initials: state.profile.initials, mode: data.get("mode"), cash: Number(data.get("cash")) || 0, gives: data.get("gives"), wants: data.get("wants"), duration: data.get("duration"), note: data.get("note") }); return list; }); closeModal(); notify("Trade proposal sent"); }
   if (form.dataset.form === "hold") { updateRequests((list) => { const r = list.find((x) => x.id === form.dataset.id); r.hold = { type: data.get("type"), owner: data.get("owner"), detail: data.get("detail"), reviewDate: data.get("reviewDate") }; return list; }); closeModal(); notify("Dependency hold added"); }
   if (form.dataset.form === "update") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: data.get("text"), date: "Today" }); return list; }); form.reset(); notify("Update posted"); }
+  if (form.dataset.form === "message") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.messages ||= []; r.messages.push({ id: crypto.randomUUID(), authorId: "me", author: state.profile.name, text: data.get("text"), date: "Today" }); return list; }); form.reset(); notify("Message sent"); }
+  if (form.dataset.form === "report") { updateRequests((list) => { const r = list.find((x) => x.id === form.dataset.id); r.reports ||= []; r.reports.push({ id: crypto.randomUUID(), reporterId: "me", reason: data.get("reason"), detail: data.get("detail"), status: "submitted", createdAt: new Date().toISOString() }); return list; }); closeModal(); notify("Private report recorded for moderator review"); }
   if (form.dataset.form === "profile-item") { const profile = structuredClone(state.profile); profile[form.dataset.list].push(data.get("item")); state.profile = profile; persist(); form.reset(); notify("Profile updated"); }
 });
 
