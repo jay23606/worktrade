@@ -100,9 +100,21 @@ test("guided match setup saves preferences and produces first matches", async ({
   await dialog.getByLabel(/What do you need/).fill("Greenhouse help, bookkeeping");
   await dialog.getByLabel("Availability").fill("Saturday mornings");
   await dialog.getByRole("button", { name: "Save and show my matches" }).click();
-  await expect(page.getByRole("heading", { name: "Here are a few useful places to start." })).toBeVisible();
-  await expect(page.getByText("Matches carpentry, design", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Useful overlap, explained." })).toBeVisible();
+  await expect(page.getByText("Your carpentry, design may help", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Adjust matching profile" })).toBeVisible();
+  const firstMatch = page.locator(".match-shell").first();
+  await firstMatch.getByRole("button", { name: "Useful" }).click();
+  await expect(firstMatch.getByRole("button", { name: "Useful" })).toHaveClass(/selected/);
+  await firstMatch.getByRole("button", { name: "Hide" }).click();
+  await expect(page.getByRole("button", { name: "Restore hidden matches" })).toBeVisible();
+  await page.getByRole("button", { name: "Restore hidden matches" }).click();
+  await expect(page.locator(".match-shell").first()).toBeVisible();
+  await page.locator(".match-shell").first().getByRole("button", { name: "Not relevant" }).click();
+  const feedbackDialog = page.getByRole("dialog", { name: "Why isn’t this relevant?" });
+  await feedbackDialog.getByLabel("Too far away").check();
+  await feedbackDialog.getByRole("button", { name: "Save feedback" }).click();
+  await expect(feedbackDialog).toBeHidden();
 });
 
 test("posting dialog is labeled, traps focus, and restores focus", async ({
@@ -130,7 +142,7 @@ test("major screens remain coherent in both color themes", async ({ page }) => {
   for (const theme of ["light", "dark"]) {
     await page.evaluate((nextTheme) => localStorage.setItem("worktrade:theme", nextTheme), theme);
     await page.reload();
-    for (const destination of ["discover", "workspace", "network", "profile"]) {
+    for (const destination of ["discover", "matches", "workspace", "network", "profile"]) {
       const scope = destination === "profile" ? page : page.getByRole("navigation", { name: "Primary" });
       await scope.locator(`[data-nav="${destination}"]`).last().click();
       await expect(page.locator("main h1").first()).toBeVisible();
@@ -219,7 +231,7 @@ test("visible interactive controls have accessible names and usable targets", as
 test("primary demo journeys remain operable without duplicate submission", async ({
   page,
 }) => {
-  for (const destination of ["workspace", "network", "profile", "discover"]) {
+  for (const destination of ["workspace", "matches", "network", "profile", "discover"]) {
     const scope = destination === "profile" ? page : page.getByRole("navigation", { name: "Primary" });
     await scope.locator(`[data-nav="${destination}"]`).last().click();
     await expect(page.locator("main")).not.toBeEmpty();

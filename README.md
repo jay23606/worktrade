@@ -27,7 +27,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
 | Agreements                 | Connected             | Mutual confirmation, amendments, scheduling, milestones, holds, obligations, completion approval |
 | Evidence and reputation    | Connected             | Private evidence, contextual reviews, verified completion stories, public portfolios             |
-| Social network             | Connected             | Explainable matches, follows, saved profiles/searches, activity, notifications                   |
+| Social network             | Connected             | Two-way match scores and explanations, follows, saves, feedback, invitations, activity, and strong-match notifications |
 | Introductions              | Connected             | Consent gate, private messaging, shared planning workspace, conversion to work                   |
 | Trusted circles            | Connected pilot       | Membership workflows, roles, private work, resources, rules, scoped reputation                   |
 | Multi-person barter chains | Connected pilot       | Circle-only discovery, unanimous consent, execution modes, holds, approvals, disputes            |

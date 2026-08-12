@@ -97,6 +97,7 @@ import {
 } from "./modules/backend.js";
 
 const STORAGE_KEY = "worktrade:v1";
+const MATCH_FEEDBACK_KEY = "worktrade:match-feedback:v1";
 const saved = (() => {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -105,6 +106,9 @@ const saved = (() => {
   }
 })();
 const initial = saved?.requests ? saved : cloneSeed();
+const savedMatchFeedback = (() => {
+  try { return JSON.parse(localStorage.getItem(MATCH_FEEDBACK_KEY)) || {}; } catch { return {}; }
+})();
 const store = createStore({
   view: "discover",
   query: "",
@@ -132,6 +136,7 @@ const store = createStore({
   circleHub: { circles: [], members: [], resources: [], requests: [] },
   selectedCircleId: null,
   chainHub: { chains: [], suggestions: [] },
+  matchFeedback: savedMatchFeedback,
 });
 const { state } = store;
 const main = document.querySelector("#main");
@@ -814,6 +819,11 @@ function matchTerms(values = []) {
   return values.flatMap((value) => value.toLowerCase().split(/[^a-z0-9]+/)).filter((value) => value.length > 2);
 }
 
+function overlaps(left, right) {
+  const rightTerms = matchTerms(right);
+  return [...new Set(left.filter((value) => rightTerms.some((other) => value.includes(other) || other.includes(value))))];
+}
+
 function scoreRequestForProfile(request) {
   const offerTerms = matchTerms(state.profile.offers);
   const requestText = `${request.title} ${request.description} ${request.skills.join(" ")}`.toLowerCase();
@@ -822,12 +832,46 @@ function scoreRequestForProfile(request) {
   return { request, overlap: [...new Set(overlap)], score: overlap.length * 3 + (nearby ? 1 : 0) };
 }
 
+function scorePersonForProfile(person) {
+  const offered = (person.capabilities || []).filter((x) => x.direction === "offer").map((x) => x.label);
+  const needed = (person.capabilities || []).filter((x) => x.direction === "need").map((x) => x.label);
+  const helpsMe = overlaps(matchTerms(state.profile.needs), offered);
+  const helpThem = overlaps(matchTerms(state.profile.offers), needed);
+  const locationFit = !!state.profile.location && !!person.location_text && person.location_text.toLowerCase().includes(state.profile.location.split(",")[0].toLowerCase());
+  const exchangeFit = (state.profile.preferredExchangeModes || ["barter", "cash", "hybrid"]).some((mode) => (person.preferred_exchange_modes || []).includes(mode));
+  const proof = Math.min(2, Number(person.completed_count || 0));
+  const score = Math.min(100, helpsMe.length * 18 + helpThem.length * 18 + (locationFit ? 12 : 0) + (person.remote_available && state.profile.remoteAvailable ? 8 : 0) + (exchangeFit ? 8 : 0) + proof * 4);
+  return { person, helpsMe, helpThem, locationFit, exchangeFit, score };
+}
+
+function announceStrongMatches(profiles) {
+  if (!state.session) return;
+  const key = "worktrade:seen-strong-matches:v1";
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem(key)) || []; } catch { seen = []; }
+  const fresh = profiles.map(scorePersonForProfile).filter((match) => match.score >= 50 && !seen.includes(match.person.id));
+  if (!fresh.length) return;
+  localStorage.setItem(key, JSON.stringify([...new Set([...seen, ...fresh.map((match) => match.person.id)])]));
+  const title = fresh.length === 1 ? `Strong match with ${fresh[0].person.display_name}` : `${fresh.length} new strong matches`;
+  state.notifications = [{ id: `match:${Date.now()}`, kind: "network", title, body: "Open Matches to see the two-way fit and propose an exchange.", created_at: new Date().toISOString(), read_at: null }, ...state.notifications];
+  const badge = document.querySelector("#unread-count");
+  if (badge) badge.textContent = String(state.notifications.filter((item) => !item.read_at).length);
+  notify(title, "success");
+}
+
+function feedbackControls(key) {
+  const current = state.matchFeedback[key];
+  return `<div class="match-feedback" aria-label="Rate this match"><button class="text-btn ${current === "useful" ? "selected" : ""}" data-match-feedback="${key}:useful">Useful</button><button class="text-btn ${current?.startsWith("not-relevant") ? "selected" : ""}" data-match-feedback="${key}:not-relevant">Not relevant</button><button class="text-btn" data-match-dismiss="${key}">Hide</button></div>`;
+}
+
 function renderFirstMatches() {
-  const work = state.requests.filter((request) => request.status === "open").map(scoreRequestForProfile).sort((a, b) => b.score - a.score).slice(0, 3);
-  const people = state.networkProfiles.slice(0, 3);
-  return shell(`<section class="match-welcome"><span class="eyebrow">Your first matches</span><h1>Here are a few useful places to start.</h1><p>These suggestions use your offers, needs, general location, availability, and exchange preferences. You stay in control of who can see the details.</p><button class="secondary" data-action="onboarding">Adjust matching profile</button></section>
-    <div class="first-match-grid"><section><div class="section-title"><div><span class="eyebrow">Work you may be able to help with</span><h2>${work.length} starting points</h2></div></div><div class="request-grid first-match-list">${work.map(({ request, overlap, score }) => `<div><p class="match-reason">${overlap.length ? `Matches ${esc(overlap.join(", "))}` : score ? "Near your general location" : "Explore a new kind of work"}</p>${requestCard(request)}</div>`).join("")}</div></section>
-    <section><div class="section-title"><div><span class="eyebrow">People worth knowing</span><h2>Potential collaborators</h2></div></div><div class="people-list">${people.map(networkPersonCard).join("") || `<div class="empty"><p>Connected collaborator suggestions will appear here. Your work matches are ready now.</p><button class="secondary" data-nav="network">Explore the network</button></div>`}</div></section></div>`, "Personalized starting points");
+  const hidden = (key) => state.matchFeedback[key] === "dismissed";
+  const work = state.requests.filter((request) => request.status === "open" && !hidden(`request:${request.id}`)).map(scoreRequestForProfile).sort((a, b) => b.score - a.score).slice(0, 4);
+  const people = state.networkProfiles.filter((person) => person.id !== state.profile.id && !hidden(`profile:${person.id}`)).map(scorePersonForProfile).sort((a, b) => b.score - a.score).slice(0, 6);
+  const strong = people.filter((match) => match.score >= 50).length;
+  return shell(`<section class="match-welcome"><span class="eyebrow">Personalized matches</span><h1>Useful overlap, explained.</h1><p>WorkTrade scores both directions of an exchange, then adds general location, remote availability, exchange preferences, and proven work. A high score is a starting point—not a judgment.</p><div class="match-summary"><b>${strong}</b><span>strong reciprocal match${strong === 1 ? "" : "es"}</span><button class="secondary" data-action="onboarding">Adjust matching profile</button></div></section>
+    <div class="first-match-grid"><section><div class="section-title"><div><span class="eyebrow">Work you may be able to help with</span><h2>${work.length} starting points</h2></div></div><div class="request-grid first-match-list">${work.map(({ request, overlap, score }) => `<div class="match-shell"><div class="match-explanation"><b>${Math.min(100, score * 12)}% work fit</b><span>${overlap.length ? `Your ${esc(overlap.join(", "))} may help` : score ? "Near your general location" : "A chance to explore something different"}</span></div>${requestCard(request)}${feedbackControls(`request:${request.id}`)}</div>`).join("") || `<div class="empty"><p>No visible work matches. Adjust your profile or restore hidden matches below.</p></div>`}</div></section>
+    <section><div class="section-title"><div><span class="eyebrow">Reciprocal people matches</span><h2>${people.length} potential collaborators</h2></div></div><div class="people-list match-people">${people.map(({ person, helpsMe, helpThem, locationFit, exchangeFit, score }) => `<article class="person-card match-person"><span class="avatar big">${esc((person.display_name || "WT").split(/\s+/).map((x) => x[0]).join("").slice(0, 2))}</span><div><div class="match-score-row"><h3>${esc(person.display_name)}</h3><b>${score}%</b></div><p class="match-direction"><strong>They may help you:</strong> ${esc(helpsMe.join(", ") || "No direct need overlap yet")}</p><p class="match-direction"><strong>You may help them:</strong> ${esc(helpThem.join(", ") || "No direct offer overlap yet")}</p><small>${[locationFit ? "nearby" : "location flexible", exchangeFit ? "exchange fit" : "different exchange preferences", `${person.completed_count || 0} completed`].join(" · ")}</small><div class="social-actions"><button class="text-btn" data-view-profile="${person.id}">View evidence</button>${state.session ? `<button class="primary compact" data-invite-person="${person.id}">Propose exchange</button><button class="secondary compact" data-save-person="${person.id}">${(state.networkInbox?.saved_profiles || []).includes(person.id) ? "Saved" : "Save"}</button>` : `<button class="primary compact" data-action="sign-in">Sign in to connect</button>`}</div>${feedbackControls(`profile:${person.id}`)}</div></article>`).join("") || `<div class="empty"><p>Connected collaborator suggestions will appear here. Your work matches are ready now.</p><button class="secondary" data-nav="network">Explore the network</button></div>`}</div></section></div>${Object.values(state.matchFeedback).includes("dismissed") ? `<button class="text-btn restore-matches" data-action="restore-matches">Restore hidden matches</button>` : ""}`, "Personalized starting points");
 }
 
 let renderedLocation = null;
@@ -1020,6 +1064,10 @@ function onboardingModal() {
   </form>`);
 }
 
+function matchFeedbackModal(matchKey) {
+  openModal(`<span class="eyebrow">Improve your matches</span><h2>Why isn’t this relevant?</h2><p>This feedback stays private and helps tune what you see.</p><form data-form="match-feedback" data-match-key="${esc(matchKey)}" class="form-grid"><fieldset class="wide feedback-reasons"><legend>Choose the closest reason</legend><label><input type="radio" name="reason" value="wrong-skill" required> The skill or need is not a fit</label><label><input type="radio" name="reason" value="too-far"> Too far away</label><label><input type="radio" name="reason" value="timing"> Timing or availability does not work</label><label><input type="radio" name="reason" value="exchange"> Exchange terms are not a fit</label><label><input type="radio" name="reason" value="other"> Something else</label></fieldset><button class="primary wide">Save feedback</button></form>`);
+}
+
 function deactivateModal() {
   openModal(
     `<span class="eyebrow">Deactivate account</span><h2>Remove your public presence.</h2><p>Open requests will be cancelled, pending proposals withdrawn, and profile details replaced. Completed agreement history remains pseudonymous for the other participant. Active agreements must be resolved first.</p><form data-form="deactivate" class="form-grid"><label class="wide">Type DEACTIVATE to confirm<input name="confirmation" required pattern="DEACTIVATE"></label><button class="primary wide">Deactivate and sign out</button></form>`,
@@ -1151,6 +1199,11 @@ document.addEventListener("click", (event) => {
   if (action === "sign-in") signInModal();
   if (action === "edit-profile") profileModal();
   if (action === "onboarding") onboardingModal();
+  if (action === "restore-matches") {
+    state.matchFeedback = Object.fromEntries(Object.entries(state.matchFeedback).filter(([, value]) => value !== "dismissed"));
+    localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
+    notify("Hidden matches restored");
+  }
   if (action === "edit-request")
     editRequestModal(
       state.requests.find((item) => item.id === state.selectedId),
@@ -1491,6 +1544,25 @@ document.addEventListener("click", (event) => {
           );
     }
   }
+  const matchFeedback = event.target.closest("[data-match-feedback]");
+  if (matchFeedback) {
+    const value = matchFeedback.dataset.matchFeedback;
+    const separator = value.lastIndexOf(":");
+    const key = value.slice(0, separator);
+    const feedback = value.slice(separator + 1);
+    if (feedback === "not-relevant") matchFeedbackModal(key);
+    else {
+      state.matchFeedback = { ...state.matchFeedback, [key]: feedback };
+      localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
+      notify("Thanks—this match was marked useful");
+    }
+  }
+  const dismissMatch = event.target.closest("[data-match-dismiss]");
+  if (dismissMatch) {
+    state.matchFeedback = { ...state.matchFeedback, [dismissMatch.dataset.matchDismiss]: "dismissed" };
+    localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
+    notify("Match hidden");
+  }
   const invitePerson = event.target.closest("[data-invite-person]");
   if (invitePerson) {
     const profile = (state.networkProfiles || []).find(
@@ -1746,6 +1818,12 @@ document.addEventListener("submit", async (event) => {
   submitButtons.forEach((button) => (button.disabled = true));
   try {
   const data = new FormData(form);
+  if (form.dataset.form === "match-feedback") {
+    state.matchFeedback = { ...state.matchFeedback, [form.dataset.matchKey]: `not-relevant:${data.get("reason")}` };
+    localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
+    closeModal();
+    notify("Thanks—this will improve future ranking");
+  }
   if (form.dataset.form === "post") {
     const exchanges = data.getAll("exchange");
     if (!exchanges.length)
@@ -2808,6 +2886,7 @@ async function loadNetwork() {
             .map((x) => x.id),
         };
     });
+    announceStrongMatches(profiles || []);
   } catch (error) {
     notify(`Network unavailable: ${error.message}`);
   }
