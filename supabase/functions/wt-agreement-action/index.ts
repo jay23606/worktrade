@@ -10,7 +10,8 @@ Deno.serve(async (request) => {
     if (!publicApiKey) return new Response(JSON.stringify({ error: "API key required" }), { status: 401, headers });
     const client = createClient(Deno.env.get("SUPABASE_URL")!, publicApiKey, { global: { headers: { Authorization: authorization } } });
     const { action, agreementId, expectedVersion, payload = {} } = await request.json();
-    const mappedAction = ["dispute", "cancel", "confirm"].includes(action) ? action : "transition";
+    const directActions = ["dispute", "cancel", "confirm", "milestone", "hold", "resolve_hold", "fulfill", "approve"];
+    const mappedAction = directActions.includes(action) ? action : "transition";
     const rpcPayload = mappedAction === "transition" ? { ...payload, status: action } : payload;
     const { data, error } = await client.rpc("perform_agreement_action", {
       target_agreement_id: agreementId,

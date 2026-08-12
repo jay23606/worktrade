@@ -40,7 +40,7 @@ export async function updateMyProfile(values) {
   assertBackend(client);
   const session = await getSession();
   if (!session) throw new Error("Sign in to update your profile");
-  const { data, error } = await client.from("profiles").update(values).eq("id", session.user.id).select().single();
+  const { data, error } = await client.rpc("set_my_profile", { payload: values });
   if (error) throw error;
   return data;
 }
@@ -86,14 +86,81 @@ export async function submitOffer(requestId, input) {
   return data;
 }
 
+export async function getRequestOffers(requestId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.from("trade_offers").select("*, profiles!trade_offers_provider_id_fkey(display_name)").eq("request_id", requestId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function acceptOffer(offerId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("accept_trade_offer", { target_offer_id: offerId });
+  if (error) throw error;
+  return data;
+}
+
+export async function getMyAgreements() {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("get_my_agreements");
+  if (error) throw error;
+  return data;
+}
+
+export async function getProjectMessages(requestId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.from("project_messages").select("*, profiles!project_messages_author_id_fkey(display_name)").eq("request_id", requestId).order("created_at");
+  if (error) throw error;
+  return data;
+}
+
 export async function performAgreementAction(action, agreementId, expectedVersion, payload = {}) {
-  const allowed = new Set(["confirm", "transition", "amend", "fulfill", "approve", "dispute", "cancel"]);
+  const allowed = new Set(["confirm", "scheduled", "active", "review", "completed", "milestone", "hold", "resolve_hold", "fulfill", "approve", "dispute", "cancel"]);
   if (!allowed.has(action)) throw new Error("Unsupported agreement action");
   const client = await getBackend();
   assertBackend(client);
   const { data, error } = await client.functions.invoke("wt-agreement-action", { body: { action, agreementId, expectedVersion, payload } });
   if (error) throw error;
   return data;
+}
+
+export async function submitReview(input) {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) throw new Error("Sign in to leave feedback");
+  const { data, error } = await client.from("work_reviews").insert({ ...input, reviewer_id: session.user.id }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function uploadWorkEvidence(agreementId, file, { skill, description }) {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) throw new Error("Sign in to add evidence");
+  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${agreementId}/${session.user.id}/${crypto.randomUUID()}.${extension}`;
+  const { error: uploadError } = await client.storage.from("work-evidence").upload(path, file, { contentType: file.type, upsert: false });
+  if (uploadError) throw uploadError;
+  const { data, error } = await client.from("work_evidence").insert({ agreement_id: agreementId, contributor_id: session.user.id, skill, description, asset_path: path }).select().single();
+  if (error) {
+    await client.storage.from("work-evidence").remove([path]);
+    throw error;
+  }
+  return data;
+}
+
+export async function getEvidenceUrl(path) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.storage.from("work-evidence").createSignedUrl(path, 900);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export async function sendProjectMessage(requestId, body) {

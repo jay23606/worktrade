@@ -4,7 +4,7 @@ WorkTrade is a local-first marketplace for practical work exchanged through cash
 
 [Live demo](https://jay23606.github.io/worktrade/) · [Repository](https://github.com/jay23606/worktrade)
 
-## Included in the MVP
+## Included in the connected alpha
 
 - Discover and filter public work requests
 - Post work to build, repair, install, fabricate, restore, maintain, inspect, or diagnose
@@ -17,10 +17,15 @@ WorkTrade is a local-first marketplace for practical work exchanged through cash
 - Mutual agreement confirmation, controlled transitions, and version checks
 - Project conversations, follows, circles, blocking, and private safety reports
 - Evidence-backed skill history and a validated reciprocal trade-chain model
+- Hosted magic-link accounts and persistent profiles
+- Server-authoritative offer acceptance and mutual term confirmation
+- Persistent participant messages, milestones, dependency holds, and exchange obligations
+- Private JPG, PNG, and WebP evidence uploads tied to an agreement
+- Contextual completion reviews tied to completed work
 
 Run `npm test`, then `npm start` and open `http://localhost:8080`.
 
-The public build runs in clearly labeled device-local demo mode. Supabase adapters, migrations, row-level policies, and a server-authoritative agreement function are included, but are inactive until a dedicated project is configured.
+Signed-out visitors receive a clearly labeled device-local demonstration. Signed-in users use the dedicated hosted Supabase project for the connected workflow.
 
 ## Production activation
 
@@ -41,4 +46,8 @@ Never put the service-role key, email-provider credentials, payment credentials,
 - Reports are private; blocks are unilateral.
 - Trade chains remain proposed until every linked participant consents.
 
-Payments, file uploads, identity verification, moderation operations, and jurisdiction-specific contracting remain intentionally unconfigured because they require explicit ownership and policy decisions.
+Payments, identity verification, staff moderation operations, and jurisdiction-specific contracting remain intentionally unconfigured. Image evidence uploads are private to agreement participants and use short-lived signed URLs.
+
+## Test scope
+
+`npm test` checks browser modules and agreement invariants. `npm run test:integration` creates two temporary hosted users, exercises the real request → offer → agreement → message → milestone → dependency → reciprocal fulfillment → completion → review lifecycle, checks important authorization failures, and deletes the temporary users and evidence afterward. The integration test requires short-lived environment configuration and is not run by the public Pages workflow.
