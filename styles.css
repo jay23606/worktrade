@@ -67,3 +67,7 @@ body{background:radial-gradient(circle at 85% -5%,color-mix(in srgb,var(--green2
 
 /* A filtered ancestor becomes the containing block for fixed descendants. */
 @media(max-width:800px){.topbar{backdrop-filter:none;background:var(--paper)}}
+
+.profile-actions{display:flex;gap:.6rem;margin-left:auto;align-items:center}.profile-actions .profile-edit{margin-left:0}.field-help{display:block;color:var(--muted);font-size:.76rem;font-weight:400;margin:.25rem 0 .4rem}.privacy-note{display:flex;flex-direction:column;gap:.25rem;padding:1rem;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.privacy-note span{color:var(--muted);font-size:.82rem}.match-welcome{max-width:760px;padding:4rem 0 2rem}.match-welcome h1{margin:.6rem 0 1rem}.first-match-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(280px,.7fr);gap:2rem}.first-match-list{grid-template-columns:1fr}.first-match-list>div{display:grid;gap:.35rem}.first-match-list .match-reason{margin:0;font-size:.78rem;font-weight:750;color:var(--green)}
+@media(max-width:800px){.profile-actions{width:100%;margin-left:0}.first-match-grid{grid-template-columns:1fr}.match-welcome{padding-top:2rem}}
+@media(max-width:480px){.profile-actions{flex-direction:column;align-items:stretch}.profile-actions button{width:100%}}

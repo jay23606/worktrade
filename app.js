@@ -802,12 +802,32 @@ function moderationAppealModal(restrictionId) {
 function renderProfile() {
   const p = state.profile;
   return shell(
-    `<section class="profile-head"><span class="avatar giant">${p.initials}</span><div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div><button class="secondary profile-edit" data-action="edit-profile">Edit profile</button></section>
+    `<section class="profile-head"><span class="avatar giant">${p.initials}</span><div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div><div class="profile-actions"><button class="primary" data-action="onboarding">Improve my matches</button><button class="secondary profile-edit" data-action="edit-profile">Edit profile</button></div></section>
     <div class="two-col"><section class="list-panel"><span class="eyebrow">I can offer</span><h2>Skills, goods, and access</h2><div class="editable-list">${p.offers.map((x, i) => `<span>${esc(x)}<button data-remove="offers:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="offers" class="inline-form"><input name="item" required placeholder="Add something you can offer"><button class="secondary">Add</button></form></section>
     <section class="list-panel warm"><span class="eyebrow">I need</span><h2>Things that could move you forward</h2><div class="editable-list">${p.needs.map((x, i) => `<span>${esc(x)}<button data-remove="needs:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="needs" class="inline-form"><input name="item" required placeholder="Add something you need"><button class="secondary">Add</button></form></section></div>
     <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid"><div><b>Storefront deck restoration</b><span>Carpentry · Exterior finishing</span><p>Verified by Nia Brooks</p></div><div><b>Product launch photography</b><span>Photography · Art direction</span><p>Verified by Maya Chen</p></div></div>${backendConfigured ? `<div class="account-panel" id="account-panel"><p>Checking account…</p></div>` : `<div class="account-panel"><b>Device-local demonstration</b><p>Real accounts become available when this installation is connected to its own Supabase project.</p></div>`}<button class="danger-text" data-action="reset">Reset demo data</button></section>`,
     "Profile and capabilities",
   );
+}
+
+function matchTerms(values = []) {
+  return values.flatMap((value) => value.toLowerCase().split(/[^a-z0-9]+/)).filter((value) => value.length > 2);
+}
+
+function scoreRequestForProfile(request) {
+  const offerTerms = matchTerms(state.profile.offers);
+  const requestText = `${request.title} ${request.description} ${request.skills.join(" ")}`.toLowerCase();
+  const overlap = offerTerms.filter((term) => requestText.includes(term));
+  const nearby = !state.profile.location || request.location.toLowerCase().includes(state.profile.location.split(",")[0].toLowerCase());
+  return { request, overlap: [...new Set(overlap)], score: overlap.length * 3 + (nearby ? 1 : 0) };
+}
+
+function renderFirstMatches() {
+  const work = state.requests.filter((request) => request.status === "open").map(scoreRequestForProfile).sort((a, b) => b.score - a.score).slice(0, 3);
+  const people = state.networkProfiles.slice(0, 3);
+  return shell(`<section class="match-welcome"><span class="eyebrow">Your first matches</span><h1>Here are a few useful places to start.</h1><p>These suggestions use your offers, needs, general location, availability, and exchange preferences. You stay in control of who can see the details.</p><button class="secondary" data-action="onboarding">Adjust matching profile</button></section>
+    <div class="first-match-grid"><section><div class="section-title"><div><span class="eyebrow">Work you may be able to help with</span><h2>${work.length} starting points</h2></div></div><div class="request-grid first-match-list">${work.map(({ request, overlap, score }) => `<div><p class="match-reason">${overlap.length ? `Matches ${esc(overlap.join(", "))}` : score ? "Near your general location" : "Explore a new kind of work"}</p>${requestCard(request)}</div>`).join("")}</div></section>
+    <section><div class="section-title"><div><span class="eyebrow">People worth knowing</span><h2>Potential collaborators</h2></div></div><div class="people-list">${people.map(networkPersonCard).join("") || `<div class="empty"><p>Connected collaborator suggestions will appear here. Your work matches are ready now.</p><button class="secondary" data-nav="network">Explore the network</button></div>`}</div></section></div>`, "Personalized starting points");
 }
 
 let renderedLocation = null;
@@ -827,6 +847,7 @@ function render() {
   else if (state.view === "workspace") main.innerHTML = renderWorkspace();
   else if (state.view === "network") main.innerHTML = renderNetwork();
   else if (state.view === "profile") main.innerHTML = renderProfile();
+  else if (state.view === "matches") main.innerHTML = renderFirstMatches();
   else main.innerHTML = renderDiscover();
   hydrateNetworkSocial();
   document.querySelector(".notification-button").toggleAttribute("data-connected-action", state.remote);
@@ -984,6 +1005,21 @@ function profileModal() {
     profile.visibility || "public";
 }
 
+function onboardingModal() {
+  const profile = state.profile;
+  openModal(`<span class="eyebrow">Match setup · about 2 minutes</span><h2>What would make WorkTrade useful to you?</h2><p>Use plain language. You can change every answer later.</p><form data-form="onboarding" class="form-grid onboarding-form">
+    <label class="wide">What can you offer?<span class="field-help">Skills, labor, goods, tools, space, access, or materials</span><textarea name="offers" required placeholder="Carpentry, bookkeeping, trailer access">${esc((profile.offers || []).join(", "))}</textarea></label>
+    <label class="wide">What do you need?<span class="field-help">Work, knowledge, goods, equipment, or help finishing something</span><textarea name="needs" required placeholder="Fence repair, welding lessons, reclaimed lumber">${esc((profile.needs || []).join(", "))}</textarea></label>
+    <label>General location<input name="location_text" maxlength="120" value="${esc(profile.location || "")}" placeholder="Richmond, VA"></label>
+    <label>Availability<input name="availability_text" maxlength="240" value="${esc(profile.availability || "")}" placeholder="Weekends; weekday evenings"></label>
+    <fieldset class="wide"><legend>Ways you are open to exchanging value</legend><label><input type="checkbox" name="exchange" value="barter" checked> Barter</label><label><input type="checkbox" name="exchange" value="cash" checked> Cash</label><label><input type="checkbox" name="exchange" value="hybrid" checked> Cash + barter</label></fieldset>
+    <label>Profile visibility<select name="profile_visibility"><option value="public">Public profile</option><option value="members">Members only</option><option value="private">Private</option></select></label>
+    <label><input type="checkbox" name="remote_available" ${profile.remoteAvailable ? "checked" : ""}> Include remote opportunities</label>
+    <div class="wide privacy-note"><b>Your exact address is never requested here.</b><span>General location improves nearby matches; visibility controls who can discover your profile.</span></div>
+    <button class="primary wide">Save and show my matches</button>
+  </form>`);
+}
+
 function deactivateModal() {
   openModal(
     `<span class="eyebrow">Deactivate account</span><h2>Remove your public presence.</h2><p>Open requests will be cancelled, pending proposals withdrawn, and profile details replaced. Completed agreement history remains pseudonymous for the other participant. Active agreements must be resolved first.</p><form data-form="deactivate" class="form-grid"><label class="wide">Type DEACTIVATE to confirm<input name="confirmation" required pattern="DEACTIVATE"></label><button class="primary wide">Deactivate and sign out</button></form>`,
@@ -1114,6 +1150,7 @@ document.addEventListener("click", (event) => {
   }
   if (action === "sign-in") signInModal();
   if (action === "edit-profile") profileModal();
+  if (action === "onboarding") onboardingModal();
   if (action === "edit-request")
     editRequestModal(
       state.requests.find((item) => item.id === state.selectedId),
@@ -2056,6 +2093,45 @@ document.addEventListener("submit", async (event) => {
       if (!state.remote) persist();
       closeModal();
       notify("Profile saved");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "onboarding") {
+    const splitList = (value) => value.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
+    const exchanges = data.getAll("exchange");
+    if (!exchanges.length) return notify("Choose at least one way to exchange value.", "warning");
+    const profile = {
+      ...structuredClone(state.profile),
+      offers: splitList(data.get("offers")),
+      needs: splitList(data.get("needs")),
+      location: data.get("location_text"),
+      availability: data.get("availability_text"),
+      visibility: data.get("profile_visibility"),
+      remoteAvailable: data.has("remote_available"),
+      preferredExchangeModes: exchanges,
+      onboardingComplete: true,
+    };
+    try {
+      if (state.remote)
+        await updateMyProfile({
+          display_name: profile.name,
+          location_text: profile.location,
+          bio: profile.bio,
+          needs: profile.needs,
+          offers: profile.offers,
+          work_radius_km: profile.workRadius,
+          remote_available: profile.remoteAvailable,
+          preferred_exchange_modes: exchanges,
+          availability_text: profile.availability,
+          resources_text: profile.resources,
+          profile_visibility: profile.visibility,
+        });
+      state.profile = profile;
+      if (!state.remote) persist();
+      closeModal();
+      state.view = "matches";
+      notify("Your first matches are ready", "success");
     } catch (error) {
       notify(error.message);
     }

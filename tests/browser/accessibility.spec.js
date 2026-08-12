@@ -91,6 +91,20 @@ test("PWA install and connectivity controls explain their state", async ({ page,
   await expect(page.getByRole("status").last()).toContainText("Connection restored");
 });
 
+test("guided match setup saves preferences and produces first matches", async ({ page }) => {
+  await page.locator('[data-nav="profile"]').last().click();
+  await page.getByRole("button", { name: "Improve my matches" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: /What would make WorkTrade useful/ })).toBeVisible();
+  await dialog.getByLabel(/What can you offer/).fill("Carpentry, design, bicycle repair");
+  await dialog.getByLabel(/What do you need/).fill("Greenhouse help, bookkeeping");
+  await dialog.getByLabel("Availability").fill("Saturday mornings");
+  await dialog.getByRole("button", { name: "Save and show my matches" }).click();
+  await expect(page.getByRole("heading", { name: "Here are a few useful places to start." })).toBeVisible();
+  await expect(page.getByText("Matches carpentry, design", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Adjust matching profile" })).toBeVisible();
+});
+
 test("posting dialog is labeled, traps focus, and restores focus", async ({
   page,
 }) => {

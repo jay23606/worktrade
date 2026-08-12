@@ -17,6 +17,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 - **Conversation requires consent.** A profile invitation states both the need and offer; private messaging opens only after acceptance.
 - **Communities create trust boundaries.** Invite-only circles can keep members, resources, work, reputation, and barter chains private.
 - **Multi-person barter is operational.** A chain forms one closed loop, requires unanimous versioned consent, and tracks every contribution independently.
+- **New members get an immediate starting point.** Guided match setup turns plain-language offers, needs, location, availability, privacy, and exchange preferences into ranked work and collaborator suggestions.
 
 ## Product status
 
