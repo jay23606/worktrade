@@ -49,6 +49,15 @@ WorkTrade is a connected alpha for exchanging practical work through cash, barte
 - Share tools, equipment, workspace, vehicles, materials, and access
 - See circle-scoped activity and completed-work reputation
 - Enforce private-circle membership in database row-level policies
+- Discover explainable three-person barter loops inside trusted circles
+- Build and revise closed reciprocal chains without artificial exchange credits
+- Require every participant to accept the same version before activation
+- Run chains simultaneously, sequentially, or with explicit conditions
+- Track each contribution, fulfillment, recipient approval, due date, and dependency hold
+- Keep shared chain messages and an immutable activity history
+- Complete only when every contribution has been approved
+- Cancel or dispute a chain without rewriting its prior record
+- Renegotiate an unfulfilled active chain or replace a participant, resetting unanimous consent
 - Publish completed agreements as evidence-backed portfolio stories with explicit visibility
 - Receive proposal, message, and agreement notifications with unread state
 - Review a readable agreement event history

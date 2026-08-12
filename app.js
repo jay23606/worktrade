@@ -78,6 +78,13 @@ import {
   deleteCircleResource,
   createCircleRequest,
   updateCircleSettings,
+  getTradeChainHub,
+  createTradeChain,
+  reviseTradeChain,
+  acceptTradeChain,
+  activateTradeChain,
+  manageTradeChainLink,
+  manageTradeChain,
 } from "./modules/backend.js";
 
 const STORAGE_KEY = "worktrade:v1";
@@ -115,6 +122,7 @@ const store = createStore({
   },
   circleHub: { circles: [], members: [], resources: [], requests: [] },
   selectedCircleId: null,
+  chainHub: { chains: [], suggestions: [] },
 });
 const { state } = store;
 const main = document.querySelector("#main");
@@ -549,7 +557,53 @@ function hydrateNetworkSocial() {
           "beforeend",
           `<button class="text-btn" data-circle-settings="${selected.id}">Edit rules</button>`,
         );
+    if (selected?.membership?.status === "active")
+      document
+        .querySelector(".circle-detail")
+        ?.insertAdjacentHTML("beforeend", renderChainHub(selected));
+    document
+      .querySelectorAll(".chain-list .chain-card")
+      .forEach((card, index) => {
+        const chain = (state.chainHub.chains || [])[index];
+        if (
+          chain?.status === "active" &&
+          (chain.links || []).every((link) => !link.fulfilled_at)
+        )
+          card.insertAdjacentHTML(
+            "beforeend",
+            `<button class="secondary" data-chain-edit="${chain.id}">Renegotiate or replace participant</button>`,
+          );
+      });
   }
+}
+
+function renderChainHub(circle) {
+  const hub = state.chainHub || { chains: [], suggestions: [] };
+  const suggestions = (hub.suggestions || []).filter((suggestion) =>
+    (suggestion.participants || []).includes(state.profile.id),
+  );
+  return `<section class="chain-hub"><div class="section-title"><div><span class="eyebrow">Multi-person barter</span><h2>Closed loops of useful value</h2></div><button class="primary" data-create-chain="${circle.id}">Build a chain</button></div>${suggestions.length ? `<div class="chain-suggestions">${suggestions.map((s, index) => `<article><span class="match-label">Suggested reciprocal loop</span><p>${esc(s.explanation)}</p><button class="secondary" data-suggest-chain="${index}:${circle.id}">Review suggestion</button></article>`).join("")}</div>` : ""}<div class="chain-list">${(hub.chains || []).map(chainCard).join("") || '<div class="empty"><p>No trade chains in this circle yet.</p></div>'}</div></section>`;
+}
+function chainCard(chain) {
+  const accepted = (chain.acceptances || []).filter(
+    (a) => a.version === chain.version,
+  );
+  const participantIds = [
+    ...new Set((chain.links || []).map((l) => l.from_profile_id)),
+  ];
+  const mineAccepted = accepted.some((a) => a.profile_id === state.profile.id);
+  const allAccepted = accepted.length === participantIds.length;
+  return `<article class="chain-card"><div class="card-top"><span class="category">${esc(chain.status)}</span><span>v${chain.version} · ${esc(chain.execution_mode)}</span></div><h3>${esc(chain.title)}</h3><p>${esc(chain.description || "")}</p><div class="trade-chain">${(chain.links || []).map((link) => `<span>${esc(link.from_name)}<small>${esc(link.value_description)} → ${esc(link.to_name)}</small></span>`).join("<i>→</i>")}</div><small>${accepted.length}/${participantIds.length} confirmed</small>${chain.status === "proposed" && !mineAccepted ? `<button class="primary" data-chain-accept="${chain.id}:${chain.version}">Accept entire chain</button>` : ""}${chain.status === "accepted" && allAccepted ? `<button class="primary" data-chain-activate="${chain.id}">Activate obligations</button>` : ""}${["proposed", "accepted"].includes(chain.status) ? `<button class="secondary" data-chain-edit="${chain.id}">Revise proposal</button>` : ""}${chain.status === "active" ? `<div class="chain-links">${chain.links.map((link) => `<article><b>${esc(link.from_name)} → ${esc(link.to_name)}</b><p>${esc(link.value_description)}</p><small>${link.approved_at ? "Approved" : link.fulfilled_at ? "Awaiting recipient approval" : "Pending"}${link.due_at ? ` · due ${new Date(link.due_at).toLocaleDateString()}` : ""}</small>${link.from_profile_id === state.profile.id && !link.fulfilled_at ? `<button data-chain-link="fulfill:${link.id}">Submit fulfillment</button>` : ""}${link.to_profile_id === state.profile.id && link.fulfilled_at && !link.approved_at ? `<button data-chain-link="approve:${link.id}">Approve receipt</button>` : ""}<button class="text-btn" data-chain-hold="${chain.id}:${link.id}">Add dependency</button></article>`).join("")}</div>` : ""}${(
+    chain.holds || []
+  )
+    .filter((h) => !h.resolved_at)
+    .map(
+      (h) =>
+        `<div class="hold"><div><b>${esc(h.kind)}</b><p>${esc(h.detail)}</p></div><button data-chain-resolve-hold="${chain.id}:${h.id}">Resolve</button></div>`,
+    )
+    .join(
+      "",
+    )}<div class="intro-thread">${(chain.messages || []).map((m) => `<p><b>${esc(m.author_name)}:</b> ${esc(m.body)}</p>`).join("")}<form data-form="chain-message" data-chain="${chain.id}" class="inline-form"><input name="body" required maxlength="1500" placeholder="Message every participant"><button class="secondary">Send</button></form></div><details><summary>Audit history</summary>${(chain.history || []).map((h) => `<p><b>${esc(h.event)}</b> ${esc(h.note)} <small>${new Date(h.created_at).toLocaleString()}</small></p>`).join("")}</details>${!["completed", "cancelled", "disputed"].includes(chain.status) ? `<div class="conversation-safety"><button class="text-btn" data-chain-manage="cancelled:${chain.id}">Cancel chain</button><button class="danger-text" data-chain-manage="disputed:${chain.id}">Raise dispute</button></div>` : ""}</article>`;
 }
 
 function circleDetail(circle, hub) {
@@ -638,6 +692,47 @@ function circlePostModal(circleId) {
       .join(
         "",
       )}<option value="other">Other</option></select></label><label>Location<input name="location"></label><label class="wide">Desired outcome<textarea name="description" required></textarea></label><label>Skills<input name="skills" placeholder="Carpentry, design"></label><label>Timing<input name="urgency" placeholder="Flexible"></label><label class="wide">Exchange terms<input name="exchange_summary" required placeholder="Garden help for welding, cash, or a mix"></label><label class="wide">Constraints<textarea name="constraints"></textarea></label><button class="primary wide">Post inside circle</button></form>`,
+  );
+}
+function chainBuilderModal(circleId, suggestion = null, chain = null) {
+  const members = (state.circleHub.members || [])
+    .filter((m) => m.circle_id === circleId && m.status === "active")
+    .sort(
+      (a, b) =>
+        Number(b.profile_id === state.profile.id) -
+        Number(a.profile_id === state.profile.id),
+    );
+  const links =
+    chain?.links ||
+    suggestion?.links ||
+    members.slice(0, 3).map((member, index, list) => ({
+      from_profile_id: member.profile_id,
+      to_profile_id: list[(index + 1) % list.length]?.profile_id || "",
+      value_description: "",
+      position: index,
+      conditions: "",
+      due_at: "",
+    }));
+  if (members.length < 3)
+    return notify(
+      "A circle needs at least three active members for a trade chain",
+    );
+  const memberOptions = (selected) =>
+    members
+      .map(
+        (m) =>
+          `<option value="${m.profile_id}" ${m.profile_id === selected ? "selected" : ""}>${esc(m.display_name)}</option>`,
+      )
+      .join("");
+  openModal(
+    `<span class="eyebrow">${chain ? "Revise" : "Propose"} reciprocal chain</span><h2>Every person gives once and receives once.</h2><p>Changes reset all confirmations. Describe concrete deliverables without converting them to platform credits.</p><form data-form="chain-builder" data-circle="${circleId}" ${chain ? `data-chain="${chain.id}" data-version="${chain.version}"` : ""} class="form-grid"><label class="wide">Title<input name="title" required maxlength="140" value="${esc(chain?.title || "Circle reciprocal exchange")}"></label><label class="wide">Purpose<textarea name="description">${esc(chain?.description || suggestion?.explanation || "")}</textarea></label><label>Execution<select name="execution_mode"><option value="sequential">Sequential</option><option value="simultaneous">Simultaneous</option><option value="conditional">Conditional</option></select></label><div class="wide chain-builder-links">${links.map((link, index) => `<fieldset><legend>Link ${index + 1}</legend><label>Provider<select name="from_${index}">${memberOptions(link.from_profile_id)}</select></label><label>Recipient<select name="to_${index}">${memberOptions(link.to_profile_id)}</select></label><label>Contribution<input name="value_${index}" required value="${esc(link.value_description || "")}"></label><label>Due date<input name="due_${index}" type="date" value="${link.due_at ? link.due_at.slice(0, 10) : ""}"></label><label>Conditions<input name="conditions_${index}" value="${esc(link.conditions || "")}"></label></fieldset>`).join("")}</div><input type="hidden" name="link_count" value="${links.length}"><button class="primary wide">${chain ? "Publish revision" : "Propose to everyone"}</button></form>`,
+  );
+  modalRoot.querySelector("[name=execution_mode]").value =
+    chain?.execution_mode || "sequential";
+}
+function chainHoldModal(chainId, linkId) {
+  openModal(
+    `<span class="eyebrow">Chain dependency</span><h2>What must happen before this link can proceed?</h2><form data-form="chain-hold" data-chain="${chainId}" data-link="${linkId}" class="form-grid"><label>Type<select name="kind"><option value="materials">Materials</option><option value="equipment">Equipment</option><option value="weather">Weather</option><option value="access_permission">Access or permission</option><option value="customer_decision">Decision</option><option value="specialist">Specialist</option><option value="third_party">Third party</option><option value="custom">Other</option></select></label><label>Review date<input name="review_at" type="date"></label><label class="wide">Detail<textarea name="detail" required></textarea></label><button class="primary wide">Place dependency hold</button></form>`,
   );
 }
 
@@ -1356,9 +1451,10 @@ document.addEventListener("click", (event) => {
     if (
       circle?.membership?.status === "active" ||
       circle?.membership?.status === "invited"
-    )
+    ) {
       state.selectedCircleId = circle.id;
-    else if (circle)
+      loadNetwork();
+    } else if (circle)
       requestCircleMembership(circle.id)
         .then(loadNetwork)
         .then(() => notify("Membership requested"))
@@ -1406,6 +1502,83 @@ document.addEventListener("click", (event) => {
       .then(loadNetwork)
       .then(() => notify("Resource removed"))
       .catch((error) => notify(error.message));
+  const createChainButton = event.target.closest("[data-create-chain]");
+  if (createChainButton)
+    chainBuilderModal(createChainButton.dataset.createChain);
+  const suggestChain = event.target.closest("[data-suggest-chain]");
+  if (suggestChain) {
+    const [index, circleId] = suggestChain.dataset.suggestChain.split(":");
+    const suggestions = (state.chainHub.suggestions || []).filter((item) =>
+      (item.participants || []).includes(state.profile.id),
+    );
+    chainBuilderModal(circleId, suggestions[Number(index)]);
+  }
+  const editChain = event.target.closest("[data-chain-edit]");
+  if (editChain) {
+    const chain = state.chainHub.chains.find(
+      (c) => c.id === editChain.dataset.chainEdit,
+    );
+    if (chain) chainBuilderModal(chain.circle_id, null, chain);
+  }
+  const acceptChainButton = event.target.closest("[data-chain-accept]");
+  if (acceptChainButton) {
+    const [id, version] = acceptChainButton.dataset.chainAccept.split(":");
+    acceptTradeChain(id, Number(version))
+      .then(loadNetwork)
+      .then(() => notify("You accepted the complete chain"))
+      .catch((error) => notify(error.message));
+  }
+  const activateChainButton = event.target.closest("[data-chain-activate]");
+  if (activateChainButton)
+    activateTradeChain(activateChainButton.dataset.chainActivate)
+      .then(loadNetwork)
+      .then(() => notify("Trade chain activated"))
+      .catch((error) => notify(error.message));
+  const chainLinkButton = event.target.closest("[data-chain-link]");
+  if (chainLinkButton) {
+    const [actionName, id] = chainLinkButton.dataset.chainLink.split(":");
+    const note =
+      actionName === "fulfill"
+        ? prompt("Briefly describe the delivered work or value:") || ""
+        : "";
+    manageTradeChainLink(id, actionName, note)
+      .then(loadNetwork)
+      .then(() =>
+        notify(
+          actionName === "fulfill"
+            ? "Fulfillment submitted"
+            : "Contribution approved",
+        ),
+      )
+      .catch((error) => notify(error.message));
+  }
+  const chainHold = event.target.closest("[data-chain-hold]");
+  if (chainHold) {
+    const [chainId, linkId] = chainHold.dataset.chainHold.split(":");
+    chainHoldModal(chainId, linkId);
+  }
+  const resolveChainHold = event.target.closest("[data-chain-resolve-hold]");
+  if (resolveChainHold) {
+    const [chainId, holdId] =
+      resolveChainHold.dataset.chainResolveHold.split(":");
+    manageTradeChain(chainId, "resolve_hold", { hold_id: holdId })
+      .then(loadNetwork)
+      .then(() => notify("Dependency resolved"))
+      .catch((error) => notify(error.message));
+  }
+  const chainManage = event.target.closest("[data-chain-manage]");
+  if (chainManage) {
+    const [actionName, id] = chainManage.dataset.chainManage.split(":");
+    if (
+      confirm(
+        `${actionName === "disputed" ? "Raise a dispute for" : "Cancel"} this entire chain?`,
+      )
+    )
+      manageTradeChain(id, actionName, {})
+        .then(loadNetwork)
+        .then(() => notify(`Chain ${actionName}`))
+        .catch((error) => notify(error.message));
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -2085,6 +2258,77 @@ document.addEventListener("submit", async (event) => {
       notify(error.message);
     }
   }
+  if (form.dataset.form === "chain-builder") {
+    try {
+      const count = Number(data.get("link_count"));
+      const links = Array.from({ length: count }, (_, index) => ({
+        from_profile_id: data.get(`from_${index}`),
+        to_profile_id: data.get(`to_${index}`),
+        value_description: data.get(`value_${index}`),
+        position: index,
+        due_at: data.get(`due_${index}`)
+          ? new Date(`${data.get(`due_${index}`)}T12:00:00`).toISOString()
+          : "",
+        conditions: data.get(`conditions_${index}`),
+      }));
+      const payload = {
+        title: data.get("title"),
+        description: data.get("description"),
+        execution_mode: data.get("execution_mode"),
+        links,
+      };
+      if (form.dataset.chain)
+        await reviseTradeChain(
+          form.dataset.chain,
+          Number(form.dataset.version),
+          payload,
+        );
+      else
+        await createTradeChain(form.dataset.circle, {
+          title: payload.title,
+          description: payload.description,
+          executionMode: payload.execution_mode,
+          links,
+        });
+      closeModal();
+      await loadNetwork();
+      notify(
+        form.dataset.chain
+          ? "Chain revised; confirmations reset"
+          : "Trade chain proposed",
+      );
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "chain-message") {
+    try {
+      await manageTradeChain(form.dataset.chain, "message", {
+        body: data.get("body"),
+      });
+      form.reset();
+      await loadNetwork();
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "chain-hold") {
+    try {
+      await manageTradeChain(form.dataset.chain, "hold", {
+        link_id: form.dataset.link,
+        kind: data.get("kind"),
+        detail: data.get("detail"),
+        review_at: data.get("review_at")
+          ? new Date(`${data.get("review_at")}T12:00:00`).toISOString()
+          : "",
+      });
+      closeModal();
+      await loadNetwork();
+      notify("Chain dependency recorded");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
 });
 
 store.subscribe(render, true);
@@ -2314,7 +2558,7 @@ async function loadNotifications() {
 async function loadNetwork() {
   if (!backendConfigured) return;
   try {
-    const [profiles, activity, inbox, circleHub] = await Promise.all([
+    const [profiles, activity, inbox, circleHub, chainHub] = await Promise.all([
       discoverProfiles({
         query: state.networkQuery || "",
         exchange: state.networkExchange || null,
@@ -2337,12 +2581,16 @@ async function loadNetwork() {
             resources: [],
             requests: [],
           }),
+      state.session && state.selectedCircleId
+        ? getTradeChainHub(state.selectedCircleId)
+        : Promise.resolve({ chains: [], suggestions: [] }),
     ]);
     store.batch(() => {
       state.networkProfiles = profiles || [];
       state.networkActivity = activity || [];
       state.networkInbox = inbox;
       state.circleHub = circleHub;
+      state.chainHub = chainHub;
       if (state.session)
         state.profile = {
           ...state.profile,
