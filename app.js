@@ -144,6 +144,9 @@ document.querySelector(".theme-toggle").setAttribute(
 );
 document.querySelector('meta[name="theme-color"]').content =
   currentTheme === "dark" ? "#111914" : "#f4f0e6";
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js"));
+}
 const categories = [
   "All",
   "Build",

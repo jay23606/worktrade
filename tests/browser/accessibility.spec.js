@@ -9,14 +9,19 @@ test.beforeEach(async ({ page }) => {
 test("critical landing page has no serious accessibility violations", async ({
   page,
 }) => {
-  const results = await new AxeBuilder({ page })
-    .disableRules(["region"])
-    .analyze();
-  expect(
-    results.violations.filter(({ impact }) =>
-      ["serious", "critical"].includes(impact),
-    ),
-  ).toEqual([]);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((nextTheme) => {
+      document.documentElement.dataset.theme = nextTheme;
+    }, theme);
+    const results = await new AxeBuilder({ page })
+      .disableRules(["region"])
+      .analyze();
+    expect(
+      results.violations.filter(({ impact }) =>
+        ["serious", "critical"].includes(impact),
+      ),
+    ).toEqual([]);
+  }
 });
 
 test("responsive layouts do not overflow horizontally", async ({ page }) => {
@@ -35,6 +40,19 @@ test("color theme can be changed and persists across reloads", async ({ page }) 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.getByRole("button", { name: "Switch to light mode" })).toBeVisible();
+});
+
+test("PWA shell registers and reloads while offline", async ({ page, context }) => {
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest");
+  await page.evaluate(async () => {
+    if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable");
+    await navigator.serviceWorker.ready;
+  });
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.locator(".hero-visual img")).toBeVisible();
+  await context.setOffline(false);
 });
 
 test("posting dialog is labeled, traps focus, and restores focus", async ({

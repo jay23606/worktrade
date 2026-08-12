@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "WorkTrade",
+  "short_name": "WorkTrade",
+  "description": "Exchange practical work through cash, barter, or both.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f0e6",
+  "theme_color": "#176044",
+  "categories": ["social", "productivity", "lifestyle"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

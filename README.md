@@ -2,6 +2,8 @@
 
 WorkTrade includes a responsive editorial landing experience, an original community-work hero illustration, and persistent light and dark color themes that follow the device preference on first visit.
 
+It is also an installable progressive web app. The application shell, artwork, and local demo data remain available after a successful first load without connectivity. Connected account operations still require a network connection and remain server-authoritative.
+
 WorkTrade is a community platform for getting useful work done through cash, barter, services, goods, shared resources, or a negotiated combination. It supports ordinary two-person work agreements and closed reciprocal exchanges among several members without creating platform credits.
 
 [Open WorkTrade](https://jay23606.github.io/worktrade/) · [Repository](https://github.com/jay23606/worktrade) · [UAT report](docs/UAT_REPORT.md)
