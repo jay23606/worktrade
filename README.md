@@ -26,7 +26,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Introductions              | Connected             | Consent gate, private messaging, shared planning workspace, conversion to work                   |
 | Trusted circles            | Connected pilot       | Membership workflows, roles, private work, resources, rules, scoped reputation                   |
 | Multi-person barter chains | Connected pilot       | Circle-only discovery, unanimous consent, execution modes, holds, approvals, disputes            |
-| Moderation operations      | Incomplete            | Reports exist; staff review console and operating procedures do not                              |
+| Moderation operations      | Core implemented      | Private reports, staff queue, restrictions, appeals, and immutable actions; first staff assignment and procedures remain |
 | Transactional email        | Incomplete            | Preferences persist; production delivery is not active                                           |
 | Payments or escrow         | Not planned for pilot | Participants settle directly                                                                     |
 
@@ -132,6 +132,7 @@ npm test             # syntax, domain invariants, store tests, UAT contracts
 npm run test:uat     # deployment and authorization contract checks only
 npm run test:integration         # two-user request-to-completion lifecycle
 npm run test:integration:chains  # private circle and three-party chain
+npm run test:integration:moderation # report, restriction, appeal, audit
 ```
 
 The hosted integration tests create temporary users, exercise the real request-to-completion and reciprocal-chain workflows, validate authorization failures, and remove their test identities and evidence in `finally`. Both run through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
@@ -150,7 +151,7 @@ Pushing `main` runs the Pages workflow. It builds an explicit allowlisted artifa
 
 Before opening registration beyond a supervised 5–15 person pilot:
 
-- Build the staff moderation console and operating procedures.
+- Assign the initial administrator and adopt documented moderation operating procedures.
 - Activate transactional email for time-sensitive invitations and approvals.
 - Establish prohibited-work, safety, privacy, terms, retention, and permanent-erasure policies.
 - Keep both protected hosted UAT lifecycles passing, including nonparticipant REST authorization attempts.

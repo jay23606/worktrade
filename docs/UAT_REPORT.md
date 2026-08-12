@@ -19,6 +19,7 @@ The connected alpha has passed its automated two-user request lifecycle and thre
 - **P1 — Recursive circle authorization:** a self-referencing `circle_members` policy broke ordinary request reads and writes. Circle membership checks now use a security-definer predicate that preserves RLS without recursive evaluation.
 - **P1 — Hosted lifecycle unverified:** the isolated two-account lifecycle now passes against hosted Supabase and runs from a protected GitHub Actions environment.
 - **P1 — Chain creation failed:** an ambiguous PL/pgSQL identifier in the proposer guard prevented valid chains from being created. The function now uses explicit record aliases and has hosted regression coverage.
+- **P1 — Moderation operations absent:** users can now submit private categorized reports, staff have a private review queue, restrictions block interaction writes, reporter updates exclude internal notes, appeals support reinstatement, and staff actions are immutable.
 
 ## Automated hosted result
 
@@ -26,6 +27,7 @@ Passed on 2026-08-12 against the hosted WorkTrade project. Both tests create tem
 
 - The two-user lifecycle covers profile setup, draft publishing and duplication, request editing, offer revision and authorization, agreement creation, milestones, mutual confirmation, amendments, messaging, notifications, evidence upload, holds, reciprocal obligation approval, mutual completion, review submission, history, data export, and account deactivation.
 - The circle-and-chain lifecycle covers private membership approval, outsider REST denial, private resources and work, closed reciprocal links, unanimous versioned consent, revision resets, stale-version rejection, activation, sequential enforcement, dependency holds, self-approval denial, completion, history, and disputes.
+- The moderation lifecycle covers reporting, staff-only queue access, restriction enforcement, reporter-safe updates, appeals, reinstatement, safety notifications, and immutable audit history.
 
 ## Remaining manual hosted UAT checklist
 
@@ -41,7 +43,7 @@ Run with three new accounts in separate browser profiles.
 
 ## Remaining findings
 
-- **P1:** A staff moderation console and operational report workflow do not exist.
+- **P1:** The initial administrator has not been assigned and written moderation procedures have not been adopted.
 - **P1:** Transactional email delivery is not active.
 - **P2:** `app.js` still contains domain rendering and event orchestration; continue extracting feature controllers after pilot behavior is stable.
 - **P2:** Circles and chains need dedicated routes for mobile use and deep linking.

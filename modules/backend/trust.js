@@ -1,5 +1,100 @@
 import { getBackend, getSession, assertBackend } from "./core.js";
 
+export async function submitSafetyReport(
+  targetType,
+  targetId,
+  category,
+  detail,
+) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("submit_safety_report", {
+    report_target_type: targetType,
+    report_target_id: targetId,
+    report_category: category,
+    report_detail: detail,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function getMySafetyReports() {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("get_my_safety_reports");
+  if (error) throw error;
+  return data;
+}
+
+export async function getMyRestrictions() {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) return [];
+  const { data, error } = await client
+    .from("account_restrictions")
+    .select("*")
+    .eq("profile_id", session.user.id)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function getModerationQueue() {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("get_moderation_queue");
+  if (error) throw error;
+  return data;
+}
+
+export async function moderateReport(
+  reportId,
+  action,
+  internalNote,
+  reporterUpdate = "",
+  expiresAt = null,
+) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { error } = await client.rpc("moderate_report", {
+    target_report_id: reportId,
+    moderation_action: action,
+    internal_note_value: internalNote,
+    reporter_update_value: reporterUpdate,
+    restriction_expires_at: expiresAt,
+  });
+  if (error) throw error;
+}
+
+export async function submitModerationAppeal(restrictionId, statement) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("submit_moderation_appeal", {
+    target_restriction_id: restrictionId,
+    appeal_statement: statement,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function resolveModerationAppeal(
+  appealId,
+  decision,
+  internalNote,
+  memberUpdate,
+) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { error } = await client.rpc("resolve_moderation_appeal", {
+    target_appeal_id: appealId,
+    appeal_decision: decision,
+    internal_note_value: internalNote,
+    member_update_value: memberUpdate,
+  });
+  if (error) throw error;
+}
+
 export async function submitReview(input) {
   const client = await getBackend();
   assertBackend(client);

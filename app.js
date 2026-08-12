@@ -23,6 +23,9 @@ import {
   getMyOffers,
   getMyProfile,
   getMyRequests,
+  getMyRestrictions,
+  getMySafetyReports,
+  getModerationQueue,
   getNotificationPreferences,
   getNotifications,
   getProjectMessages,
@@ -47,7 +50,11 @@ import {
   signInWithEmail,
   signOut,
   submitOffer,
+  submitSafetyReport,
+  submitModerationAppeal,
   submitReview,
+  moderateReport,
+  resolveModerationAppeal,
   updateMyProfile,
   updateRequest,
   uploadRequestMedia,
@@ -676,6 +683,45 @@ function chainHoldModal(chainId, linkId) {
   );
 }
 
+async function moderationConsoleModal() {
+  try {
+    const queue = await getModerationQueue();
+    openModal(
+      `<span class="eyebrow">Private staff workspace · ${esc(queue.role)}</span><h2>Safety review queue</h2><p>Internal notes and reporter identities are confidential. Immediate danger belongs with local emergency services.</p><section class="moderation-queue"><h3>Open reports</h3>${queue.reports
+        .map(
+          (report) =>
+            `<article><span class="category">${esc(report.category)} · ${esc(report.severity)}</span><h3>${esc(report.target_name || report.target_type)}</h3><p>${esc(report.detail)}</p><small>Reported by ${esc(report.reporter_name)} · ${esc(report.reporter_status)}</small><button class="secondary" data-review-report="${report.id}">Review case</button></article>`,
+        )
+        .join("") || "<p>No open reports.</p>"}<h3>Open appeals</h3>${queue.appeals
+        .map(
+          (appeal) =>
+            `<article><p>${esc(appeal.statement)}</p><button class="secondary" data-review-appeal="${appeal.id}">Review appeal</button></article>`,
+        )
+        .join("") || "<p>No open appeals.</p>"}</section>`,
+    );
+  } catch (error) {
+    notify(error.message);
+  }
+}
+
+function moderationDecisionModal(reportId) {
+  openModal(
+    `<span class="eyebrow">Staff case action</span><h2>Record a proportionate decision.</h2><form data-form="moderation-decision" data-report="${reportId}" class="form-grid"><label>Action<select name="action"><option value="note">Continue review</option><option value="dismissed">Dismiss</option><option value="warned">Warn</option><option value="restricted">Restrict interactions</option><option value="suspended">Suspend</option><option value="banned">Ban (admin only)</option><option value="resolved">Resolve without restriction</option></select></label><label>Restriction ends<input name="expires_at" type="datetime-local"></label><label class="wide">Internal rationale<textarea name="internal_note" required minlength="5" maxlength="4000"></textarea></label><label class="wide">Update visible to reporter<textarea name="reporter_update" maxlength="1000"></textarea></label><button class="primary wide">Record immutable action</button></form>`,
+  );
+}
+
+function appealDecisionModal(appealId) {
+  openModal(
+    `<span class="eyebrow">Appeal review</span><h2>Uphold or restore access.</h2><form data-form="appeal-decision" data-appeal="${appealId}" class="form-grid"><label>Decision<select name="decision"><option value="granted">Grant and restore access</option><option value="upheld">Uphold restriction</option></select></label><label class="wide">Internal rationale<textarea name="internal_note" required minlength="5" maxlength="4000"></textarea></label><label class="wide">Explanation visible to member<textarea name="member_update" required minlength="5" maxlength="1000"></textarea></label><button class="primary wide">Record appeal decision</button></form>`,
+  );
+}
+
+function moderationAppealModal(restrictionId) {
+  openModal(
+    `<span class="eyebrow">Appeal a restriction</span><h2>Explain what should be reconsidered.</h2><p>A different moderator should review appeals when staffing permits.</p><form data-form="moderation-appeal" data-restriction="${restrictionId}" class="form-grid"><label class="wide">Appeal statement<textarea name="statement" required minlength="20" maxlength="4000"></textarea></label><button class="primary wide">Submit appeal</button></form>`,
+  );
+}
+
 function renderProfile() {
   const p = state.profile;
   return shell(
@@ -766,7 +812,7 @@ function holdModal(id) {
 
 function reportModal(id) {
   openModal(
-    `<span class="eyebrow">Safety report</span><h2>Tell moderators what happened.</h2><p>Reports are private. Immediate danger should be reported to local emergency services.</p><form data-form="report" data-id="${id}" class="form-grid"><label>Concern<select name="reason"><option>Unsafe work or conditions</option><option>Fraud or misrepresentation</option><option>Harassment</option><option>Regulated or prohibited work</option><option>Spam</option><option>Other</option></select></label><label class="wide">Details<textarea name="detail" required maxlength="2000"></textarea></label><button class="primary wide">Submit private report</button></form>`,
+    `<span class="eyebrow">Safety report</span><h2>Tell moderators what happened.</h2><p>Reports are private. WorkTrade is not an emergency service. If anyone is in immediate danger, contact local emergency services now.</p><form data-form="report" data-id="${id}" class="form-grid"><label>Concern<select name="reason"><option value="unsafe_work">Unsafe work or conditions</option><option value="fraud">Fraud or misrepresentation</option><option value="harassment">Harassment</option><option value="prohibited_service">Regulated or prohibited work</option><option value="spam">Spam</option><option value="privacy">Privacy concern</option><option value="other">Other</option></select></label><label class="wide">Details<textarea name="detail" required minlength="10" maxlength="2000"></textarea></label><button class="primary wide">Submit private report</button></form>`,
   );
 }
 
@@ -977,6 +1023,7 @@ document.addEventListener("click", (event) => {
       .then(() => notify("Your data export is ready"))
       .catch((error) => notify(error.message));
   if (action === "deactivate") deactivateModal();
+  if (action === "moderation-console") moderationConsoleModal();
   if (action === "sign-out")
     signOut()
       .then(() => {
@@ -990,6 +1037,12 @@ document.addEventListener("click", (event) => {
         notify("Signed out — showing the device demo");
       })
       .catch((error) => notify(error.message));
+  const reviewReport = event.target.closest("[data-review-report]");
+  if (reviewReport) moderationDecisionModal(reviewReport.dataset.reviewReport);
+  const reviewAppeal = event.target.closest("[data-review-appeal]");
+  if (reviewAppeal) appealDecisionModal(reviewAppeal.dataset.reviewAppeal);
+  const submitAppeal = event.target.closest("[data-submit-appeal]");
+  if (submitAppeal) moderationAppealModal(submitAppeal.dataset.submitAppeal);
   const accept = event.target.closest("[data-accept]");
   if (accept) {
     if (state.remote)
@@ -1760,6 +1813,21 @@ document.addEventListener("submit", async (event) => {
     }
   }
   if (form.dataset.form === "report") {
+    if (state.remote) {
+      try {
+        await submitSafetyReport(
+          "request",
+          form.dataset.id,
+          data.get("reason"),
+          data.get("detail"),
+        );
+        closeModal();
+        notify("Private report submitted for moderator review");
+      } catch (error) {
+        notify(error.message);
+      }
+      return;
+    }
     updateRequests((list) => {
       const r = list.find((x) => x.id === form.dataset.id);
       r.reports ||= [];
@@ -1927,6 +1995,50 @@ document.addEventListener("submit", async (event) => {
       });
       closeModal();
       notify("Account deactivated; showing device demo");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "moderation-decision") {
+    try {
+      await moderateReport(
+        form.dataset.report,
+        data.get("action"),
+        data.get("internal_note"),
+        data.get("reporter_update"),
+        data.get("expires_at")
+          ? new Date(data.get("expires_at")).toISOString()
+          : null,
+      );
+      closeModal();
+      notify("Immutable moderation action recorded");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "appeal-decision") {
+    try {
+      await resolveModerationAppeal(
+        form.dataset.appeal,
+        data.get("decision"),
+        data.get("internal_note"),
+        data.get("member_update"),
+      );
+      closeModal();
+      notify("Appeal decision recorded");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "moderation-appeal") {
+    try {
+      await submitModerationAppeal(
+        form.dataset.restriction,
+        data.get("statement"),
+      );
+      closeModal();
+      await hydrateAccount();
+      notify("Appeal submitted for review");
     } catch (error) {
       notify(error.message);
     }
@@ -2506,9 +2618,35 @@ async function hydrateAccount() {
   if (!panel) return;
   try {
     const session = state.session || (await getSession());
-    panel.innerHTML = session
-      ? `<b>${esc(session.user.email)}</b><p>Your session is encrypted and managed by Supabase Auth.</p><div class="account-actions"><button class="secondary" data-action="notification-preferences">Notifications</button><button class="secondary" data-action="export-data">Export my data</button><button class="secondary" data-action="sign-out">Sign out</button><button class="danger-text" data-action="deactivate">Deactivate account</button></div>`
-      : `<b>Ready for a real account</b><p>Sign in with a secure email link.</p><button class="primary" data-action="sign-in">Sign in</button>`;
+    if (!session) {
+      panel.innerHTML = `<b>Ready for a real account</b><p>Sign in with a secure email link.</p><button class="primary" data-action="sign-in">Sign in</button>`;
+      return;
+    }
+    const [reports, restrictions, staffQueue] = await Promise.all([
+      getMySafetyReports(),
+      getMyRestrictions(),
+      getModerationQueue().catch(() => null),
+    ]);
+    const activeRestriction = restrictions.find(
+      (restriction) =>
+        !restriction.lifted_at &&
+        (!restriction.expires_at || new Date(restriction.expires_at) > new Date()),
+    );
+    panel.innerHTML = `<b>${esc(session.user.email)}</b><p>Your session is encrypted and managed by Supabase Auth.</p>${
+      activeRestriction
+        ? `<div class="safety-notice"><b>Account ${esc(activeRestriction.level)}</b><p>${esc(activeRestriction.reason)}</p><button class="secondary" data-submit-appeal="${activeRestriction.id}">Appeal this restriction</button></div>`
+        : ""
+    }${
+      reports.length
+        ? `<div class="safety-notice"><b>Your safety reports</b>${reports
+            .slice(0, 3)
+            .map(
+              (report) =>
+                `<p>${esc(report.category)} · ${esc(report.reporter_status)}${report.reporter_update ? `<br>${esc(report.reporter_update)}` : ""}</p>`,
+            )
+            .join("")}</div>`
+        : ""
+    }<div class="account-actions"><button class="secondary" data-action="notification-preferences">Notifications</button><button class="secondary" data-action="export-data">Export my data</button>${staffQueue ? `<button class="secondary" data-action="moderation-console">Safety queue (${staffQueue.reports.length + staffQueue.appeals.length})</button>` : ""}<button class="secondary" data-action="sign-out">Sign out</button><button class="danger-text" data-action="deactivate">Deactivate account</button></div>`;
   } catch (error) {
     panel.innerHTML = `<p>Account service unavailable: ${esc(error.message)}</p>`;
   }

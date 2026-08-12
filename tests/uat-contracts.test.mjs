@@ -91,6 +91,18 @@ test("private introductions require acceptance and honor blocking", () => {
   assert.match(sql, /daily invitation limit reached/);
 });
 
+test("moderation data is private and restrictions guard interaction writes", () => {
+  assert.match(sql, /moderation_actions_immutable/);
+  assert.match(sql, /staff authorization required/);
+  assert.match(sql, /account interaction restricted/);
+  assert.match(sql, /reporter_status/);
+  assert.match(sql, /resolve_moderation_appeal/);
+  assert.doesNotMatch(
+    sql,
+    /create policy[^;]*moderation_actions[^;]*using\s*\(\s*true\s*\)/i,
+  );
+});
+
 test("client exposes the primary UAT journeys through backend operations", () => {
   for (const operation of [
     "createRemoteRequest",
@@ -125,6 +137,9 @@ test("backend facade preserves domain API after module split", async () => {
     "createCircle",
     "createTradeChain",
     "submitReview",
+    "submitSafetyReport",
+    "getModerationQueue",
+    "resolveModerationAppeal",
   ])
     assert.equal(typeof facade[operation], "function");
 });
