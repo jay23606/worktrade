@@ -32,6 +32,11 @@ WorkTrade is a connected alpha for exchanging practical work through cash, barte
 - See reciprocal match reasons based on what you need and another member can offer
 - Browse an activity feed of public requests and verified completion stories
 - Follow useful collaborators without popularity rankings
+- Send consent-gated collaboration invitations that state both sides of a proposed exchange
+- Open private introduction messages only after an invitation is accepted
+- Accept, decline, or mute introductions and receive network notifications
+- Save collaborators and reusable network searches
+- Switch between community activity and a following-only work feed
 - Publish completed agreements as evidence-backed portfolio stories with explicit visibility
 - Receive proposal, message, and agreement notifications with unread state
 - Review a readable agreement event history
