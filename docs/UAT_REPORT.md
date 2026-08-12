@@ -21,6 +21,10 @@ The connected alpha has passed its automated two-user request lifecycle and thre
 - **P1 — Chain creation failed:** an ambiguous PL/pgSQL identifier in the proposer guard prevented valid chains from being created. The function now uses explicit record aliases and has hosted regression coverage.
 - **P1 — Moderation operations absent:** users can now submit private categorized reports, staff have a private review queue, restrictions block interaction writes, reporter updates exclude internal notes, appeals support reinstatement, and staff actions are immutable.
 - **P1 — Transactional delivery absent:** notification events now feed a private idempotent outbox with category preferences, bounded retries, delivery attempts, generic privacy-safe templates, and a scheduled sink-mode dispatcher.
+- **P1 — Browser UAT absent:** 24 Playwright and axe checks now cover desktop, tablet, phone, zoom/reflow, target sizes, accessible names, modal keyboard behavior, safety reporting, navigation, and duplicate-submit protection in CI.
+- **P2 — Focus lost after rerender:** dialogs now restore focus through a stable selector when an asynchronous background render replaces the original trigger element.
+- **P2 — Undersized controls:** primary navigation, profile, notification, filter, close, and brand controls now meet the tested minimum target size.
+- **P2 — Duplicate submissions:** forms become busy and disable submit controls synchronously while an action is pending.
 
 ## Automated hosted result
 
@@ -39,7 +43,7 @@ Run with three new accounts in separate browser profiles.
 3. Decline, mute, and accept invitations; verify messaging appears only after acceptance.
 4. Convert a mutually confirmed introduction workspace into a private draft.
 5. Exercise circle role changes, removal, leaving, and invitation decline in the browser UI.
-6. Test keyboard-only navigation at desktop and mobile widths.
+6. Complete a manual screen-reader pass with NVDA or VoiceOver.
 7. Verify visible notification routing and unread counts for every major event.
 
 ## Remaining findings
@@ -50,7 +54,7 @@ Run with three new accounts in separate browser profiles.
 - **P2:** Circles and chains need dedicated routes for mobile use and deep linking.
 - **P2:** Loading states need localized retry and disabled-submit behavior.
 - **P2:** Temporary profiles from interrupted integration runs need an authorized cleanup job.
-- **P3:** Add visual-regression and screen-reader testing before a broad pilot.
+- **P3:** Add approved screenshot baselines after the visual design stabilizes; complete manual NVDA and VoiceOver passes before a broad pilot.
 
 ## Release gate
 

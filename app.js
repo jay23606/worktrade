@@ -1597,6 +1597,12 @@ document.addEventListener("submit", async (event) => {
   const form = event.target;
   if (!form.dataset.form) return;
   event.preventDefault();
+  if (form.dataset.submitting) return;
+  form.dataset.submitting = "true";
+  form.setAttribute("aria-busy", "true");
+  const submitButtons = [...form.querySelectorAll('button[type="submit"],button:not([type])')];
+  submitButtons.forEach((button) => (button.disabled = true));
+  try {
   const data = new FormData(form);
   if (form.dataset.form === "post") {
     const exchanges = data.getAll("exchange");
@@ -2382,6 +2388,13 @@ document.addEventListener("submit", async (event) => {
       notify("Chain dependency recorded");
     } catch (error) {
       notify(error.message);
+    }
+  }
+  } finally {
+    if (form.isConnected) {
+      delete form.dataset.submitting;
+      form.removeAttribute("aria-busy");
+      submitButtons.forEach((button) => (button.disabled = false));
     }
   }
 });

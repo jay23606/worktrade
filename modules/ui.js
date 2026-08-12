@@ -15,9 +15,24 @@ export const modeLabel = (mode) =>
 
 export function createModalController(root) {
   let returnFocus = null;
+  let returnFocusSelector = null;
+
+  function stableSelector(element) {
+    if (!(element instanceof HTMLElement)) return null;
+    if (element.id) return `#${CSS.escape(element.id)}`;
+    const attributes = ["data-action", "data-nav", "data-open", "aria-label"]
+      .filter((name) => element.hasAttribute(name))
+      .map(
+        (name) =>
+          `[${name}="${CSS.escape(element.getAttribute(name))}"]`,
+      )
+      .join("");
+    return attributes ? `${element.localName}${attributes}` : null;
+  }
 
   function open(content) {
     returnFocus = document.activeElement;
+    returnFocusSelector = stableSelector(returnFocus);
     root.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">${content}<button class="modal-x" data-modal-close aria-label="Close dialog">×</button></section></div>`;
     const heading = root.querySelector("h2");
     if (heading) heading.id = "modal-title";
@@ -26,8 +41,24 @@ export function createModalController(root) {
 
   function close() {
     root.innerHTML = "";
-    if (returnFocus instanceof HTMLElement) returnFocus.focus();
+    const selector = returnFocusSelector;
+    const target = returnFocus?.isConnected
+      ? returnFocus
+      : selector
+        ? document.querySelector(selector)
+        : null;
+    if (target instanceof HTMLElement) target.focus();
+    if (selector)
+      setTimeout(() => {
+        if (
+          !root.firstElementChild &&
+          (document.activeElement === document.body ||
+            !document.activeElement?.isConnected)
+        )
+          document.querySelector(selector)?.focus();
+      }, 100);
     returnFocus = null;
+    returnFocusSelector = null;
   }
 
   function trapFocus(event) {
