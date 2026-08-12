@@ -61,7 +61,7 @@ try {
   const requestId = await rpc(owner.token, "create_work_request", { payload: { title: "Build integration-test shelving", description: "Build and install two sturdy workshop shelves.", kind: "build", location: "Richmond, VA", urgency: "This month", cash_budget_cents: 30000, visibility: "public", skills: ["Carpentry"] } });
   let remoteRequest = (await request(`/rest/v1/work_requests?id=eq.${requestId}&select=*`, { token:owner.token }))[0];
   await rpc(owner.token,"update_work_request",{target_request_id:requestId,expected_version:remoteRequest.version,payload:{title:"Build integration-test workshop shelving",description:remoteRequest.description,kind:"build",location:"Richmond, VA",urgency:"Within two weeks",cash_budget_cents:30000,skills:["Carpentry","Installation"]}});
-  const offerId = await rpc(provider.token, "submit_trade_offer", { target_request_id: requestId, payload: { mode: "hybrid", scope: "Build and install two shelves", exchange_summary: "$200 and a product photography session", duration: "One weekend" } });
+  const offerId = await rpc(provider.token, "submit_trade_offer", { target_request_id: requestId, payload: { mode: "hybrid", scope: "Build and install two shelves", exchange_summary: "$200 and a product photography session", duration: "One weekend",exclusions:"Wall painting",responsibilities:{provider:"Tools and labor",requester:"Lumber and site access"},milestones:[{title:"Confirm measurements",responsible:"requester",due_at:""},{title:"Build and install",responsible:"provider",due_at:""}],questions:"Is Saturday access available?",expires_at:new Date(Date.now()+604800000).toISOString() } });
   let notifications = await rpc(owner.token,"get_my_notifications",{});
   assert.equal(notifications.some((row)=>row.notification.kind==="proposal"),true);
 
@@ -78,6 +78,14 @@ try {
   await rpc(provider.token, "perform_agreement_action", { target_agreement_id: agreementId, expected_version: agreement.agreement.version, requested_action: "confirm", payload: {} });
   rows = await rpc(owner.token, "get_my_agreements", {}); agreement = rows[0];
   assert.equal(agreement.agreement.status, "agreed");
+
+  const amendmentId=await rpc(owner.token,"propose_agreement_amendment",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,payload:{scope:"Build and install two reinforced shelves",exchange:{mode:"hybrid",summary:"$200 and a product photography session"},reason:"The stored equipment is heavier than expected."}});
+  await rpc(provider.token,"respond_agreement_amendment",{target_amendment_id:amendmentId,accept:true});
+  rows=await rpc(owner.token,"get_my_agreements",{});agreement=rows[0];assert.equal(agreement.agreement.status,"proposed");
+  await rpc(owner.token,"perform_agreement_action",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,requested_action:"confirm",payload:{}});
+  rows=await rpc(provider.token,"get_my_agreements",{});agreement=rows[0];
+  await rpc(provider.token,"perform_agreement_action",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,requested_action:"confirm",payload:{}});
+  rows=await rpc(owner.token,"get_my_agreements",{});agreement=rows[0];assert.equal(agreement.agreement.status,"agreed");
 
   await rpc(owner.token, "perform_agreement_action", { target_agreement_id: agreementId, expected_version: agreement.agreement.version, requested_action: "transition", payload: { status: "active" } });
   rows = await rpc(owner.token, "get_my_agreements", {}); agreement = rows[0];
@@ -108,9 +116,10 @@ try {
     rows = await rpc(owner.token, "get_my_agreements", {}); agreement = rows[0];
   }
 
-  await rpc(owner.token, "perform_agreement_action", { target_agreement_id: agreementId, expected_version: agreement.agreement.version, requested_action: "transition", payload: { status: "review" } });
+  await rpc(owner.token,"handle_completion",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,action:"request"});
   rows = await rpc(provider.token, "get_my_agreements", {}); agreement = rows[0];
-  await rpc(provider.token, "perform_agreement_action", { target_agreement_id: agreementId, expected_version: agreement.agreement.version, requested_action: "transition", payload: { status: "completed" } });
+  await assert.rejects(()=>rpc(owner.token,"handle_completion",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,action:"approve"}),/counterparty approval/i);
+  await rpc(provider.token,"handle_completion",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,action:"approve"});
   await request("/rest/v1/work_reviews", { token: owner.token, method: "POST", headers: { Prefer: "return=representation" }, body: { agreement_id: agreementId, reviewer_id: owner.id, subject_id: provider.id, reliability: 5, communication: 5, work_quality: 5, exchange_fairness: 5, body: "Clear scope and dependable follow-through." } });
 
   rows = await rpc(owner.token, "get_my_agreements", {});

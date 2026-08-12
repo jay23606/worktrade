@@ -86,6 +86,15 @@ export async function updateRequest(requestId, expectedVersion, input) {
   return data;
 }
 
+export async function uploadRequestMedia(requestId,file,caption=""){
+  const client=await getBackend();assertBackend(client);const session=await getSession();if(!session)throw new Error("Sign in to upload photos");
+  const extension=file.name.split(".").pop()?.toLowerCase()||"jpg";const path=`${requestId}/${session.user.id}/${crypto.randomUUID()}.${extension}`;
+  const {error:uploadError}=await client.storage.from("request-media").upload(path,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;
+  const {data,error}=await client.from("request_media").insert({request_id:requestId,uploader_id:session.user.id,asset_path:path,caption}).select().single();if(error){await client.storage.from("request-media").remove([path]);throw error}return data;
+}
+
+export async function getRequestMedia(requestId){const client=await getBackend();assertBackend(client);const {data,error}=await client.from("request_media").select("*").eq("request_id",requestId).order("position");if(error)throw error;return Promise.all(data.map(async(item)=>{const {data:signed,error:signedError}=await client.storage.from("request-media").createSignedUrl(item.asset_path,900);if(signedError)throw signedError;return {...item,url:signed.signedUrl}}))}
+
 export async function closeRequest(requestId, expectedVersion, action) {
   const client = await getBackend();
   assertBackend(client);
@@ -100,6 +109,42 @@ export async function submitOffer(requestId, input) {
   const { data, error } = await client.rpc("submit_trade_offer", { target_request_id: requestId, payload: input });
   if (error) throw error;
   return data;
+}
+
+export async function proposeAmendment(agreementId, expectedVersion, input) {
+  const client=await getBackend(); assertBackend(client);
+  const {data,error}=await client.rpc("propose_agreement_amendment",{target_agreement_id:agreementId,expected_version:expectedVersion,payload:input});
+  if(error) throw error; return data;
+}
+
+export async function respondAmendment(amendmentId, accept) {
+  const client=await getBackend(); assertBackend(client);
+  const {data,error}=await client.rpc("respond_agreement_amendment",{target_amendment_id:amendmentId,accept});
+  if(error) throw error; return data;
+}
+
+export async function getAgreementAmendments(agreementId) {
+  const client=await getBackend();assertBackend(client);
+  const {data,error}=await client.from("agreement_amendments").select("*").eq("agreement_id",agreementId).order("created_at",{ascending:false});
+  if(error)throw error;return data;
+}
+
+export async function handleCompletion(agreementId, expectedVersion, action) {
+  const client=await getBackend(); assertBackend(client);
+  const {data,error}=await client.rpc("handle_completion",{target_agreement_id:agreementId,expected_version:expectedVersion,action});
+  if(error) throw error; return data;
+}
+
+export async function addProjectUpdate(requestId, body, visibility="participants") {
+  const client=await getBackend(); assertBackend(client);
+  const {data,error}=await client.rpc("add_project_update",{target_request_id:requestId,body_text:body,update_visibility:visibility});
+  if(error) throw error; return data;
+}
+
+export async function getProjectUpdates(requestId) {
+  const client=await getBackend(); assertBackend(client);
+  const {data,error}=await client.from("project_updates").select("*, profiles!project_updates_author_id_fkey(display_name)").eq("request_id",requestId).order("created_at");
+  if(error) throw error; return data;
 }
 
 export async function getRequestOffers(requestId) {
