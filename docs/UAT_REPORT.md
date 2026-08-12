@@ -4,7 +4,7 @@ Date: 2026-08-12
 
 ## Outcome
 
-The connected alpha has passed its automated two-user hosted lifecycle and is suitable for a small, supervised pilot after the remaining three-user circle and trade-chain checks below pass. It is not ready for unrestricted public launch because operational moderation, transactional email, legal policy, and permanent erasure remain incomplete.
+The connected alpha has passed its automated two-user request lifecycle and three-user private-circle and reciprocal-chain lifecycle. It is suitable for a small, supervised pilot. It is not ready for unrestricted public launch because operational moderation, transactional email, legal policy, and permanent erasure remain incomplete.
 
 ## Issues fixed in this pass
 
@@ -18,12 +18,16 @@ The connected alpha has passed its automated two-user hosted lifecycle and is su
 - **P2 — Missing contract tests:** automated UAT contracts cover deployment, private-circle visibility, introduction consent, rate limiting, and unanimous chain consent.
 - **P1 — Recursive circle authorization:** a self-referencing `circle_members` policy broke ordinary request reads and writes. Circle membership checks now use a security-definer predicate that preserves RLS without recursive evaluation.
 - **P1 — Hosted lifecycle unverified:** the isolated two-account lifecycle now passes against hosted Supabase and runs from a protected GitHub Actions environment.
+- **P1 — Chain creation failed:** an ambiguous PL/pgSQL identifier in the proposer guard prevented valid chains from being created. The function now uses explicit record aliases and has hosted regression coverage.
 
 ## Automated hosted result
 
-Passed on 2026-08-12 against the hosted WorkTrade project. The test creates temporary identities and cleans them up in `finally`. It covers profile setup, draft publishing and duplication, request editing, offer revision and authorization, agreement creation, milestones, mutual confirmation, amendments, messaging, notifications, evidence upload, holds, reciprocal obligation approval, mutual completion, review submission, history, data export, and account deactivation.
+Passed on 2026-08-12 against the hosted WorkTrade project. Both tests create temporary identities and clean them up in `finally`.
 
-## Manual hosted UAT checklist
+- The two-user lifecycle covers profile setup, draft publishing and duplication, request editing, offer revision and authorization, agreement creation, milestones, mutual confirmation, amendments, messaging, notifications, evidence upload, holds, reciprocal obligation approval, mutual completion, review submission, history, data export, and account deactivation.
+- The circle-and-chain lifecycle covers private membership approval, outsider REST denial, private resources and work, closed reciprocal links, unanimous versioned consent, revision resets, stale-version rejection, activation, sequential enforcement, dependency holds, self-approval denial, completion, history, and disputes.
+
+## Remaining manual hosted UAT checklist
 
 Run with three new accounts in separate browser profiles.
 
@@ -31,14 +35,9 @@ Run with three new accounts in separate browser profiles.
 2. Verify a signed-out visitor cannot see private profiles, circle members, resources, requests, introductions, or chains.
 3. Decline, mute, and accept invitations; verify messaging appears only after acceptance.
 4. Convert a mutually confirmed introduction workspace into a private draft.
-5. Create an invite-only circle; approve membership; change roles; remove and leave members.
-6. Post circle-only work and confirm a nonmember cannot retrieve it through REST.
-7. Add a shared resource and confirm a nonmember cannot retrieve it.
-8. Verify a chain cannot activate before every participant accepts the same version.
-9. Revise the chain and confirm prior acceptances disappear.
-10. Test sequential fulfillment, holds, approvals, completion, cancellation, and dispute.
-11. Test keyboard-only navigation at desktop and mobile widths.
-12. Verify notification routing and unread counts for every major event.
+5. Exercise circle role changes, removal, leaving, and invitation decline in the browser UI.
+6. Test keyboard-only navigation at desktop and mobile widths.
+7. Verify visible notification routing and unread counts for every major event.
 
 ## Remaining findings
 
@@ -52,4 +51,4 @@ Run with three new accounts in separate browser profiles.
 
 ## Release gate
 
-Do not open public registration until every P1 item is resolved. A supervised 5–15 person pilot may proceed after the remaining three-user circle and chain checklist passes without authorization or workflow-breaking defects.
+Do not open public registration until every P1 item is resolved. A supervised 5–15 person pilot may proceed with active operator oversight while the remaining browser-focused checklist is completed.

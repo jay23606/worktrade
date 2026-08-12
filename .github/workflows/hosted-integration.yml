@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "scripts/integration-test.mjs"
+      - "scripts/chain-integration-test.mjs"
       - "supabase/**"
       - ".github/workflows/hosted-integration.yml"
 
@@ -29,3 +30,9 @@ jobs:
           WT_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.WT_SUPABASE_PUBLISHABLE_KEY }}
           WT_SUPABASE_SECRET_KEY: ${{ secrets.WT_SUPABASE_SECRET_KEY }}
         run: npm run test:integration
+      - name: Run isolated private-circle and trade-chain lifecycle
+        env:
+          WT_SUPABASE_URL: ${{ secrets.WT_SUPABASE_URL }}
+          WT_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.WT_SUPABASE_PUBLISHABLE_KEY }}
+          WT_SUPABASE_SECRET_KEY: ${{ secrets.WT_SUPABASE_SECRET_KEY }}
+        run: npm run test:integration:chains

@@ -130,16 +130,17 @@ Do not edit an applied migration. Add a later migration that replaces the affect
 ```bash
 npm test             # syntax, domain invariants, store tests, UAT contracts
 npm run test:uat     # deployment and authorization contract checks only
-npm run test:integration
+npm run test:integration         # two-user request-to-completion lifecycle
+npm run test:integration:chains  # private circle and three-party chain
 ```
 
-The hosted integration test creates temporary users, exercises the real request-to-completion workflow, validates authorization failures, and removes its test identities and evidence in `finally`. It also runs through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
+The hosted integration tests create temporary users, exercise the real request-to-completion and reciprocal-chain workflows, validate authorization failures, and remove their test identities and evidence in `finally`. Both run through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
 
 - `WT_SUPABASE_URL`
 - `WT_SUPABASE_PUBLISHABLE_KEY`
 - `WT_SUPABASE_SECRET_KEY`
 
-Do not place the secret key in GitHub Pages configuration or public CI logs. The current manual three-account circle and chain script is in [docs/UAT_REPORT.md](docs/UAT_REPORT.md).
+Do not place the secret key in GitHub Pages configuration or public CI logs. See [docs/UAT_REPORT.md](docs/UAT_REPORT.md) for automated coverage and the remaining manual checks.
 
 ## Deployment
 
@@ -152,7 +153,7 @@ Before opening registration beyond a supervised 5–15 person pilot:
 - Build the staff moderation console and operating procedures.
 - Activate transactional email for time-sensitive invitations and approvals.
 - Establish prohibited-work, safety, privacy, terms, retention, and permanent-erasure policies.
-- Run the protected hosted UAT with three clean accounts, including nonparticipant REST authorization attempts.
+- Keep both protected hosted UAT lifecycles passing, including nonparticipant REST authorization attempts.
 - Resolve all P1 findings in [the UAT report](docs/UAT_REPORT.md).
 
 Integrated payment collection, custody, exchange credits, and escrow are intentionally outside the pilot.

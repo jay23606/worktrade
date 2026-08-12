@@ -40,6 +40,13 @@ const circleRlsFix = await readFile(
   ),
   "utf8",
 );
+const chainAliasFix = await readFile(
+  new URL(
+    "supabase/migrations/20260812191000_chain_proposer_alias_fix.sql",
+    root,
+  ),
+  "utf8",
+);
 
 test("production artifact excludes repository and backend internals", () => {
   assert.match(workflow, /path: dist/);
@@ -70,6 +77,12 @@ test("trade chains require closed loops and unanimous versioned consent", () => 
   assert.match(sql, /links must form one closed loop/);
   assert.match(sql, /accepted_count=participant_count/);
   assert.match(sql, /version=c\.version/);
+});
+
+test("chain proposer validation uses unambiguous JSON link aliases", () => {
+  assert.match(chainAliasFix, /as proposed_link\(value\)/);
+  assert.match(chainAliasFix, /link_item jsonb/);
+  assert.doesNotMatch(chainAliasFix, /jsonb_array_elements\(links\) item/);
 });
 
 test("private introductions require acceptance and honor blocking", () => {
