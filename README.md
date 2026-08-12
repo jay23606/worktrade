@@ -37,6 +37,12 @@ WorkTrade is a connected alpha for exchanging practical work through cash, barte
 - Accept, decline, or mute introductions and receive network notifications
 - Save collaborators and reusable network searches
 - Switch between community activity and a following-only work feed
+- Negotiate shared scope, responsibilities, materials, exclusions, exchange terms, and availability before creating work
+- Require both people to confirm the same planning-workspace version
+- Convert mutually confirmed introductions into private work drafts
+- Archive introductions and delete saved searches
+- Enforce invitation rate limits and declined-contact cooldowns
+- Report or block directly from an introduction
 - Publish completed agreements as evidence-backed portfolio stories with explicit visibility
 - Receive proposal, message, and agreement notifications with unread state
 - Review a readable agreement event history

@@ -560,6 +560,50 @@ export async function saveNetworkSearch(name, query, exchange, remote) {
   if (error) throw error;
   return data;
 }
+export async function updateIntroductionWorkspace(
+  invitationId,
+  version,
+  payload,
+) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("update_introduction_workspace", {
+    target_invitation_id: invitationId,
+    expected_version: version,
+    payload,
+  });
+  if (error) throw error;
+  return data;
+}
+export async function confirmIntroductionWorkspace(invitationId, version) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("confirm_introduction_workspace", {
+    target_invitation_id: invitationId,
+    expected_version: version,
+  });
+  if (error) throw error;
+  return data;
+}
+export async function convertIntroductionToRequest(invitationId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("convert_introduction_to_request", {
+    target_invitation_id: invitationId,
+  });
+  if (error) throw error;
+  return data;
+}
+export async function manageNetworkItem(kind, id, action) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { error } = await client.rpc("manage_network_item", {
+    item_kind: kind,
+    target_id: id,
+    action,
+  });
+  if (error) throw error;
+}
 
 export async function getProjectMessages(requestId) {
   const client = await getBackend();

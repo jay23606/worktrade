@@ -65,6 +65,10 @@ import {
   sendCollaborationInvitation,
   sendIntroductionMessage,
   setSavedProfile,
+  updateIntroductionWorkspace,
+  confirmIntroductionWorkspace,
+  convertIntroductionToRequest,
+  manageNetworkItem,
 } from "./modules/backend.js";
 
 const STORAGE_KEY = "worktrade:v1";
@@ -425,7 +429,13 @@ function networkInbox(inbox) {
         const messages = (inbox.messages || []).filter(
           (m) => m.invitation_id === i.id,
         );
-        return `<article><div><span class="category">${esc(i.status)}</span> <b>${esc(incoming ? i.sender_name : i.recipient_name)}</b><small>${incoming ? " invited you" : " was invited by you"}</small></div><p><b>Need:</b> ${esc(i.need_text)} <b>Offer:</b> ${esc(i.offer_text)}</p>${i.note ? `<p>${esc(i.note)}</p>` : ""}${incoming && i.status === "pending" ? `<button class="secondary" data-invite-response="accepted:${i.id}">Accept</button> <button class="text-btn" data-invite-response="declined:${i.id}">Decline</button> <button class="text-btn" data-invite-response="muted:${i.id}">Mute</button>` : ""}${i.status === "accepted" ? `<div class="intro-thread">${messages.map((m) => `<p><b>${esc(m.author_name)}:</b> ${esc(m.body)}</p>`).join("")}<form data-form="intro-message" data-invitation="${i.id}" class="inline-form"><input name="body" required maxlength="1500" placeholder="Discuss the possible collaboration"><button class="secondary">Send</button></form></div>` : ""}</article>`;
+        const workspace = i.workspace;
+        const bothConfirmed =
+          workspace &&
+          workspace.sender_confirmed_version === workspace.version &&
+          workspace.recipient_confirmed_version === workspace.version;
+        const accepted = i.status === "accepted";
+        return `<article><div><span class="category">${esc(i.status)}</span> <b>${esc(incoming ? i.sender_name : i.recipient_name)}</b><small>${incoming ? " invited you" : " was invited by you"}</small></div><p><b>Need:</b> ${esc(i.need_text)} <b>Offer:</b> ${esc(i.offer_text)}</p>${i.note ? `<p>${esc(i.note)}</p>` : ""}${incoming && i.status === "pending" ? `<button class="secondary" data-invite-response="accepted:${i.id}">Accept</button> <button class="text-btn" data-invite-response="declined:${i.id}">Decline</button> <button class="text-btn" data-invite-response="muted:${i.id}">Mute</button>` : ""}${accepted ? `<div class="workspace-summary"><b>${workspace?.scope ? esc(workspace.scope) : "Planning workspace not started"}</b><small>${workspace ? `Terms v${workspace.version}${bothConfirmed ? " · confirmed by both" : " · confirmation pending"}` : "Define scope, exchange, and availability together"}</small><button class="secondary" data-workspace="${i.id}">Open planning workspace</button>${bothConfirmed ? `<button class="primary" data-convert-intro="${i.id}">Create private work draft</button>` : ""}</div><div class="intro-thread">${messages.map((m) => `<p><b>${esc(m.author_name)}:</b> ${esc(m.body)}</p>`).join("")}<form data-form="intro-message" data-invitation="${i.id}" class="inline-form"><input name="body" required maxlength="1500" placeholder="Discuss the possible collaboration"><button class="secondary">Send</button></form></div>` : ""}<div class="conversation-safety">${["declined", "muted", "accepted"].includes(i.status) ? `<button class="text-btn" data-network-manage="invitation:archive:${i.id}">Archive</button>` : ""}<button class="text-btn" data-network-manage="profile:report:${i.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${i.id}">Block</button></div></article>`;
       })
       .join("") ||
     '<div class="empty"><p>No invitations yet. Invite someone whose work fits yours.</p></div>'
@@ -489,6 +499,13 @@ function hydrateNetworkSocial() {
             "beforeend",
             `<p class="match-reason">You can help with ${esc(reciprocal.join(", "))}.</p>`,
           );
+      if (profile.match_score > 0)
+        card
+          .querySelector("h3")
+          ?.insertAdjacentHTML(
+            "afterend",
+            `<small class="match-score">Match ${profile.match_score} · skills, location, availability, exchange fit, and proven work</small>`,
+          );
     });
   const saved = state.networkInbox?.saved_searches || [];
   if (saved.length)
@@ -496,7 +513,7 @@ function hydrateNetworkSocial() {
       .querySelector(".network-inbox")
       ?.insertAdjacentHTML(
         "afterbegin",
-        `<div class="saved-searches"><span>Saved searches</span>${saved.map((search) => `<button class="chip" data-saved-search="${search.id}">${esc(search.name)}</button>`).join("")}</div>`,
+        `<div class="saved-searches"><span>Saved searches</span>${saved.map((search) => `<button class="chip" data-saved-search="${search.id}">${esc(search.name)}</button><button class="saved-search-delete" data-network-manage="search:delete:${search.id}" aria-label="Delete ${esc(search.name)}">×</button>`).join("")}</div>`,
       );
 }
 
@@ -513,6 +530,22 @@ function invitationModal(profile) {
 function saveSearchModal() {
   openModal(
     `<span class="eyebrow">Saved search</span><h2>Keep this network search.</h2><form data-form="save-network-search" class="form-grid"><label class="wide">Name<input name="name" required maxlength="80" placeholder="Nearby carpenters open to barter"></label><button class="primary wide">Save search</button></form>`,
+  );
+}
+
+function workspaceModal(invitation) {
+  const w = invitation.workspace || {
+    version: 1,
+    scope: "",
+    responsibilities: {},
+    materials: "",
+    exclusions: "",
+    exchange_terms: "",
+    proposed_windows: "",
+    timezone: "America/New_York",
+  };
+  openModal(
+    `<span class="eyebrow">Shared planning workspace · v${w.version}</span><h2>Shape the work before committing.</h2><p>Any edit clears both confirmations. Both people must confirm the same version before conversion.</p><form data-form="intro-workspace" data-invitation="${invitation.id}" data-version="${w.version}" class="form-grid"><label class="wide">Scope and desired outcome<textarea name="scope" required>${esc(w.scope)}</textarea></label><label>My responsibilities<textarea name="mine">${esc(w.responsibilities?.[state.profile.id] || "")}</textarea></label><label>Their responsibilities<textarea name="theirs">${esc(w.responsibilities?.other || "")}</textarea></label><label class="wide">Materials, tools, and access<textarea name="materials">${esc(w.materials)}</textarea></label><label class="wide">Exclusions and boundaries<textarea name="exclusions">${esc(w.exclusions)}</textarea></label><label class="wide">Exchange terms<textarea name="exchange_terms" required>${esc(w.exchange_terms)}</textarea></label><label>Proposed availability<textarea name="proposed_windows" placeholder="Saturday mornings; after 5pm weekdays">${esc(w.proposed_windows)}</textarea></label><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><button class="secondary wide">Save revised terms</button></form>${invitation.workspace ? `<button class="primary full" data-confirm-workspace="${invitation.id}:${w.version}">Confirm current terms</button>` : ""}`,
   );
 }
 
@@ -1164,6 +1197,52 @@ document.addEventListener("click", (event) => {
       .then(() => notify(`Invitation ${response}`))
       .catch((error) => notify(error.message));
   }
+  const workspaceButton = event.target.closest("[data-workspace]");
+  if (workspaceButton) {
+    const invitation = state.networkInbox.invitations.find(
+      (item) => item.id === workspaceButton.dataset.workspace,
+    );
+    if (invitation) workspaceModal(invitation);
+  }
+  const confirmWorkspace = event.target.closest("[data-confirm-workspace]");
+  if (confirmWorkspace) {
+    const [id, version] = confirmWorkspace.dataset.confirmWorkspace.split(":");
+    confirmIntroductionWorkspace(id, Number(version))
+      .then(() => {
+        closeModal();
+        return loadNetwork();
+      })
+      .then(() => notify("Current planning terms confirmed"))
+      .catch((error) => notify(error.message));
+  }
+  const convertIntro = event.target.closest("[data-convert-intro]");
+  if (convertIntro) {
+    convertIntroductionToRequest(convertIntro.dataset.convertIntro)
+      .then(async (id) => {
+        await loadRemoteWorkspace();
+        await loadNetwork();
+        state.selectedId = id;
+        state.view = "detail";
+      })
+      .then(() => notify("Private work draft created"))
+      .catch((error) => notify(error.message));
+  }
+  const networkManage = event.target.closest("[data-network-manage]");
+  if (networkManage) {
+    const [kind, actionName, id] =
+      networkManage.dataset.networkManage.split(":");
+    const warning =
+      actionName === "block"
+        ? "Block this person and close the introduction?"
+        : actionName === "report"
+          ? "Submit a private safety report about this introduction?"
+          : null;
+    if (!warning || confirm(warning))
+      manageNetworkItem(kind, id, actionName)
+        .then(loadNetwork)
+        .then(() => notify(`Network item ${actionName}ed`))
+        .catch((error) => notify(error.message));
+  }
   const savedSearch = event.target.closest("[data-saved-search]");
   if (savedSearch) {
     const search = (state.networkInbox.saved_searches || []).find(
@@ -1738,6 +1817,39 @@ document.addEventListener("submit", async (event) => {
       closeModal();
       await loadNetwork();
       notify("Network search saved");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "intro-workspace") {
+    try {
+      const invitation = state.networkInbox.invitations.find(
+        (item) => item.id === form.dataset.invitation,
+      );
+      const otherId =
+        invitation.sender_id === state.profile.id
+          ? invitation.recipient_id
+          : invitation.sender_id;
+      await updateIntroductionWorkspace(
+        form.dataset.invitation,
+        Number(form.dataset.version),
+        {
+          scope: data.get("scope"),
+          responsibilities: {
+            [state.profile.id]: data.get("mine"),
+            [otherId]: data.get("theirs"),
+            other: data.get("theirs"),
+          },
+          materials: data.get("materials"),
+          exclusions: data.get("exclusions"),
+          exchange_terms: data.get("exchange_terms"),
+          proposed_windows: data.get("proposed_windows"),
+          timezone: data.get("timezone"),
+        },
+      );
+      closeModal();
+      await loadNetwork();
+      notify("Shared planning terms updated");
     } catch (error) {
       notify(error.message);
     }
