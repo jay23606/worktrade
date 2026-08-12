@@ -1,12 +1,12 @@
 import { createStore } from "./modules/store.js";
 import { cloneSeed } from "./data.js";
 import { confirmAgreement, proposeAgreement, transitionAgreement } from "./modules/agreements.js";
-import { backendConfigured, getSession, signInWithEmail, signOut } from "./modules/backend.js";
+import { backendConfigured, createRequest as createRemoteRequest, getMyProfile, getSession, listPublicRequests, signInWithEmail, signOut } from "./modules/backend.js";
 
 const STORAGE_KEY = "worktrade:v1";
 const saved = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } })();
 const initial = saved?.requests ? saved : cloneSeed();
-const store = createStore({ view: "discover", query: "", category: "All", selectedId: null, profile: initial.profile, requests: initial.requests });
+const store = createStore({ view: "discover", query: "", category: "All", selectedId: null, session: null, remote: false, profile: initial.profile, requests: initial.requests });
 const { state } = store;
 const main = document.querySelector("#main");
 const modalRoot = document.querySelector("#modal-root");
@@ -189,7 +189,7 @@ document.addEventListener("click", (event) => {
   if (action === "resolve-hold") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.hold = null; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: "Resolved the dependency hold. Work can move forward.", date: "Today" }); return list; }); notify("Dependency resolved"); }
   if (action === "reset") { localStorage.removeItem(STORAGE_KEY); const seed = cloneSeed(); store.batch(() => { state.profile = seed.profile; state.requests = seed.requests; }); notify("Demo data reset"); }
   if (action === "sign-in") signInModal();
-  if (action === "sign-out") signOut().then(() => { notify("Signed out"); hydrateAccount(); }).catch((error) => notify(error.message));
+  if (action === "sign-out") signOut().then(() => { const seed = cloneSeed(); store.batch(() => { state.session = null; state.remote = false; state.profile = seed.profile; state.requests = seed.requests; }); notify("Signed out — showing the device demo"); }).catch((error) => notify(error.message));
   const accept = event.target.closest("[data-accept]"); if (accept) { updateRequests((list) => { const r = list.find((x) => x.id === accept.dataset.request); const o = r.offers.find((x) => x.id === accept.dataset.accept); r.agreement = { ...proposeAgreement({ offer: o, request: r, requesterId: r.ownerId, providerId: o.provider === state.profile.name ? "me" : `provider:${o.id}` }), provider: o.provider, progress: 0 }; r.agreement = confirmAgreement(r.agreement, r.ownerId); r.status = "proposed"; r.milestones = [{ title: "Confirm scope", done: false }, { title: "Prepare inputs", done: false }, { title: "Complete work", done: false }, { title: "Review exchange", done: false }]; r.updates.push({ id: crypto.randomUUID(), author: r.owner, text: `Selected ${o.provider}'s proposal. Both parties must confirm before work starts.`, date: "Today" }); return list; }); notify("Proposal selected — awaiting mutual confirmation"); }
   const agreementAction = event.target.closest("[data-agreement]")?.dataset.agreement;
   if (agreementAction) { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); if (agreementAction === "confirm") r.agreement = confirmAgreement(r.agreement, "me"); else r.agreement = transitionAgreement(r.agreement, agreementAction, "me"); r.status = r.agreement.status; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: agreementAction === "confirm" ? "Confirmed the current agreement terms." : `Moved the agreement to ${agreementAction}.`, date: "Today" }); return list; }); notify(agreementAction === "confirm" ? "Terms confirmed" : `Agreement moved to ${agreementAction}`); }
@@ -201,12 +201,17 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("input", (event) => { if (event.target.id === "search") { state.query = event.target.value; } });
 document.addEventListener("keydown", (event) => { const card = event.target.closest("[data-open]"); if (card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); card.click(); } if (event.key === "Escape") closeModal(); });
-document.addEventListener("submit", (event) => {
+document.addEventListener("submit", async (event) => {
   const form = event.target; if (!form.dataset.form) return; event.preventDefault(); const data = new FormData(form);
   if (form.dataset.form === "post") {
     const exchanges = data.getAll("exchange"); if (!exchanges.length) return notify("Choose at least one exchange option.");
     const request = { id: crypto.randomUUID(), ownerId: "me", owner: state.profile.name, initials: state.profile.initials, title: data.get("title"), category: data.get("category"), location: data.get("location"), distance: 0, urgency: "Flexible", status: "open", description: data.get("description"), skills: data.get("skills").split(",").map((x) => x.trim()).filter(Boolean), exchange: exchanges, cashBudget: Number(data.get("budget")) || 0, offersInReturn: data.get("returns").split(",").map((x) => x.trim()).filter(Boolean), createdAt: new Date().toISOString().slice(0, 10), offers: [], updates: [] };
-    updateRequests((list) => [request, ...list]); closeModal(); state.selectedId = request.id; state.view = "detail"; notify("Work request published");
+    if (state.remote) {
+      try {
+        await createRemoteRequest({ title: request.title, description: request.description, kind: request.category.toLowerCase(), location: request.location, urgency: request.urgency, cash_budget_cents: request.cashBudget * 100, visibility: "public", skills: request.skills });
+        closeModal(); await loadRemoteWorkspace(); state.view = "discover"; notify("Work request published to the community");
+      } catch (error) { notify(error.message); }
+    } else { updateRequests((list) => [request, ...list]); closeModal(); state.selectedId = request.id; state.view = "detail"; notify("Work request published on this device"); }
   }
   if (form.dataset.form === "offer") { updateRequests((list) => { const r = list.find((x) => x.id === form.dataset.id); r.offers.push({ id: crypto.randomUUID(), provider: state.profile.name, initials: state.profile.initials, mode: data.get("mode"), cash: Number(data.get("cash")) || 0, gives: data.get("gives"), wants: data.get("wants"), duration: data.get("duration"), note: data.get("note") }); return list; }); closeModal(); notify("Trade proposal sent"); }
   if (form.dataset.form === "hold") { updateRequests((list) => { const r = list.find((x) => x.id === form.dataset.id); r.hold = { type: data.get("type"), owner: data.get("owner"), detail: data.get("detail"), reviewDate: data.get("reviewDate") }; return list; }); closeModal(); notify("Dependency hold added"); }
@@ -220,14 +225,40 @@ document.addEventListener("submit", (event) => {
 store.subscribe(render, true);
 document.querySelector("#mode-badge").textContent = backendConfigured ? "Connected" : "Demo mode";
 
+function mapRemoteRequest(request) {
+  const name = request.profiles?.display_name || "WorkTrade member";
+  return { id: request.id, ownerId: request.owner_id, owner: name, initials: name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(), title: request.title, category: request.kind[0].toUpperCase() + request.kind.slice(1), location: request.location_text || "Location shared privately", distance: "—", urgency: request.urgency_text || "Flexible", status: request.stage, description: request.description, skills: (request.work_request_skills || []).map((item) => item.skill), exchange: ["cash", "barter", "hybrid"], cashBudget: request.cash_budget_cents ? Math.round(request.cash_budget_cents / 100) : 0, offersInReturn: ["Open to a fair proposal"], createdAt: request.created_at, offers: [], updates: [], messages: [], followers: [], reports: [] };
+}
+
+async function loadRemoteWorkspace() {
+  const [profile, requests] = await Promise.all([getMyProfile(), listPublicRequests()]);
+  if (!profile) return;
+  const capabilities = profile.capabilities || [];
+  store.batch(() => {
+    state.remote = true;
+    state.profile = { id: profile.id, name: profile.display_name, initials: profile.display_name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(), location: profile.location_text || "", bio: profile.bio || "", needs: capabilities.filter((item) => item.direction === "need").map((item) => item.label), offers: capabilities.filter((item) => item.direction === "offer").map((item) => item.label), following: [], joinedCircles: [], blocked: [] };
+    state.requests = requests.map(mapRemoteRequest);
+  });
+}
+
 async function hydrateAccount() {
   if (!backendConfigured || state.view !== "profile") return;
   const panel = document.querySelector("#account-panel");
   if (!panel) return;
   try {
-    const session = await getSession();
+    const session = state.session || await getSession();
     panel.innerHTML = session ? `<b>${esc(session.user.email)}</b><p>Your session is encrypted and managed by Supabase Auth.</p><button class="secondary" data-action="sign-out">Sign out</button>` : `<b>Ready for a real account</b><p>Sign in with a secure email link.</p><button class="primary" data-action="sign-in">Sign in</button>`;
   } catch (error) { panel.innerHTML = `<p>Account service unavailable: ${esc(error.message)}</p>`; }
 }
 
 store.subscribe(() => queueMicrotask(hydrateAccount));
+
+async function bootstrapBackend() {
+  if (!backendConfigured) return;
+  try {
+    const session = await getSession();
+    state.session = session;
+    if (session) await loadRemoteWorkspace();
+  } catch (error) { notify(`Connected service unavailable: ${error.message}`); }
+}
+bootstrapBackend();

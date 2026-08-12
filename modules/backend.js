@@ -25,6 +25,26 @@ export async function getSession() {
   return data.session;
 }
 
+export async function getMyProfile() {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) return null;
+  const { data, error } = await client.from("profiles").select("*, capabilities(*)").eq("id", session.user.id).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateMyProfile(values) {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) throw new Error("Sign in to update your profile");
+  const { data, error } = await client.from("profiles").update(values).eq("id", session.user.id).select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function signInWithEmail(email) {
   const client = await getBackend();
   assertBackend(client);
