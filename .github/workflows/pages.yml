@@ -23,9 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Build minimal static artifact
+        run: |
+          mkdir dist
+          cp index.html styles.css app.js config.js dist/
+          mkdir dist/modules
+          cp modules/*.js dist/modules/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: dist
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

@@ -100,6 +100,8 @@ Then open `http://localhost:8080`. Copy `config.example.js` to `config.js` and p
 
 ## Test scope
 
+Run `npm run test:uat` for deployment and authorization contract checks. The current findings and manual three-account pilot script are in [docs/UAT_REPORT.md](docs/UAT_REPORT.md).
+
 `npm test` checks browser modules and agreement invariants. `npm run test:integration` creates two temporary hosted users and exercises the real request → offer → agreement → message → milestone → dependency → reciprocal fulfillment → completion → evidence → review lifecycle. It also checks important authorization failures, data export, notifications, and deactivation before deleting temporary identities and evidence.
 
 The integration test requires short-lived environment configuration and is not run by the public Pages workflow.

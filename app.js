@@ -127,6 +127,7 @@ const store = createStore({
 const { state } = store;
 const main = document.querySelector("#main");
 const modalRoot = document.querySelector("#modal-root");
+let modalReturnFocus = null;
 const categories = [
   "All",
   "Build",
@@ -347,57 +348,6 @@ function nextAction(r) {
 }
 function offerDashboard() {
   return `<section class="dashboard-group"><h2>Proposals I submitted</h2>${state.myOffers.map((o) => `<article class="work-row"><span class="category">${esc(o.status)}</span><div><h3>${esc(o.work_requests?.title || "Work request")}</h3><p>${esc(o.scope)} · ${esc(o.exchange_summary)}</p></div>${o.status === "pending" ? `<div class="dashboard-actions"><button data-edit-offer="${o.id}">Revise</button><button data-withdraw-offer="${o.id}">Withdraw</button></div>` : ""}</article>`).join("") || `<div class="empty">No submitted proposals.</div>`}</section>`;
-}
-
-function renderLegacyNetwork() {
-  return shell(
-    `<section class="network-hero"><span class="eyebrow">Needs + offers</span><h1>The useful things around us<br>are closer than we think.</h1><p>Find reciprocal matches between what people need and what their neighbors can offer.</p></section>
-    <div class="match-card"><div><span class="match-label">Potential three-way trade</span><h2>A chain no one could complete alone</h2><p>You offer product photography to Maya. Maya offers a produce share to Sam. Sam offers carpentry for your workshop shelving.</p><div class="trade-chain"><span>You<small>Photography</small></span><i>→</i><span>Maya<small>Produce</small></span><i>→</i><span>Sam<small>Carpentry</small></span><i>→</i><span>You</span></div></div><button class="secondary" data-action="interest">I’m interested</button></div>
-    <div class="two-col"><section><span class="eyebrow">People nearby</span><h2>Built on demonstrated capability</h2>${peopleCards()}</section><section><span class="eyebrow">Community circles</span><h2>Start with people you trust</h2>${circleCard("circle-makers", "Richmond Makers", "128 members · 34 skills", "Fabrication, electronics, woodworking, and shared shop access.")}${circleCard("circle-neighbors", "Manchester Neighbors", "76 members · 19 active needs", "Local maintenance, gardens, tools, and mutual aid.")}</section></div>`,
-    "Community network",
-  );
-}
-
-function circleCard(id, name, meta, description) {
-  const joined = state.profile.joinedCircles?.includes(id);
-  return `<div class="circle"><b>${name}</b><span>${meta}</span><p>${description}</p><button class="secondary" data-circle="${id}">${joined ? "Joined" : "Join circle"}</button></div>`;
-}
-
-function peopleCards() {
-  return [
-    {
-      id: "sam",
-      name: "Sam Rivera",
-      initials: "SR",
-      offers: "Carpentry · Site work",
-      needs: "Photography · Bookkeeping",
-      proof: 18,
-    },
-    {
-      id: "asha",
-      name: "Asha Patel",
-      initials: "AP",
-      offers: "Electronics · Diagnostics",
-      needs: "Studio shelving",
-      proof: 27,
-    },
-  ]
-    .map(
-      (p) =>
-        `<article class="person-card"><span class="avatar big">${p.initials}</span><div><h3>${p.name}</h3><p><b>Offers:</b> ${p.offers}</p><p><b>Needs:</b> ${p.needs}</p><small>${p.proof} verified work records</small><button class="text-btn" data-follow-person="${p.id}">${state.profile.following?.includes(p.id) ? "Following" : "Follow"}</button></div></article>`,
-    )
-    .join("");
-}
-
-function renderNetworkBase() {
-  const profiles = state.networkProfiles || [];
-  const activity = state.networkActivity || [];
-  return shell(
-    `<section class="network-hero"><span class="eyebrow">Work network</span><h1>Find people through what they can do<br>and what they need next.</h1><p>Profiles are grounded in completed work, contextual reviews, and concrete offers—not follower counts.</p></section>
-    <form data-form="network-search" class="controls network-filters"><label class="search"><span>⌕</span><input name="query" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, names, or locations"></label><select name="exchange"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select><label><input type="checkbox" name="remote" ${state.networkRemote ? "checked" : ""}> Remote available</label><button class="secondary">Find people</button></form>
-    <div class="two-col"><section><span class="eyebrow">Suggested collaborators</span><h2>${profiles.length} people with useful overlap</h2><div class="people-list">${profiles.map(networkPersonCard).join("") || `<div class="empty"><h3>No public profiles yet</h3><p>Try broader filters, or publish your own offers and needs.</p></div>`}</div></section><section><span class="eyebrow">Work activity</span><h2>Useful things moving forward</h2><div class="activity-list">${activity.map(activityCard).join("") || `<div class="empty"><p>Completed work and new public requests will appear here.</p></div>`}</div></section></div>`,
-    "Community network",
-  );
 }
 
 function networkPersonCard(p) {
@@ -764,7 +714,10 @@ function render() {
 }
 
 function openModal(content) {
-  modalRoot.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal" role="dialog" aria-modal="true">${content}<button class="modal-x" data-modal-close aria-label="Close">×</button></section></div>`;
+  modalReturnFocus = document.activeElement;
+  modalRoot.innerHTML = `<div class="modal-backdrop" data-modal-backdrop><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">${content}<button class="modal-x" data-modal-close aria-label="Close dialog">×</button></section></div>`;
+  const heading = modalRoot.querySelector("h2");
+  if (heading) heading.id = "modal-title";
   setTimeout(
     () => modalRoot.querySelector("input, select, textarea")?.focus(),
     0,
@@ -772,6 +725,8 @@ function openModal(content) {
 }
 function closeModal() {
   modalRoot.innerHTML = "";
+  if (modalReturnFocus instanceof HTMLElement) modalReturnFocus.focus();
+  modalReturnFocus = null;
 }
 
 function postModal() {
@@ -1593,6 +1548,24 @@ document.addEventListener("change", (event) => {
   }
 });
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && modalRoot.firstElementChild) {
+    const focusable = [
+      ...modalRoot.querySelectorAll(
+        "button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]",
+      ),
+    ].filter((item) => item.offsetParent !== null);
+    if (focusable.length) {
+      const first = focusable[0],
+        last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  }
   const card = event.target.closest("[data-open]");
   if (card && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
