@@ -165,11 +165,14 @@ const persist = () =>
     STORAGE_KEY,
     JSON.stringify({ profile: state.profile, requests: state.requests }),
   );
-const notify = (message) => {
+let toastTimer;
+const notify = (message, tone = "neutral") => {
   const toast = document.querySelector("#toast");
   toast.textContent = message;
+  toast.dataset.tone = tone;
   toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 2200);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 3200);
 };
 const updateRequests = (transform) => {
   state.requests = transform(structuredClone(state.requests));
@@ -427,7 +430,7 @@ function renderNetwork() {
     saved_searches: [],
   };
   return shell(
-    `<section class="network-hero"><span class="eyebrow">Work network</span><h1>Find people through what they can do<br>and what they need next.</h1><p>Profiles are grounded in completed work, contextual reviews, and concrete offers—not follower counts.</p></section><form data-form="network-search" class="controls network-filters"><label class="search"><span>⌕</span><input name="query" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, names, or locations"></label><select name="exchange"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select><label><input type="checkbox" name="remote" ${state.networkRemote ? "checked" : ""}> Remote available</label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save search</button>` : ""}</form>${state.session ? `<section class="network-inbox"><div class="section-title"><div><span class="eyebrow">Introductions</span><h2>Your collaboration inbox</h2></div><span>${inbox.invitations.filter((x) => x.recipient_id === state.profile.id && x.status === "pending").length} awaiting you</span></div>${networkInbox(inbox)}</section>` : ""}<div class="two-col"><section><span class="eyebrow">Suggested collaborators</span><h2>${profiles.length} people with useful overlap</h2><div class="people-list">${profiles.map(networkPersonCard).join("") || '<div class="empty"><p>No matching public profiles yet.</p></div>'}</div></section><section><div class="feed-heading"><div><span class="eyebrow">Work activity</span><h2>Useful things moving forward</h2></div>${state.session ? `<label><input type="checkbox" data-following-feed ${state.networkFollowingOnly ? "checked" : ""}> Following only</label>` : ""}</div><div class="activity-list">${activity.map(activityCard).join("") || '<div class="empty"><p>No activity matches this feed.</p></div>'}</div></section></div>`,
+    `<section class="network-hero"><span class="eyebrow">Work network</span><h1>Find people through what they can do<br>and what they need next.</h1><p>Profiles are grounded in completed work, contextual reviews, and concrete offers—not follower counts.</p></section><form data-form="network-search" class="controls network-filters"><label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, names, or locations"></label><select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select><label><input type="checkbox" name="remote" ${state.networkRemote ? "checked" : ""}> Remote available</label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save search</button>` : ""}</form>${state.session ? `<section class="network-inbox"><div class="section-title"><div><span class="eyebrow">Introductions</span><h2>Your collaboration inbox</h2></div><span>${inbox.invitations.filter((x) => x.recipient_id === state.profile.id && x.status === "pending").length} awaiting you</span></div>${networkInbox(inbox)}</section>` : ""}<div class="two-col"><section><span class="eyebrow">Suggested collaborators</span><h2>${profiles.length} people with useful overlap</h2><div class="people-list">${profiles.map(networkPersonCard).join("") || '<div class="empty"><p>No matching public profiles yet.</p></div>'}</div></section><section><div class="feed-heading"><div><span class="eyebrow">Work activity</span><h2>Useful things moving forward</h2></div>${state.session ? `<label><input type="checkbox" data-following-feed ${state.networkFollowingOnly ? "checked" : ""}> Following only</label>` : ""}</div><div class="activity-list">${activity.map(activityCard).join("") || '<div class="empty"><p>No activity matches this feed.</p></div>'}</div></section></div>`,
     "Community network",
   );
 }
@@ -744,6 +747,7 @@ function renderProfile() {
 }
 
 let renderedLocation = null;
+let pendingRenderFocus = null;
 
 function render() {
   const nextLocation = `${state.view}:${state.view === "detail" ? state.selectedId || "" : ""}`;
@@ -762,6 +766,14 @@ function render() {
   else main.innerHTML = renderDiscover();
   hydrateNetworkSocial();
   if (navigated) window.scrollTo({ top: 0, behavior: "instant" });
+  if (pendingRenderFocus) {
+    const target = main.querySelector(pendingRenderFocus);
+    if (target) {
+      pendingRenderFocus = null;
+      target.setAttribute("tabindex", "-1");
+      setTimeout(() => target.focus({ preventScroll: true }), 150);
+    }
+  }
 }
 
 function openModal(content) {
@@ -1698,8 +1710,9 @@ document.addEventListener("submit", async (event) => {
       updateRequests((list) => [request, ...list]);
       closeModal();
       state.selectedId = request.id;
+      pendingRenderFocus = "h1";
       state.view = "detail";
-      notify("Work request published on this device");
+      notify("Work request published on this device", "success");
     }
   }
   if (form.dataset.form === "offer") {

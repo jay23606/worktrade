@@ -89,6 +89,42 @@ test("posting dialog is labeled, traps focus, and restores focus", async ({
   await expect(trigger).toBeFocused();
 });
 
+test("major screens remain coherent in both color themes", async ({ page }) => {
+  test.setTimeout(60_000);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((nextTheme) => localStorage.setItem("worktrade:theme", nextTheme), theme);
+    await page.reload();
+    for (const destination of ["discover", "workspace", "network", "profile"]) {
+      await page.locator(`[data-nav="${destination}"]`).first().click();
+      await expect(page.locator("main h1").first()).toBeVisible();
+      const dimensions = await page.evaluate(() => ({
+        viewport: document.documentElement.clientWidth,
+        content: document.documentElement.scrollWidth,
+      }));
+      expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport + 1);
+      const results = await new AxeBuilder({ page }).disableRules(["region"]).analyze();
+      expect(results.violations.filter(({ impact }) => ["serious", "critical"].includes(impact))).toEqual([]);
+    }
+  }
+});
+
+test("invalid forms stay open and successful creation focuses its result", async ({ page }) => {
+  await page.getByRole("button", { name: "Post work" }).click();
+  const dialog = page.getByRole("dialog", { name: "What outcome do you need?" });
+  await dialog.locator("form").evaluate((form) => form.requestSubmit());
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Title")).toBeFocused();
+  await dialog.getByLabel("Title").fill("Repair the community tool bench");
+  await dialog.getByLabel("Desired outcome").fill("Restore a stable shared bench for neighborhood repair work.");
+  await dialog.getByLabel("Skills, comma separated").fill("Carpentry");
+  await dialog.getByLabel("What can you offer?").fill("Garden help");
+  await dialog.getByRole("button", { name: "Publish request" }).click();
+  const result = page.getByRole("heading", { name: "Repair the community tool bench" });
+  await expect(result).toBeVisible();
+  await expect(result).toBeFocused();
+  await expect(page.getByRole("status")).toContainText("published");
+});
+
 test("safety dialog is private, categorized, and gives emergency guidance", async ({
   page,
 }) => {
