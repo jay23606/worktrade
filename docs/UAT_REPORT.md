@@ -4,7 +4,7 @@ Date: 2026-08-12
 
 ## Outcome
 
-The connected alpha is suitable for a small, supervised pilot after the P1 hosted journeys below are executed with three clean test accounts. It is not ready for unrestricted public launch because operational moderation, transactional email, legal policy, and permanent erasure remain incomplete.
+The connected alpha has passed its automated two-user hosted lifecycle and is suitable for a small, supervised pilot after the remaining three-user circle and trade-chain checks below pass. It is not ready for unrestricted public launch because operational moderation, transactional email, legal policy, and permanent erasure remain incomplete.
 
 ## Issues fixed in this pass
 
@@ -16,6 +16,12 @@ The connected alpha is suitable for a small, supervised pilot after the P1 hoste
 - **P2 — Repeated UI infrastructure:** formatting, escaping, modal focus management, and remote request mapping now live in focused modules.
 - **P2 — Modal keyboard behavior:** dialogs now have accessible names, trap focus, close with Escape, and restore focus.
 - **P2 — Missing contract tests:** automated UAT contracts cover deployment, private-circle visibility, introduction consent, rate limiting, and unanimous chain consent.
+- **P1 — Recursive circle authorization:** a self-referencing `circle_members` policy broke ordinary request reads and writes. Circle membership checks now use a security-definer predicate that preserves RLS without recursive evaluation.
+- **P1 — Hosted lifecycle unverified:** the isolated two-account lifecycle now passes against hosted Supabase and runs from a protected GitHub Actions environment.
+
+## Automated hosted result
+
+Passed on 2026-08-12 against the hosted WorkTrade project. The test creates temporary identities and cleans them up in `finally`. It covers profile setup, draft publishing and duplication, request editing, offer revision and authorization, agreement creation, milestones, mutual confirmation, amendments, messaging, notifications, evidence upload, holds, reciprocal obligation approval, mutual completion, review submission, history, data export, and account deactivation.
 
 ## Manual hosted UAT checklist
 
@@ -36,7 +42,6 @@ Run with three new accounts in separate browser profiles.
 
 ## Remaining findings
 
-- **P1:** Hosted integration testing needs short-lived admin credentials in protected CI.
 - **P1:** A staff moderation console and operational report workflow do not exist.
 - **P1:** Transactional email delivery is not active.
 - **P2:** `app.js` still contains domain rendering and event orchestration; continue extracting feature controllers after pilot behavior is stable.
@@ -47,4 +52,4 @@ Run with three new accounts in separate browser profiles.
 
 ## Release gate
 
-Do not open public registration until every P1 item is resolved. A supervised 5–15 person pilot may proceed after this checklist passes without authorization or workflow-breaking defects.
+Do not open public registration until every P1 item is resolved. A supervised 5–15 person pilot may proceed after the remaining three-user circle and chain checklist passes without authorization or workflow-breaking defects.

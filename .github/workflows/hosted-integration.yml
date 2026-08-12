@@ -1,0 +1,31 @@
+name: Hosted integration test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/integration-test.mjs"
+      - "supabase/**"
+      - ".github/workflows/hosted-integration.yml"
+
+concurrency:
+  group: hosted-integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: hosted-uat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run isolated two-user lifecycle
+        env:
+          WT_SUPABASE_URL: ${{ secrets.WT_SUPABASE_URL }}
+          WT_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.WT_SUPABASE_PUBLISHABLE_KEY }}
+          WT_SUPABASE_SECRET_KEY: ${{ secrets.WT_SUPABASE_SECRET_KEY }}
+        run: npm run test:integration

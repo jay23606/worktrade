@@ -33,6 +33,13 @@ const migrations = await Promise.all(
     ),
 );
 const sql = migrations.join("\n");
+const circleRlsFix = await readFile(
+  new URL(
+    "supabase/migrations/20260812190000_circle_rls_recursion_fix.sql",
+    root,
+  ),
+  "utf8",
+);
 
 test("production artifact excludes repository and backend internals", () => {
   assert.match(workflow, /path: dist/);
@@ -47,6 +54,15 @@ test("private circle data requires active membership", () => {
   assert.match(sql, /visibility='circle'.*status='active'/s);
   assert.match(sql, /active members read circle resources/);
   assert.match(sql, /circle membership scoped read/);
+});
+
+test("circle membership authorization avoids recursive RLS", () => {
+  assert.match(circleRlsFix, /security definer/);
+  assert.match(circleRlsFix, /is_active_circle_member\(circle_id\)/);
+  assert.doesNotMatch(
+    circleRlsFix,
+    /circle membership scoped read[\s\S]*exists\s*\(\s*select 1\s+from public\.circle_members mine/,
+  );
 });
 
 test("trade chains require closed loops and unanimous versioned consent", () => {

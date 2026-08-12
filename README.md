@@ -133,7 +133,7 @@ npm run test:uat     # deployment and authorization contract checks only
 npm run test:integration
 ```
 
-The hosted integration test creates temporary users, exercises the real request-to-completion workflow, validates authorization failures, and removes its test identities and evidence in `finally`. It requires short-lived protected environment variables:
+The hosted integration test creates temporary users, exercises the real request-to-completion workflow, validates authorization failures, and removes its test identities and evidence in `finally`. It also runs through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
 
 - `WT_SUPABASE_URL`
 - `WT_SUPABASE_PUBLISHABLE_KEY`
