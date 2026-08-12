@@ -1,6 +1,7 @@
 import { createStore } from "./modules/store.js";
 import { cloneSeed } from "./data.js";
 import { confirmAgreement, proposeAgreement, transitionAgreement } from "./modules/agreements.js";
+import { backendConfigured, getSession, signInWithEmail, signOut } from "./modules/backend.js";
 
 const STORAGE_KEY = "worktrade:v1";
 const saved = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; } })();
@@ -130,7 +131,7 @@ function renderProfile() {
   return shell(`<section class="profile-head"><span class="avatar giant">${p.initials}</span><div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div></section>
     <div class="two-col"><section class="list-panel"><span class="eyebrow">I can offer</span><h2>Skills, goods, and access</h2><div class="editable-list">${p.offers.map((x, i) => `<span>${esc(x)}<button data-remove="offers:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="offers" class="inline-form"><input name="item" required placeholder="Add something you can offer"><button class="secondary">Add</button></form></section>
     <section class="list-panel warm"><span class="eyebrow">I need</span><h2>Things that could move you forward</h2><div class="editable-list">${p.needs.map((x, i) => `<span>${esc(x)}<button data-remove="needs:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="needs" class="inline-form"><input name="item" required placeholder="Add something you need"><button class="secondary">Add</button></form></section></div>
-    <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid"><div><b>Storefront deck restoration</b><span>Carpentry · Exterior finishing</span><p>Verified by Nia Brooks</p></div><div><b>Product launch photography</b><span>Photography · Art direction</span><p>Verified by Maya Chen</p></div></div><button class="danger-text" data-action="reset">Reset demo data</button></section>`, "Profile and capabilities");
+    <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid"><div><b>Storefront deck restoration</b><span>Carpentry · Exterior finishing</span><p>Verified by Nia Brooks</p></div><div><b>Product launch photography</b><span>Photography · Art direction</span><p>Verified by Maya Chen</p></div></div>${backendConfigured ? `<div class="account-panel" id="account-panel"><p>Checking account…</p></div>` : `<div class="account-panel"><b>Device-local demonstration</b><p>Real accounts become available when this installation is connected to its own Supabase project.</p></div>`}<button class="danger-text" data-action="reset">Reset demo data</button></section>`, "Profile and capabilities");
 }
 
 function render() {
@@ -168,6 +169,10 @@ function reportModal(id) {
   openModal(`<span class="eyebrow">Safety report</span><h2>Tell moderators what happened.</h2><p>Reports are private. Immediate danger should be reported to local emergency services.</p><form data-form="report" data-id="${id}" class="form-grid"><label>Concern<select name="reason"><option>Unsafe work or conditions</option><option>Fraud or misrepresentation</option><option>Harassment</option><option>Regulated or prohibited work</option><option>Spam</option><option>Other</option></select></label><label class="wide">Details<textarea name="detail" required maxlength="2000"></textarea></label><button class="primary wide">Submit private report</button></form>`);
 }
 
+function signInModal() {
+  openModal(`<span class="eyebrow">Sign in</span><h2>Use a secure email link.</h2><p>No password is stored by WorkTrade. We will send a one-time sign-in link.</p><form data-form="sign-in" class="form-grid"><label class="wide">Email<input name="email" type="email" autocomplete="email" required></label><button class="primary wide">Send sign-in link</button></form>`);
+}
+
 document.addEventListener("click", (event) => {
   const nav = event.target.closest("[data-nav]"); if (nav) { state.view = nav.dataset.nav; state.selectedId = null; return; }
   const card = event.target.closest("[data-open]"); if (card) { state.selectedId = card.dataset.open; state.view = "detail"; return; }
@@ -183,6 +188,8 @@ document.addEventListener("click", (event) => {
   if (action === "block") { const person = event.target.closest("[data-person]").dataset.person; const profile = structuredClone(state.profile); profile.blocked ||= []; if (!profile.blocked.includes(person)) profile.blocked.push(person); state.profile = profile; persist(); state.view = "discover"; notify("User blocked on this device"); }
   if (action === "resolve-hold") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.hold = null; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: "Resolved the dependency hold. Work can move forward.", date: "Today" }); return list; }); notify("Dependency resolved"); }
   if (action === "reset") { localStorage.removeItem(STORAGE_KEY); const seed = cloneSeed(); store.batch(() => { state.profile = seed.profile; state.requests = seed.requests; }); notify("Demo data reset"); }
+  if (action === "sign-in") signInModal();
+  if (action === "sign-out") signOut().then(() => { notify("Signed out"); hydrateAccount(); }).catch((error) => notify(error.message));
   const accept = event.target.closest("[data-accept]"); if (accept) { updateRequests((list) => { const r = list.find((x) => x.id === accept.dataset.request); const o = r.offers.find((x) => x.id === accept.dataset.accept); r.agreement = { ...proposeAgreement({ offer: o, request: r, requesterId: r.ownerId, providerId: o.provider === state.profile.name ? "me" : `provider:${o.id}` }), provider: o.provider, progress: 0 }; r.agreement = confirmAgreement(r.agreement, r.ownerId); r.status = "proposed"; r.milestones = [{ title: "Confirm scope", done: false }, { title: "Prepare inputs", done: false }, { title: "Complete work", done: false }, { title: "Review exchange", done: false }]; r.updates.push({ id: crypto.randomUUID(), author: r.owner, text: `Selected ${o.provider}'s proposal. Both parties must confirm before work starts.`, date: "Today" }); return list; }); notify("Proposal selected — awaiting mutual confirmation"); }
   const agreementAction = event.target.closest("[data-agreement]")?.dataset.agreement;
   if (agreementAction) { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); if (agreementAction === "confirm") r.agreement = confirmAgreement(r.agreement, "me"); else r.agreement = transitionAgreement(r.agreement, agreementAction, "me"); r.status = r.agreement.status; r.updates.push({ id: crypto.randomUUID(), author: state.profile.name, text: agreementAction === "confirm" ? "Confirmed the current agreement terms." : `Moved the agreement to ${agreementAction}.`, date: "Today" }); return list; }); notify(agreementAction === "confirm" ? "Terms confirmed" : `Agreement moved to ${agreementAction}`); }
@@ -207,6 +214,20 @@ document.addEventListener("submit", (event) => {
   if (form.dataset.form === "message") { updateRequests((list) => { const r = list.find((x) => x.id === state.selectedId); r.messages ||= []; r.messages.push({ id: crypto.randomUUID(), authorId: "me", author: state.profile.name, text: data.get("text"), date: "Today" }); return list; }); form.reset(); notify("Message sent"); }
   if (form.dataset.form === "report") { updateRequests((list) => { const r = list.find((x) => x.id === form.dataset.id); r.reports ||= []; r.reports.push({ id: crypto.randomUUID(), reporterId: "me", reason: data.get("reason"), detail: data.get("detail"), status: "submitted", createdAt: new Date().toISOString() }); return list; }); closeModal(); notify("Private report recorded for moderator review"); }
   if (form.dataset.form === "profile-item") { const profile = structuredClone(state.profile); profile[form.dataset.list].push(data.get("item")); state.profile = profile; persist(); form.reset(); notify("Profile updated"); }
+  if (form.dataset.form === "sign-in") { signInWithEmail(data.get("email")).then(() => { closeModal(); notify("Check your email for the secure link"); }).catch((error) => notify(error.message)); }
 });
 
 store.subscribe(render, true);
+document.querySelector("#mode-badge").textContent = backendConfigured ? "Connected" : "Demo mode";
+
+async function hydrateAccount() {
+  if (!backendConfigured || state.view !== "profile") return;
+  const panel = document.querySelector("#account-panel");
+  if (!panel) return;
+  try {
+    const session = await getSession();
+    panel.innerHTML = session ? `<b>${esc(session.user.email)}</b><p>Your session is encrypted and managed by Supabase Auth.</p><button class="secondary" data-action="sign-out">Sign out</button>` : `<b>Ready for a real account</b><p>Sign in with a secure email link.</p><button class="primary" data-action="sign-in">Sign in</button>`;
+  } catch (error) { panel.innerHTML = `<p>Account service unavailable: ${esc(error.message)}</p>`; }
+}
+
+store.subscribe(() => queueMicrotask(hydrateAccount));
