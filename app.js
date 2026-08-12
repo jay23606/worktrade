@@ -286,8 +286,10 @@ function requestCard(request) {
 
 function renderDetail(request) {
   const isOwner = request.ownerId === "me";
+  const guidedAction = requestJourneyAction(request);
   return shell(
     `<button class="back" data-nav="discover">← Back to requests</button>
+    ${guidedAction ? journeyPanel([guidedAction]) : ""}
     <div class="detail-grid"><article class="detail-main">
       <div class="card-top"><span class="category">${esc(request.category)}</span><span>${esc(request.status)}</span></div>
       ${isOwner && state.remote && request.status === "open" ? `<div class="owner-actions"><button class="secondary" data-action="edit-request">Edit request</button><button class="text-btn" data-request-action="close">Close</button><button class="text-btn" data-request-action="archive">Archive</button><button class="danger-text" data-request-action="cancel">Cancel</button></div>` : ""}
@@ -403,12 +405,60 @@ function renderWorkspace() {
       ),
   );
   const completed = state.requests.filter((r) => r.status === "completed");
+  const journey = buildJourneyActions(active, state.networkInbox?.invitations || []);
   return shell(
     `<div class="section-title"><div><span class="eyebrow">My work</span><h1>Keep every commitment visible.</h1></div><button class="primary" data-action="post">Post work</button></div>
     <div class="stats"><div><b>${needsAction.length}</b><span>Need your action</span></div><div><b>${active.length}</b><span>Active agreements</span></div><div><b>${posted.filter((r) => r.status === "draft").length}</b><span>Draft requests</span></div><div><b>${state.myOffers.filter((o) => o.status === "pending").length}</b><span>Pending proposals</span></div></div>
-    ${dashboardGroup("Needs your action", needsAction)}${dashboardGroup("Requests I posted", posted, true)}${offerDashboard()}${dashboardGroup("Active work", active)}${dashboardGroup("Completed history", completed)}`,
+    ${journeyPanel(journey)}${dashboardGroup("Needs your action", needsAction)}${dashboardGroup("Requests I posted", posted, true)}${offerDashboard()}${dashboardGroup("Active work", active)}${dashboardGroup("Completed history", completed)}`,
     "Personal workspace",
   );
+}
+
+function requestJourneyAction(request) {
+  const agreement = request.agreement;
+  if (!agreement) return null;
+  const mine = (agreement.obligations || []).find((item) => item.responsible_profile_id === state.profile.id && item.status === "pending");
+  const approval = (agreement.obligations || []).find((item) => item.responsible_profile_id !== state.profile.id && item.status === "submitted");
+  const incomplete = (request.milestones || []).find((item) => !item.done && !item.completed_at);
+  if (request.hold) return { rank: 2, title: `Resolve dependency for ${request.title}`, detail: `${request.hold.type}: ${request.hold.detail}`, label: "Open dependency", requestId: request.id };
+  if (request.status === "proposed" && !(agreement.confirmations || []).includes(state.profile.id)) return { rank: 1, title: `Confirm terms for ${request.title}`, detail: `Review agreement version ${agreement.version || 1}; confirmation applies only to this version.`, label: "Review terms", requestId: request.id };
+  if (request.status === "proposed") return { rank: 6, waiting: true, title: `Waiting for confirmation on ${request.title}`, detail: "The other participant must confirm the same version before scheduling.", label: "View status", requestId: request.id };
+  if (approval) return { rank: 1, title: `Approve exchanged value for ${request.title}`, detail: approval.description, label: "Review fulfillment", requestId: request.id };
+  if (request.status === "review" && agreement.completion_requested_by !== state.profile.id) return { rank: 1, title: `Review completion of ${request.title}`, detail: "Approve the result or return it to active work with a clear update.", label: "Review completion", requestId: request.id };
+  if (request.status === "review") return { rank: 6, waiting: true, title: `Waiting for completion approval`, detail: `The other participant is reviewing ${request.title}.`, label: "View status", requestId: request.id };
+  if (mine) return { rank: 2, title: `Submit your side of the exchange`, detail: mine.description, label: "Open obligation", requestId: request.id };
+  if (agreement.status === "agreed") return { rank: 2, title: `Schedule ${request.title}`, detail: "Set a shared date, time zone, and practical work window.", label: "Set schedule", requestId: request.id };
+  if (agreement.status === "scheduled") return { rank: 2, title: `Start ${request.title}`, detail: "Confirm the work has begun when both participants are ready.", label: "Start work", requestId: request.id };
+  if (incomplete) return { rank: 3, title: `Continue: ${incomplete.title}`, detail: `The next incomplete milestone for ${request.title}.`, label: "Open milestone", requestId: request.id };
+  if (agreement.status === "active") return { rank: 4, title: `Request completion approval`, detail: `All listed milestones for ${request.title} are complete.`, label: "Review project", requestId: request.id };
+  return null;
+}
+
+function invitationJourneyAction(invitation) {
+  const incoming = invitation.recipient_id === state.profile.id;
+  const other = incoming ? invitation.sender_name : invitation.recipient_name;
+  if (invitation.status === "pending") return incoming
+    ? { rank: 0, title: `Respond to ${other}`, detail: `${invitation.need_text} in exchange for ${invitation.offer_text}`, label: "Review invitation", invitationId: invitation.id }
+    : { rank: 7, waiting: true, title: `Waiting for ${other}`, detail: "They decide whether to open a private planning conversation.", label: "View invitation", invitationId: invitation.id };
+  if (invitation.status !== "accepted") return null;
+  const workspace = invitation.workspace;
+  if (!workspace) return { rank: 1, title: `Define the work with ${other}`, detail: "Agree on scope, responsibilities, materials, timing, exclusions, and exchange value.", label: "Start planning", invitationId: invitation.id };
+  const myConfirmation = incoming ? workspace.recipient_confirmed_version : workspace.sender_confirmed_version;
+  const otherConfirmation = incoming ? workspace.sender_confirmed_version : workspace.recipient_confirmed_version;
+  if (myConfirmation !== workspace.version) return { rank: 1, title: `Confirm planning terms with ${other}`, detail: `Review version ${workspace.version}. Any edit clears prior confirmations.`, label: "Review workspace", invitationId: invitation.id };
+  if (otherConfirmation !== workspace.version) return { rank: 7, waiting: true, title: `Waiting for ${other} to confirm`, detail: `Your confirmation of planning version ${workspace.version} is recorded.`, label: "View workspace", invitationId: invitation.id };
+  return { rank: 1, title: `Create the private work project`, detail: `Both participants confirmed version ${workspace.version}.`, label: "Create project", invitationId: invitation.id, convert: true };
+}
+
+function buildJourneyActions(requests, invitations) {
+  return [...invitations.map(invitationJourneyAction), ...requests.map(requestJourneyAction)].filter(Boolean).sort((a, b) => a.rank - b.rank);
+}
+
+function journeyPanel(items) {
+  const primary = items.find((item) => !item.waiting) || items[0];
+  if (!primary) return `<section class="journey-panel complete"><span class="eyebrow">Next action</span><h2>You’re caught up.</h2><p>New invitations, confirmations, milestones, and completion reviews will appear here.</p></section>`;
+  const button = primary.convert ? `<button class="primary" data-convert-intro="${primary.invitationId}">${esc(primary.label)}</button>` : primary.invitationId ? `<button class="primary" data-journey-invitation="${primary.invitationId}">${esc(primary.label)}</button>` : `<button class="primary" data-open="${primary.requestId}">${esc(primary.label)}</button>`;
+  return `<section class="journey-panel ${primary.waiting ? "waiting" : ""}"><div><span class="eyebrow">${primary.waiting ? "Waiting on someone else" : "Your next action"}</span><h2>${esc(primary.title)}</h2><p>${esc(primary.detail)}</p></div>${button}${items.length > 1 ? `<details><summary>${items.length - 1} more upcoming or waiting</summary><ol>${items.slice(1).map((item) => `<li><b>${esc(item.title)}</b><span>${esc(item.detail)}</span></li>`).join("")}</ol></details>` : ""}</section>`;
 }
 
 function dashboardGroup(title, items, requestControls = false) {
@@ -1569,6 +1619,15 @@ document.addEventListener("click", (event) => {
       (x) => x.id === invitePerson.dataset.invitePerson,
     );
     if (profile) invitationModal(profile);
+  }
+  const journeyInvitation = event.target.closest("[data-journey-invitation]");
+  if (journeyInvitation) {
+    const invitation = (state.networkInbox.invitations || []).find((item) => item.id === journeyInvitation.dataset.journeyInvitation);
+    if (invitation?.status === "accepted") workspaceModal(invitation);
+    else {
+      state.view = "network";
+      pendingRenderFocus = { selector: `[data-invite-response$=":${journeyInvitation.dataset.journeyInvitation}"]`, until: Date.now() + 1000 };
+    }
   }
   const savePerson = event.target.closest("[data-save-person]");
   if (savePerson) {

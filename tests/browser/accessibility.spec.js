@@ -117,6 +117,17 @@ test("guided match setup saves preferences and produces first matches", async ({
   await expect(feedbackDialog).toBeHidden();
 });
 
+test("workspace presents one guided next action and links to its project", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Primary" }).locator('[data-nav="workspace"]').click();
+  const guide = page.locator(".journey-panel").first();
+  await expect(guide.getByText("Your next action")).toBeVisible();
+  await expect(guide.getByRole("heading", { name: /Resolve dependency/ })).toBeVisible();
+  await guide.getByRole("button", { name: "Open dependency" }).click();
+  await expect(page.getByRole("heading", { name: "Restore and reseal storefront deck", exact: true })).toBeVisible();
+  await expect(page.locator(".journey-panel").getByText(/Weather:/)).toBeVisible();
+  await expect(page.getByText(/Next action: Conditions/)).toBeVisible();
+});
+
 test("posting dialog is labeled, traps focus, and restores focus", async ({
   page,
 }) => {
