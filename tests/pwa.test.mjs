@@ -5,8 +5,8 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("the installable shell wires a scoped manifest and versioned service worker", async () => {
-  const [html, app, manifestSource, worker] = await Promise.all([
-    read("index.html"), read("app.js"), read("manifest.webmanifest"), read("service-worker.js"),
+  const [html, app, manifestSource, worker, deployment] = await Promise.all([
+    read("index.html"), read("app.js"), read("manifest.webmanifest"), read("service-worker.js"), read(".github/workflows/pages.yml"),
   ]);
   const manifest = JSON.parse(manifestSource);
   assert.match(html, /rel="manifest" href="manifest\.webmanifest"/);
@@ -19,4 +19,6 @@ test("the installable shell wires a scoped manifest and versioned service worker
   assert.match(worker, /const CACHE = "worktrade-v[\da-z]+"/);
   assert.match(worker, /assets\/worktrade-hero\.webp/);
   assert.match(worker, /caches\.match\("\.\/index\.html"\)/);
+  assert.match(deployment, /manifest\.webmanifest service-worker\.js/);
+  assert.match(deployment, /cp -r assets dist\//);
 });

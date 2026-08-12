@@ -26,7 +26,8 @@ jobs:
       - name: Build minimal static artifact
         run: |
           mkdir dist
-          cp index.html styles.css app.js config.js data.js dist/
+          cp index.html styles.css app.js config.js data.js manifest.webmanifest service-worker.js .nojekyll dist/
+          cp -r assets dist/
           cp -r modules dist/
       - uses: actions/upload-pages-artifact@v3
         with:
