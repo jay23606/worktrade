@@ -123,6 +123,11 @@ test("scheduling is private, reciprocal, and calendar-portable", () => {
   for(const operation of ["getAgreementSchedule","proposeScheduleWindow","respondScheduleWindow","saveMyAvailability"])assert.match(backend,new RegExp(operation));
 });
 
+test("agreement preparation ledger tracks readiness and mutual cost approval",()=>{
+  assert.match(sql,/create table public\.agreement_ledger_items/);assert.match(sql,/participants read ledger/);assert.match(sql,/agreement_ledger_approvals/);assert.match(sql,/actual_cost_cents/);assert.match(sql,/receipt_path/);
+  for(const operation of["getAgreementLedger","saveLedgerItem","manageLedgerItem","uploadLedgerReceipt"])assert.match(backend,new RegExp(operation));
+});
+
 test("moderation data is private and restrictions guard interaction writes", () => {
   assert.match(sql, /moderation_actions_immutable/);
   assert.match(sql, /staff authorization required/);

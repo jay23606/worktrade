@@ -122,6 +122,11 @@ try {
   await rpc(provider.token,"perform_agreement_action",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,requested_action:"confirm",payload:{}});
   rows=await rpc(owner.token,"get_my_agreements",{});agreement=rows[0];assert.equal(agreement.agreement.status,"agreed");
 
+  const ledgerItemId=await rpc(owner.token,"save_ledger_item",{target_agreement_id:agreementId,target_item_id:null,payload:{item_type:"material",description:"Reinforced shelf brackets",responsibility:"shared",contribution_mode:"cash",quantity:"8",unit:"brackets",estimated_cost_cents:"6400",barter_description:"",status:"needed"}});
+  await rpc(owner.token,"manage_ledger_item",{target_item_id:ledgerItemId,item_action:"approve",payload:{}});await rpc(provider.token,"manage_ledger_item",{target_item_id:ledgerItemId,item_action:"approve",payload:{}});
+  await rpc(provider.token,"manage_ledger_item",{target_item_id:ledgerItemId,item_action:"status",payload:{status:"ready",quantity_actual:"8",actual_cost_cents:"6125"}});
+  const ledger=await rpc(owner.token,"get_agreement_ledger",{target_agreement_id:agreementId});assert.equal(ledger.items[0].approvals.length,2);assert.equal(ledger.summary.needed,0);assert.equal(ledger.summary.actual_cash_cents,6125);
+
   await rpc(owner.token,"save_my_availability",{payload:{timezone:"America/New_York",weekly_windows:["Saturday 8am-2pm"],lead_time_hours:24}});
   const scheduleId=await rpc(owner.token,"propose_schedule_window",{target_agreement_id:agreementId,payload:{start_at:new Date(Date.now()+172800000).toISOString(),end_at:new Date(Date.now()+176400000).toISOString(),timezone:"America/New_York",weather_sensitive:true,location_detail:"Private test workshop",arrival_notes:"Use the side entrance"}});
   let scheduleHub=await rpc(provider.token,"get_agreement_schedule",{target_agreement_id:agreementId});assert.equal(scheduleHub.proposals[0].id,scheduleId);assert.equal(scheduleHub.proposals[0].location_detail,"Private test workshop");

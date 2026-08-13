@@ -53,6 +53,10 @@ import {
   proposeScheduleWindow,
   respondScheduleWindow,
   saveMyAvailability,
+  getAgreementLedger,
+  saveLedgerItem,
+  manageLedgerItem,
+  uploadLedgerReceipt,
   signInWithEmail,
   signOut,
   submitOffer,
@@ -385,7 +389,7 @@ function agreementControls(agreement, confirmed) {
           agreement.completion_requested_by !== state.profile.id
         ? `<button class="secondary full" data-completion="approve">Approve completion</button><button class="secondary full" data-completion="return">Return to active work</button>`
         : "";
-  return `${next ? `<button class="secondary full" data-agreement="${next[0]}">${next[1]}</button>` : ""}${completion}${!["completed", "cancelled", "disputed"].includes(agreement.status) ? `<button class="text-btn full" data-action="schedule">Set schedule</button><button class="text-btn full" data-action="amend">Propose amendment</button><div class="agreement-links"><button data-agreement="disputed">Raise concern</button><button data-agreement="cancelled">Cancel</button></div>` : ""}`;
+  return `${next ? `<button class="secondary full" data-agreement="${next[0]}">${next[1]}</button>` : ""}${completion}${!["completed", "cancelled", "disputed"].includes(agreement.status) ? `<button class="text-btn full" data-action="schedule">Set schedule</button><button class="text-btn full" data-action="ledger">Materials & costs</button><button class="text-btn full" data-action="amend">Propose amendment</button><div class="agreement-links"><button data-agreement="disputed">Raise concern</button><button data-agreement="cancelled">Cancel</button></div>` : ""}`;
 }
 
 function holdCard(hold) {
@@ -1115,6 +1119,11 @@ async function scheduleCoordinationModal(request, counterTo = "") {
   }catch(error){notify(error.message);}
 }
 
+async function agreementLedgerModal(request){
+  try{const ledger=await getAgreementLedger(request.agreement.id);openModal(`<span class="eyebrow">Agreement preparation</span><h2>Materials, tools & value ledger</h2><div class="ledger-summary"><div><b>${ledger.summary.ready}</b><span>ready</span></div><div><b>${ledger.summary.needed}</b><span>still needed</span></div><div><b>${money(ledger.summary.estimated_cash_cents/100)}</b><span>estimated cash</span></div><div><b>${money(ledger.summary.actual_cash_cents/100)}</b><span>actual cash</span></div></div><section class="ledger-list">${ledger.items.map(i=>{const approved=i.approvals?.some(a=>a.profile_id===state.profile.id&&a.version===i.version);return `<article><span class="category">${esc(i.item_type)} · ${esc(i.status)}</span><h3>${esc(i.description)}</h3><p>${esc(i.responsibility)} · ${esc(i.contribution_mode)}${i.quantity_estimate?` · ${i.quantity_estimate} ${esc(i.unit)}`:""}${i.estimated_cost_cents!=null?` · est. ${money(i.estimated_cost_cents/100)}`:""}${i.barter_description?` · ${esc(i.barter_description)}`:""}</p>${i.responsibility==="shared"?`<button class="secondary" data-ledger-action="approve:${i.id}" ${approved?"disabled":""}>${approved?"You approved":"Approve shared cost"}</button>`:""}<button class="text-btn" data-ledger-status="${i.id}">Update readiness/cost</button><form data-form="ledger-receipt" data-agreement="${request.agreement.id}" data-item="${i.id}" class="inline-form"><input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" required aria-label="Receipt or item photo"><button class="secondary">Add receipt/photo</button></form></article>`}).join("")||"<p>No preparation items yet.</p>"}</section><form data-form="ledger-item" data-agreement="${request.agreement.id}" class="form-grid"><label>Type<select name="item_type"><option value="material">Material</option><option value="tool">Tool</option><option value="rental">Rental</option><option value="permit">Permit</option><option value="delivery">Delivery</option><option value="expense">Other expense</option><option value="service">Service</option><option value="other">Other</option></select></label><label>Responsibility<select name="responsibility"><option value="requester">Requester</option><option value="provider">Provider</option><option value="shared">Shared (both approve)</option><option value="third_party">Third party</option></select></label><label class="wide">Item or contribution<input name="description" required maxlength="500"></label><label>Value type<select name="contribution_mode"><option value="cash">Cash expense</option><option value="barter">Barter contribution</option><option value="included">Already included</option></select></label><label>Initial state<select name="status"><option value="needed">Needed</option><option value="available">Already available</option><option value="ordered">Ordered</option><option value="ready">Ready</option></select></label><label>Estimated quantity<input name="quantity" type="number" min="0" step="0.001"></label><label>Unit<input name="unit" placeholder="boards, hours, days"></label><label>Estimated cash cost<input name="estimated_cost" type="number" min="0" step="0.01"></label><label class="wide">Barter/non-cash detail<input name="barter_description" placeholder="Use of trailer in exchange for cleanup"></label><button class="primary wide">Add preparation item</button></form>`);}catch(error){notify(error.message);}
+}
+function ledgerStatusModal(id){openModal(`<span class="eyebrow">Preparation update</span><h2>Record what changed.</h2><form data-form="ledger-status" data-item="${id}" class="form-grid"><label>Status<select name="status"><option value="available">Available</option><option value="needed">Needed</option><option value="ordered">Ordered</option><option value="ready">Ready</option><option value="used">Used</option><option value="cancelled">Cancelled</option></select></label><label>Actual quantity<input name="quantity_actual" type="number" min="0" step="0.001"></label><label>Actual cash cost<input name="actual_cost" type="number" min="0" step="0.01"></label><button class="primary wide">Save update</button></form>`);}
+
 function compareOffersModal(request) {
   openModal(
     `<span class="eyebrow">Proposal comparison</span><h2>Compare the whole exchange.</h2><div class="comparison">${request.offers.map((o) => `<article><h3>${esc(o.provider)}</h3><b>${modeLabel(o.mode)}</b><dl><dt>Scope</dt><dd>${esc(o.gives)}</dd><dt>Exclusions</dt><dd>${esc(o.exclusions || "None stated")}</dd><dt>Exchange</dt><dd>${esc(o.wants)}</dd><dt>Duration</dt><dd>${esc(o.duration)}</dd><dt>Responsibilities</dt><dd>${esc(JSON.stringify(o.responsibilities || {}))}</dd><dt>Expires</dt><dd>${o.expires_at ? new Date(o.expires_at).toLocaleDateString() : "No expiration"}</dd></dl><form data-form="proposal-question" data-offer="${o.id}" class="inline-form"><input name="body" required placeholder="Ask about this proposal"><button class="secondary">Ask</button></form><button class="primary full" data-accept="${o.id}" data-request="${request.id}">Select proposal</button></article>`).join("")}</div>`,
@@ -1294,6 +1303,7 @@ document.addEventListener("click", (event) => {
     milestoneModal(state.requests.find((x) => x.id === state.selectedId));
   if (action === "schedule")
     scheduleCoordinationModal(state.requests.find((x) => x.id === state.selectedId));
+  if(action==="ledger")agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));
   if (action === "compare-offers")
     compareOffersModal(state.requests.find((x) => x.id === state.selectedId));
   if (action === "publish-completion")
@@ -1848,6 +1858,8 @@ document.addEventListener("click", (event) => {
   if(scheduleCounter)scheduleCoordinationModal(state.requests.find(x=>x.id===state.selectedId),scheduleCounter.dataset.scheduleCounter);
   const calendarExport=event.target.closest("[data-calendar-export]");
   if(calendarExport){const stamp=x=>new Date(x).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");const clean=x=>String(x||"").replace(/[\\;,\n]/g," ");const ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WorkTrade//Schedule//EN\r\nBEGIN:VEVENT\r\nUID:${calendarExport.dataset.calendarExport}@worktrade\r\nDTSTAMP:${stamp(new Date())}\r\nDTSTART:${stamp(calendarExport.dataset.start)}\r\nDTEND:${stamp(calendarExport.dataset.end)}\r\nSUMMARY:${clean(calendarExport.dataset.title)}\r\nLOCATION:${clean(calendarExport.dataset.location)}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"}));link.download="worktrade-schedule.ics";link.click();URL.revokeObjectURL(link.href);}
+  const ledgerAction=event.target.closest("[data-ledger-action]");if(ledgerAction){const[actionName,id]=ledgerAction.dataset.ledgerAction.split(":");manageLedgerItem(id,actionName).then(()=>agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId))).then(()=>notify("Shared item approved")).catch(error=>notify(error.message));}
+  const ledgerStatus=event.target.closest("[data-ledger-status]");if(ledgerStatus)ledgerStatusModal(ledgerStatus.dataset.ledgerStatus);
   const openCircle = event.target.closest("[data-open-circle]");
   if (openCircle) {
     const circle = state.circleHub.circles.find(
@@ -2638,6 +2650,15 @@ document.addEventListener("submit", async (event) => {
   }
   if(form.dataset.form==="availability"){
     try{await saveMyAvailability({timezone:data.get("timezone"),lead_time_hours:Number(data.get("lead_time_hours"))||0,weekly_windows:String(data.get("windows")||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean)});notify("Availability saved");}catch(error){notify(error.message);}
+  }
+  if(form.dataset.form==="ledger-item"){
+    try{await saveLedgerItem(form.dataset.agreement,null,{item_type:data.get("item_type"),description:data.get("description"),responsibility:data.get("responsibility"),contribution_mode:data.get("contribution_mode"),status:data.get("status"),quantity:data.get("quantity"),unit:data.get("unit"),estimated_cost_cents:data.get("estimated_cost")?Math.round(Number(data.get("estimated_cost"))*100):"",barter_description:data.get("barter_description")});await agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));notify("Preparation item added");}catch(error){notify(error.message);}
+  }
+  if(form.dataset.form==="ledger-status"){
+    try{await manageLedgerItem(form.dataset.item,"status",{status:data.get("status"),quantity_actual:data.get("quantity_actual"),actual_cost_cents:data.get("actual_cost")?Math.round(Number(data.get("actual_cost"))*100):""});await agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));notify("Preparation status updated");}catch(error){notify(error.message);}
+  }
+  if(form.dataset.form==="ledger-receipt"){
+    const file=form.elements.receipt.files[0];if(!file||file.size>10485760)return notify("Choose a JPG, PNG, or WebP under 10 MB.");try{await uploadLedgerReceipt(form.dataset.agreement,form.dataset.item,file);await agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));notify("Receipt or item photo added");}catch(error){notify(error.message);}
   }
   if (form.dataset.form === "proposal-question") {
     try {
