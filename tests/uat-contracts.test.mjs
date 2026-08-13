@@ -232,3 +232,12 @@ test("proposal counters are versioned and require a counterparty response", asyn
   assert.match(backend, /export async function counterOffer/);
   assert.match(backend, /export async function declineOffer/);
 });
+
+test("negotiation activity reaches the inbox and transactional outbox", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813030000_negotiation_inbox_notifications.sql", root), "utf8");
+  assert.match(sql, /Counterproposal received/);
+  assert.match(sql, /changed:/);
+  assert.match(sql, /queue_offer_expiration_warnings/);
+  const dispatcher = await readFile(new URL("supabase/functions/email-dispatch/index.ts", root), "utf8");
+  assert.match(dispatcher, /queue_offer_expiration_warnings/);
+});

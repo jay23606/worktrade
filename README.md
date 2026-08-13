@@ -28,6 +28,7 @@ The wider public network remains available for discovery, but community context 
 | Private pilot operations   | Connected             | Hashed invites, server-enforced membership, contextual feedback, private follow-up, triage, and activation funnel |
 | Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
 | Proposal negotiation       | Connected             | Versioned counters, highlighted term changes, counterparty-only acceptance, declines, and readable history |
+| Negotiation inbox          | Connected             | Waiting-on-you/them queues, direct request routing, expiration warnings, changed-term summaries, and proposal email delivery |
 | Agreements                 | Connected             | Mutual confirmation, amendments, scheduling, milestones, holds, obligations, completion approval |
 | Private scheduling         | Connected             | Recurring availability, mutual time proposals, counteroffers, participant-only arrival details, weather flags, and calendar export |
 | Preparation ledger         | Connected             | Materials, tools, rentals, permits, delivery, cash/barter contributions, readiness, actual costs, shared approvals, and private receipt evidence |

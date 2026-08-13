@@ -499,13 +499,34 @@ function renderWorkspace() {
   const completed = state.requests.filter((r) => r.status === "completed");
   const journey = buildJourneyActions(active, state.networkInbox?.invitations || []);
   const activation = activationChecklist(posted, active);
+  const negotiations = buildNegotiationInbox(posted);
   return shell(
     `<div class="section-title"><div><span class="eyebrow">My work</span><h1>${activation.complete ? "Keep every commitment visible." : "Start with one useful exchange."}</h1></div><button class="primary" data-action="post">Post work</button></div>
     ${activation.complete ? "" : activationPanel(activation)}
     <div class="stats"><div><b>${needsAction.length}</b><span>Need your action</span></div><div><b>${active.length}</b><span>Active agreements</span></div><div><b>${posted.filter((r) => r.status === "draft").length}</b><span>Draft requests</span></div><div><b>${state.myOffers.filter((o) => o.status === "pending").length}</b><span>Pending proposals</span></div></div>
-    ${journeyPanel(journey)}${dashboardGroup("Needs your action", needsAction)}${dashboardGroup("Requests I posted", posted, true)}${offerDashboard()}${dashboardGroup("Active work", active)}${dashboardGroup("Completed history", completed)}`,
+    ${negotiationInbox(negotiations)}${journeyPanel(journey)}${dashboardGroup("Needs your action", needsAction)}${dashboardGroup("Requests I posted", posted, true)}${offerDashboard()}${dashboardGroup("Active work", active)}${dashboardGroup("Completed history", completed)}`,
     "Personal workspace",
   );
+}
+
+function buildNegotiationInbox(posted) {
+  const owned = posted.flatMap((request) => (request.offers || []).map((offer) => ({ ...offer, requestId: request.id, requestTitle: request.title })));
+  const submitted = state.myOffers.map((offer) => ({ ...offer, requestId: offer.request_id, requestTitle: offer.work_requests?.title || "Work request", gives: offer.scope, wants: offer.exchange_summary, duration: offer.duration_text || "To be agreed", lastProposedBy: offer.last_proposed_by }));
+  return [...owned, ...submitted].filter((offer, index, list) => list.findIndex((item) => item.id === offer.id) === index).map((offer) => {
+    const awaitingMe = offer.status === "pending" && (!offer.lastProposedBy || offer.lastProposedBy !== state.profile.id);
+    const expiresAt = offer.expires_at ? new Date(offer.expires_at) : null;
+    const hoursLeft = expiresAt ? Math.ceil((expiresAt - new Date()) / 36e5) : null;
+    const status = offer.status !== "pending" ? offer.status : awaitingMe ? "waiting-on-you" : "waiting-on-them";
+    return { ...offer, awaitingMe, expiresAt, hoursLeft, status };
+  }).sort((a, b) => Number(b.awaitingMe) - Number(a.awaitingMe) || (a.expiresAt || Infinity) - (b.expiresAt || Infinity));
+}
+
+function negotiationInbox(items) {
+  const actionable = items.filter((item) => item.awaitingMe);
+  const current = items.filter((item) => item.status === "waiting-on-them");
+  const recent = items.filter((item) => !["waiting-on-you", "waiting-on-them"].includes(item.status)).slice(0, 5);
+  const cards = (list) => list.map((item) => `<article class="negotiation-card ${item.awaitingMe ? "action" : ""}"><div><span class="category">${esc(item.status.replaceAll("-", " "))}</span><small>Version ${item.version || 1}${item.hoursLeft != null && item.hoursLeft <= 48 ? ` · ${item.hoursLeft <= 0 ? "expired" : `${item.hoursLeft}h left`}` : ""}</small></div><h3>${esc(item.requestTitle)}</h3><p><b>Work:</b> ${esc(item.gives || item.scope || "Not specified")}</p><p><b>Exchange:</b> ${esc(item.wants || item.exchange_summary || "Not specified")}</p>${item.changedFields?.length ? `<div class="terms-changed"><b>Changed</b>${item.changedFields.map((field) => `<span>${esc(field)}</span>`).join("")}</div>` : ""}<div class="proposal-actions"><button class="text-btn" data-negotiation-open="${item.requestId}">Open request</button>${item.awaitingMe ? `<button class="primary" data-accept="${item.id}" data-request="${item.requestId}">Accept</button><button class="secondary" data-counter-offer="${item.id}">Counter</button><button class="text-btn" data-decline-offer="${item.id}">Decline</button>` : ""}</div></article>`).join("");
+  return `<section class="negotiation-inbox"><div class="section-title"><div><span class="eyebrow">Negotiation inbox</span><h2>Latest terms, one response at a time.</h2></div><span>${actionable.length} need${actionable.length === 1 ? "s" : ""} your response</span></div><div class="negotiation-columns"><section><h3>Needs your response</h3>${cards(actionable) || '<div class="empty compact"><p>No proposal is waiting on you.</p></div>'}</section><section><h3>Waiting on someone else</h3>${cards(current) || '<div class="empty compact"><p>No outstanding responses.</p></div>'}</section></div>${recent.length ? `<details class="negotiation-recent"><summary>Recent accepted or declined proposals (${recent.length})</summary>${cards(recent)}</details>` : ""}</section>`;
 }
 
 function activationChecklist(posted = [], active = []) {
@@ -1316,7 +1337,7 @@ function notificationsModal() {
 
 function notificationGroup(item) {
   if (item.kind === "message" || /message/i.test(item.title)) return "message";
-  if (/new trade proposal|approval requested|needs? (your )?review|proposed|invitation|membership request|renewed consent|work issue reported/i.test(item.title)) return "action";
+  if (/new trade proposal|counterproposal|approval requested|needs? (your )?review|proposed|invitation|membership request|renewed consent|work issue reported/i.test(item.title)) return "action";
   return "update";
 }
 
@@ -1866,6 +1887,12 @@ document.addEventListener("click", (event) => {
       state.projectDetailTab = notification.dataset.section || "overview";
       state.view = "detail";
     } else state.view = notification.dataset.route || "workspace";
+  }
+  const negotiationOpen = event.target.closest("[data-negotiation-open]");
+  if (negotiationOpen) {
+    state.selectedId = negotiationOpen.dataset.negotiationOpen;
+    state.projectDetailTab = "overview";
+    state.view = "detail";
   }
   const projectNotifications = event.target.closest("[data-project-notifications]");
   if (projectNotifications) {
@@ -3307,6 +3334,11 @@ async function loadRemoteWorkspace() {
       }));
     }),
   );
+  await Promise.all(myOffers.map(async (offer) => {
+    offer.history = await getOfferVersions(offer.id);
+    const previous = offer.history[0];
+    offer.changedFields = previous ? [["scope", "Scope"], ["exchange_summary", "Exchange"], ["duration_text", "Duration"], ["exclusions", "Exclusions"], ["mode", "Exchange type"]].filter(([key]) => String(previous[key] || "") !== String(offer[key] || "")).map(([, label]) => label) : [];
+  }));
   store.batch(() => {
     state.remote = true;
     state.profile = {

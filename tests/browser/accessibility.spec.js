@@ -140,6 +140,9 @@ test("guided match setup saves preferences and produces first matches", async ({
 
 test("workspace presents one guided next action and links to its project", async ({ page }) => {
   await page.getByRole("navigation", { name: "Primary" }).locator('[data-nav="workspace"]').click();
+  await expect(page.getByRole("heading", { name: "Latest terms, one response at a time." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Needs your response" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Waiting on someone else" })).toBeVisible();
   const guide = page.locator(".journey-panel").first();
   await expect(guide.getByText("Your next action")).toBeVisible();
   await expect(guide.getByRole("heading", { name: /Resolve dependency/ })).toBeVisible();

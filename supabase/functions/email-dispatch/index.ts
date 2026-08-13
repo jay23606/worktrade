@@ -52,6 +52,9 @@ Deno.serve(async (request) => {
   const appUrl = Deno.env.get("WORKTRADE_APP_URL") ||
     "https://jay23606.github.io/worktrade/";
   const requestedBatch = Number((await request.json().catch(() => ({}))).limit || 25);
+  const { error: reminderError } = await supabase.rpc("queue_offer_expiration_warnings");
+  if (reminderError)
+    return Response.json({ error: reminderError.message }, { status: 500 });
   const { data: claimed, error: claimError } = await supabase.rpc(
     "claim_email_deliveries",
     { batch_size: Math.max(1, Math.min(requestedBatch, 100)) },
