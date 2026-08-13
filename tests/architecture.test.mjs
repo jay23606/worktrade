@@ -5,7 +5,7 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("application shell delegates matching and PWA lifecycle to feature modules", async () => {
-  const [app, matching, messages, network, projects, workspace, communities, profile, dialogs, operations, coordination, notifications, clickHandler, pwa, deployment, worker] = await Promise.all([
+  const [app, matching, messages, network, projects, workspace, communities, profile, dialogs, operations, coordination, notifications, clickHandler, projectClickHandler, pwa, deployment, worker] = await Promise.all([
     readFile(new URL("app.js", root), "utf8"),
     readFile(new URL("features/matching.js", root), "utf8"),
     readFile(new URL("features/messages.js", root), "utf8"),
@@ -19,6 +19,7 @@ test("application shell delegates matching and PWA lifecycle to feature modules"
     readFile(new URL("features/project-coordination-dialogs.js", root), "utf8"),
     readFile(new URL("features/notifications.js", root), "utf8"),
     readFile(new URL("features/core-click-handler.js", root), "utf8"),
+    readFile(new URL("features/project-click-handler.js", root), "utf8"),
     readFile(new URL("shell/pwa.js", root), "utf8"),
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
     readFile(new URL("service-worker.js", root), "utf8"),
@@ -37,11 +38,12 @@ test("application shell delegates matching and PWA lifecycle to feature modules"
   assert.match(coordination, /changeOrderHubModal/);
   assert.match(notifications, /notificationGroupSection/);
   assert.match(clickHandler, /handleCoreClick/);
+  assert.match(projectClickHandler, /handleProjectClick/);
   assert.match(network, /circleDetail, renderChainHub/);
   assert.match(pwa, /applyConnectivityState/);
   assert.match(deployment, /cp -r features shell dist/);
   assert.match(worker, /features\/matching\.js/);
   assert.match(worker, /features\/projects\.js/);
   assert.match(worker, /features\/workspace\.js/);
-  assert.ok(app.split(/\r?\n/).length < 2775, "app.js must keep shrinking as feature modules are extracted");
+  assert.ok(app.split(/\r?\n/).length < 2650, "app.js must keep shrinking as feature modules are extracted");
 });
