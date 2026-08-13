@@ -80,6 +80,22 @@ export async function recordMatchEvent({ profileId = null, requestId = null, eve
   if (error) throw error;
 }
 
+export async function recommendProfilesForRequest(requestId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("recommend_profiles_for_request", { target_request_id: requestId });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function notifyProjectMatches(requestId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("notify_project_matches", { target_request_id: requestId });
+  if (error) throw error;
+  return data;
+}
+
 export async function getNetworkInbox() {
   const client = await getBackend();
   assertBackend(client);

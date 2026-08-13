@@ -144,6 +144,11 @@ try {
   const duplicateId=await rpc(owner.token,"request_lifecycle_action",{target_request_id:draftId,expected_version:draft.version,requested_action:"duplicate"});const duplicate=(await request(`/rest/v1/work_requests?id=eq.${duplicateId}&select=*`,{token:owner.token}))[0];assert.equal(duplicate.stage,"draft");
 
   const requestId = await rpc(owner.token, "create_work_request", { payload: { title: "Build integration-test shelving", description: "Build and install two sturdy workshop shelves.", kind: "build", location: "Richmond, VA", urgency: "This month", cash_budget_cents: 30000, visibility: "public", skills: ["Carpentry"] } });
+  const projectMatches = await rpc(owner.token, "recommend_profiles_for_request", { target_request_id: requestId });
+  const projectProvider = projectMatches.find((item) => item.id === provider.id);
+  assert.ok(projectProvider?.score >= 30);
+  assert.ok(projectProvider.reasons.includes("Matches required skills"));
+  assert.ok(await rpc(owner.token, "notify_project_matches", { target_request_id: requestId }) >= 1);
   let remoteRequest = (await request(`/rest/v1/work_requests?id=eq.${requestId}&select=*`, { token:owner.token }))[0];
   await rpc(owner.token,"update_work_request",{target_request_id:requestId,expected_version:remoteRequest.version,payload:{title:"Build integration-test workshop shelving",description:remoteRequest.description,kind:"build",location:"Richmond, VA",urgency:"Within two weeks",cash_budget_cents:30000,skills:["Carpentry","Installation"]}});
   const offerId = await rpc(provider.token, "submit_trade_offer", { target_request_id: requestId, payload: { mode: "hybrid", scope: "Build and install two shelves", exchange_summary: "$200 and a product photography session", duration: "One weekend",exclusions:"Wall painting",responsibilities:{provider:"Tools and labor",requester:"Lumber and site access"},milestones:[{title:"Confirm measurements",responsible:"requester",due_at:""},{title:"Build and install",responsible:"provider",due_at:""}],questions:"Is Saturday access available?",expires_at:new Date(Date.now()+604800000).toISOString() } });

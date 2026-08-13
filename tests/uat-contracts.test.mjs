@@ -315,3 +315,13 @@ test("matching combines related skills, practical fit, and private outcomes", as
   assert.match(sql, /Worked together successfully/);
   assert.match(app, /recordMatchKey/);
 });
+
+test("project owners receive actionable collaborator recommendations", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813220000_project_collaborator_recommendations.sql", root), "utf8");
+  assert.match(sql, /recommend_profiles_for_request/);
+  assert.match(sql, /notify_project_matches/);
+  assert.match(sql, /Matches required skills/);
+  assert.match(sql, /e\.target_request_id=target_request_id/);
+  for (const action of ["data-project-invite", "data-dismiss-recommendation", "data-contact-request", "data-save-person"])
+    assert.match(app, new RegExp(action));
+});

@@ -98,6 +98,8 @@ import {
   publishCompletion,
   setFollow,
   recordMatchEvent,
+  recommendProfilesForRequest,
+  notifyProjectMatches,
 } from "./modules/backend.js";
 import {
   getNetworkInbox,
@@ -166,6 +168,7 @@ const store = createStore({
   projectNotificationSettings: (() => { try { return JSON.parse(localStorage.getItem(PROJECT_NOTIFICATION_KEY)) || {}; } catch { return {}; } })(),
   examplesHidden: localStorage.getItem(EXAMPLES_KEY) === "true",
   networkProfiles: [],
+  projectRecommendations: {},
   networkActivity: [],
   networkQuery: "",
   networkExchange: "",
@@ -344,7 +347,7 @@ function requestCard(request) {
 }
 
 function renderDetail(request) {
-  const isOwner = request.ownerId === "me";
+  const isOwner = request.ownerId === "me" || request.ownerId === state.profile.id;
   const workspace = request.agreement ? projectWorkspace(request, isOwner) : requestOverview(request, isOwner);
   return shell(
     `<button class="back" data-nav="discover">← Back to requests</button>
@@ -357,13 +360,34 @@ function renderDetail(request) {
       ${workspace}
     </article>
     <aside class="detail-side"><div class="person"><span class="avatar big">${request.initials}</span><div><small>Posted by</small><h3>${esc(request.owner)}</h3><p>${esc(request.location)}</p></div></div>
-      ${request.agreement ? agreementCard(request) : isOwner ? `<div class="side-note"><b>Waiting for responses</b><p>Questions and offers will appear here. Compare the whole exchange before selecting formal terms.</p>${request.offers.length > 1 ? `<button class="secondary full" data-action="compare-offers">Compare offers</button>` : ""}</div>` : `<div class="contact-actions"><button class="primary full" data-action="offer" data-id="${request.id}">Offer to help</button><button class="secondary full" data-contact-person="${request.ownerId}" data-contact-request="${request.id}" data-contact-kind="question">Ask a question</button></div>`}
+      ${request.agreement ? agreementCard(request) : isOwner ? `<div class="side-note"><b>Waiting for responses</b><p>Questions and offers will appear here. Compare the whole exchange before selecting formal terms.</p>${request.offers.length > 1 ? `<button class="secondary full" data-action="compare-offers">Compare offers</button>` : ""}</div>${projectRecommendations(request)}` : `<div class="contact-actions"><button class="primary full" data-action="offer" data-id="${request.id}">Offer to help</button><button class="secondary full" data-contact-person="${request.ownerId}" data-contact-request="${request.id}" data-contact-kind="question">Ask a question</button></div>`}
       <div class="side-note"><b>Choose your own exchange</b><p>Cash, goods, services, labor, access, or a combination. WorkTrade does not assign artificial credits.</p></div>
       <div class="safety-actions"><button class="text-btn" data-action="follow">${(request.followers || []).includes("me") ? "Following" : "Follow project"}</button><button class="text-btn" data-action="report">Report concern</button><button class="text-btn" data-action="block" data-person="${request.ownerId}">Block user</button></div>
       ${request.offers.length ? `<section class="proposals"><span class="eyebrow">Proposals</span>${request.offers.map((o) => offerCard(o, isOwner, request.id)).join("")}</section>` : ""}
     </aside></div>`,
     "Work request",
   );
+}
+
+function projectRecommendations(request) {
+  if (!state.remote || request.status !== "open") return "";
+  const recommendations = state.projectRecommendations[request.id];
+  if (!recommendations) return `<section class="project-recommendations" aria-live="polite"><span class="eyebrow">Suggested collaborators</span><p>Finding people whose skills and exchange preferences fit…</p></section>`;
+  return `<section class="project-recommendations"><div class="section-title"><div><span class="eyebrow">Suggested collaborators</span><h2>People who may fit this work</h2></div><span>${recommendations.length}</span></div>${recommendations.map((person) => `<article class="recommendation-card"><div class="recommendation-head"><span class="mini-avatar">${esc((person.display_name || "WT").split(/\s+/).map((part) => part[0]).join("").slice(0, 2))}</span><div><h3>${esc(person.display_name)}</h3><b>${Number(person.score)}% fit</b></div></div><p>${esc((person.reasons || []).join(" · ") || "Potential practical fit")}</p>${person.matched_skills?.length ? `<div class="tags">${person.matched_skills.map((skill) => `<span>${esc(skill)}</span>`).join("")}</div>` : ""}<small>${esc(person.availability_text || "Ask about availability")}${person.location_text ? ` · ${esc(person.location_text)}` : " · Location private"}</small><div class="recommendation-actions"><button class="primary compact" data-contact-person="${person.id}" data-contact-request="${request.id}">Message</button><button class="secondary compact" data-project-invite="${person.id}:${request.id}">Invite</button><button class="text-btn" data-save-person="${person.id}">${(state.networkInbox?.saved_profiles || []).includes(person.id) ? "Saved" : "Save"}</button><button class="text-btn" data-dismiss-recommendation="${person.id}:${request.id}">Dismiss</button></div></article>`).join("") || `<div class="empty compact"><b>No suggestions yet</b><p>Add specific skills, timing, and exchange options to improve recommendations.</p></div>`}</section>`;
+}
+
+async function loadProjectRecommendations(requestId) {
+  if (!state.remote || !state.session || state.projectRecommendations[requestId]) return;
+  try {
+    const recommendations = await recommendProfilesForRequest(requestId);
+    state.projectRecommendations = { ...state.projectRecommendations, [requestId]: recommendations };
+    const known = new Map((state.networkProfiles || []).map((profile) => [profile.id, profile]));
+    recommendations.forEach((profile) => known.set(profile.id, { ...known.get(profile.id), ...profile }));
+    state.networkProfiles = [...known.values()];
+  } catch (error) {
+    state.projectRecommendations = { ...state.projectRecommendations, [requestId]: [] };
+    notify(error.message);
+  }
 }
 
 function requestMedia(request, isOwner) {
@@ -939,11 +963,11 @@ function circleDetail(circle, hub) {
   return `<section class="circle-detail"><div class="section-title"><div><span class="eyebrow">${esc(membership.role)} · ${esc(circle.visibility)} community</span><h2>${esc(circle.name)}</h2><p>${esc(circle.description || "")}</p></div><div><button class="secondary" data-circle-post="${circle.id}">Post a need</button><button class="secondary" data-circle-resource="${circle.id}">Share a resource</button>${membership.role !== "owner" ? `<button class="text-btn" data-circle-membership="leave:${circle.id}:${state.profile.id}">Leave</button>` : ""}</div></div><div class="community-health" aria-label="Community activity"><div><b>${requests.length}</b><span>open needs</span></div><div><b>${resources.length}</b><span>shared resources</span></div><div><b>${completed}</b><span>work completed</span></div><div><b>${returning}</b><span>returning contributors</span></div></div><div class="community-start"><article><span>Need help?</span><h3>Describe useful work</h3><p>Share the outcome, timing, access, and what you can exchange.</p><button class="secondary" data-circle-post="${circle.id}">Post community work</button></article><article><span>Can help?</span><h3>See open needs</h3><p>Find practical work where your skills, schedule, and location fit.</p><button class="secondary" data-community-needs>Browse below</button></article><article><span>Have something useful?</span><h3>Share access</h3><p>Offer tools, equipment, transport, materials, or workspace.</p><button class="secondary" data-circle-resource="${circle.id}">Share resource</button></article></div>${moderator ? `<aside class="organizer-panel"><div><span class="eyebrow">Organizer view</span><h3>Keep the community useful</h3><p>${pending ? `${pending} membership request${pending === 1 ? "" : "s"} need a decision.` : requests.length ? "Help open needs find the right members." : "Seed one real need so members know how to participate."}</p></div><div><button class="secondary" data-circle-invite="${circle.id}">Invite members</button><button class="secondary" data-circle-post="${circle.id}">Seed a need</button><button class="secondary" data-circle-resource="${circle.id}">Add shared resource</button></div></aside>` : ""}<div class="circle-rules"><b>Community rules</b><p>${esc(circle.rules || "No additional rules have been posted.")}</p></div><div class="circle-columns"><section><h3>People you know through this community</h3>${members.map((member) => `<article class="circle-member"><b>${esc(member.display_name)}</b><span>${esc(member.role)} · ${member.completed_inside} completed here</span>${moderator && member.profile_id !== state.profile.id ? `${member.status === "requested" ? `<button data-circle-membership="approve:${circle.id}:${member.profile_id}">Approve</button><button data-circle-membership="decline:${circle.id}:${member.profile_id}">Decline</button>` : `<button data-circle-membership="remove:${circle.id}:${member.profile_id}">Remove</button>`}${membership.role === "owner" && member.status === "active" ? `<button data-circle-role="${circle.id}:${member.profile_id}:${member.role === "moderator" ? "member" : "moderator"}">${member.role === "moderator" ? "Make member" : "Make moderator"}</button>` : ""}` : ""}</article>`).join("")}<button class="text-btn" data-circle-invite="${circle.id}">Invite profile</button></section><section><h3>Shared tools, materials, and access</h3>${resources.map((resource) => `<article class="circle-resource"><span class="category">${esc(resource.kind)}</span><b>${esc(resource.name)}</b><p>${esc(resource.description)}</p><small>${esc(resource.owner_name)} · ${esc(resource.availability_text || "Ask about availability")}</small>${resource.owner_id === state.profile.id || moderator ? `<button class="text-btn" data-delete-circle-resource="${resource.id}">Remove</button>` : ""}</article>`).join("") || "<p>No shared resources yet.</p>"}</section></div><section data-community-needs-list><h3>Open community needs</h3>${requests.map((request) => `<article class="activity-card"><span class="category">${esc(request.stage)}</span><h3>${esc(request.title)}</h3><p>${esc(request.description)}</p><small>${esc(request.owner_name)} · known through ${esc(circle.name)}</small></article>`).join("") || "<p>No community work has been posted yet.</p>"}</section></section>`;
 }
 
-function invitationModal(profile) {
+function invitationModal(profile, selectedRequestId = null) {
   openModal(
     `<span class="eyebrow">Collaboration invitation</span><h2>Propose an exchange with ${esc(profile.display_name)}.</h2><p>They choose whether to open a private conversation.</p><form data-form="collaboration-invite" data-profile="${profile.id}" class="form-grid"><label class="wide">What do you need?<input name="need" required maxlength="500" value="${esc((state.profile.needs || []).join(", "))}"></label><label class="wide">What can you offer?<input name="offer" required maxlength="500" value="${esc((state.profile.offers || []).join(", "))}"></label><label class="wide">Short note<textarea name="note" maxlength="1000" placeholder="Why this might be a useful fit"></textarea></label><label class="wide">Related request<select name="request"><option value="">No specific request</option>${state.requests
       .filter((r) => r.ownerId === state.profile.id && r.status === "open")
-      .map((r) => `<option value="${r.id}">${esc(r.title)}</option>`)
+      .map((r) => `<option value="${r.id}" ${r.id === selectedRequestId ? "selected" : ""}>${esc(r.title)}</option>`)
       .join(
         "",
       )}</select></label><button class="primary wide">Send invitation</button></form>`,
@@ -1258,6 +1282,7 @@ function render() {
     control.toggleAttribute("data-connected-action", state.remote),
   );
   applyConnectivityState();
+  if (state.view === "detail") loadProjectRecommendations(state.selectedId);
   if (navigated) window.scrollTo({ top: 0, behavior: "instant" });
   if (pendingRenderFocus && pendingRenderFocus.until > Date.now()) {
     const target = main.querySelector(pendingRenderFocus.selector);
@@ -2186,6 +2211,22 @@ document.addEventListener("click", (event) => {
     );
     if (profile) invitationModal(profile);
   }
+  const projectInvite = event.target.closest("[data-project-invite]");
+  if (projectInvite) {
+    const [profileId, requestId] = projectInvite.dataset.projectInvite.split(":");
+    const profile = (state.networkProfiles || []).find((item) => item.id === profileId);
+    if (profile) invitationModal(profile, requestId);
+  }
+  const dismissRecommendation = event.target.closest("[data-dismiss-recommendation]");
+  if (dismissRecommendation) {
+    const [profileId, requestId] = dismissRecommendation.dataset.dismissRecommendation.split(":");
+    recordMatchEvent({ profileId, requestId, event: "dismissed", reason: "project suggestion dismissed" })
+      .then(() => {
+        state.projectRecommendations = { ...state.projectRecommendations, [requestId]: (state.projectRecommendations[requestId] || []).filter((item) => item.id !== profileId) };
+        notify("Suggestion dismissed for this project");
+      })
+      .catch((error) => notify(error.message));
+  }
   const contactPerson = event.target.closest("[data-contact-person]");
   if (contactPerson) {
     const profileId = contactPerson.dataset.contactPerson;
@@ -2592,6 +2633,7 @@ document.addEventListener("submit", async (event) => {
         }
         closeModal();
         await loadRemoteWorkspace();
+        if (shouldPublish) notifyProjectMatches(newId).catch(() => {});
         state.view = shouldPublish ? "discover" : "workspace";
         notify(
           shouldPublish
@@ -3271,6 +3313,7 @@ document.addEventListener("submit", async (event) => {
         requestId: data.get("request") || null,
       });
       recordMatchKey(`profile:${form.dataset.profile}`, "proposed");
+      if (data.get("request")) recordMatchEvent({ profileId: form.dataset.profile, requestId: data.get("request"), event: "proposed" }).catch(() => {});
       closeModal();
       await loadNetwork();
       notify("Collaboration invitation sent");
@@ -3289,6 +3332,7 @@ document.addEventListener("submit", async (event) => {
           form.dataset.kind || "message",
         );
         recordMatchKey(`profile:${form.dataset.profile}`, "contacted");
+        if (form.dataset.request) recordMatchEvent({ profileId: form.dataset.profile, requestId: form.dataset.request, event: "contacted" }).catch(() => {});
         await loadNetwork();
       }
       closeModal();
