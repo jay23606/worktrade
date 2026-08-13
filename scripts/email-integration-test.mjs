@@ -142,6 +142,11 @@ try {
   assert.equal(attempts[0].delivery_mode, "sink");
   assert.equal(attempts[0].outcome, "sent");
 
+  const beforeOptOut = await request(
+    `/rest/v1/email_outbox?profile_id=eq.${owner.id}&select=id`,
+    { key: secret, token: secret },
+  );
+
   await request("/rest/v1/notification_preferences", {
     token: owner.token,
     method: "POST",
@@ -164,7 +169,7 @@ try {
     `/rest/v1/email_outbox?profile_id=eq.${owner.id}&select=id`,
     { key: secret, token: secret },
   );
-  assert.equal(afterOptOut.length, 1);
+  assert.equal(afterOptOut.length, beforeOptOut.length);
 
   const emptyDispatch = await request("/functions/v1/email-dispatch", {
     key: secret,
