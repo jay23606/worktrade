@@ -325,3 +325,9 @@ test("project owners receive actionable collaborator recommendations", async () 
   for (const action of ["data-project-invite", "data-dismiss-recommendation", "data-contact-request", "data-save-person"])
     assert.match(app, new RegExp(action));
 });
+
+test("exchange planning opens from an existing conversation without profile discovery", () => {
+  assert.doesNotMatch(app, /Open their profile to begin exchange planning/);
+  assert.match(app, /profile \|\| \{ id: otherId, display_name:/);
+  assert.match(app, /Open exchange plan/);
+});
