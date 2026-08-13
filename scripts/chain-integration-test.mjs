@@ -98,10 +98,15 @@ async function cleanup() {
 }
 
 async function getChain(user, circleId, chainId) {
-  const hub = await rpc(user.token, "get_trade_chain_hub", {
-    target_circle_id: circleId,
-  });
-  return hub.chains.find((chain) => chain.id === chainId);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const hub = await rpc(user.token, "get_trade_chain_hub", { target_circle_id: circleId });
+      return hub.chains.find((chain) => chain.id === chainId);
+    } catch (error) {
+      if (error.data?.code !== "57014" || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+    }
+  }
 }
 
 function linksFor(users, suffix = "") {
