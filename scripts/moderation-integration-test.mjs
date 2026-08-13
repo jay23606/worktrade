@@ -57,7 +57,6 @@ async function createUser(role) {
     },
   });
   created.push(record.id);
-  await request("/rest/v1/pilot_memberships", { key: secret, token: secret, method: "POST", body: { profile_id: record.id } });
   const session = await request("/auth/v1/token?grant_type=password", {
     method: "POST",
     body: { email, password },

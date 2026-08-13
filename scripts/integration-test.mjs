@@ -38,7 +38,6 @@ async function edgeAction(token, action, agreementId, expectedVersion, payload =
 async function createUser(user) {
   const record = await request("/auth/v1/admin/users", { key: secret, token: secret, method: "POST", body: { email: user.email, password, email_confirm: true, user_metadata: { display_name: user.name } } });
   created.push(record.id);
-  await request("/rest/v1/pilot_memberships", { key: secret, token: secret, method: "POST", body: { profile_id: record.id } });
   const session = await request("/auth/v1/token?grant_type=password", { method: "POST", body: { email: user.email, password } });
   return { ...user, id: record.id, token: session.access_token };
 }
