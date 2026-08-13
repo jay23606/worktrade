@@ -43,8 +43,8 @@ test("responsive layouts do not overflow horizontally", async ({ page }) => {
 });
 
 test("inline submissions preserve the current scroll position", async ({ page }) => {
-  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /Network/ }).click();
-  await expect(page.getByRole("heading", { name: /Find people/ })).toBeVisible();
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /Community/ }).click();
+  await expect(page.getByRole("heading", { name: /Useful work starts/ })).toBeVisible();
   const form = page.locator('form[data-form="network-search"]');
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   const before = await page.evaluate(() => window.scrollY);
@@ -54,6 +54,19 @@ test("inline submissions preserve the current scroll position", async ({ page })
   await page.waitForTimeout(300);
   const after = await page.evaluate(() => window.scrollY);
   expect(after).toBeGreaterThan(before - 80);
+});
+
+test("community experience centers practical local coordination", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Community" }).click();
+  await expect(page.getByRole("heading", { name: /Useful work starts with people/ })).toBeVisible();
+  await expect(page.getByText("Nearby & transport")).toBeVisible();
+  await expect(page.getByText("Tools & equipment")).toBeVisible();
+  await expect(page.getByText(/neighborhood, maker space, nonprofit/)).toBeVisible();
+  await page.locator('[data-nav="profile"]').last().click();
+  await page.getByRole("button", { name: "Improve my matches" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel(/Comfortable travel radius/)).toBeVisible();
+  await expect(dialog.getByLabel(/Transport, tools, equipment/)).toBeVisible();
 });
 
 test("color theme can be changed and persists across reloads", async ({ page }) => {

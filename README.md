@@ -1,10 +1,10 @@
 # WorkTrade
 
-WorkTrade includes a responsive editorial landing experience, an original community-work hero illustration, and persistent light and dark color themes that follow the device preference on first visit.
+WorkTrade is built first for trusted local practical-work communities: neighborhoods, maker spaces, nonprofits, trade schools, shared shops, and small-business networks. Members coordinate real needs around location, availability, transport, tools, materials, equipment, workspace, and site access—then negotiate cash, barter, or both.
 
 It is also an installable progressive web app. The application shell, artwork, and local demo data remain available after a successful first load without connectivity. The interface reports connection changes, disables server-authoritative actions while offline, offers an in-app install prompt when supported, and lets people activate a waiting update. Compact layouts use a persistent mobile navigation bar.
 
-WorkTrade is a community platform for getting useful work done through cash, barter, services, goods, shared resources, or a negotiated combination. It supports ordinary two-person work agreements and closed reciprocal exchanges among several members without creating platform credits.
+The wider public network remains available for discovery, but community context is the product's primary trust layer. WorkTrade supports ordinary two-person agreements and closed reciprocal exchanges among several members without creating platform credits.
 
 [Open WorkTrade](https://jay23606.github.io/worktrade/) · [Repository](https://github.com/jay23606/worktrade) · [UAT report](docs/UAT_REPORT.md)
 
@@ -15,7 +15,8 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 - **Value is negotiated, not tokenized.** People may exchange money, labor, services, materials, goods, equipment, space, access, or a combination.
 - **Reputation is tied to outcomes.** Reviews, evidence, portfolios, and activity reference completed work rather than popularity.
 - **Conversation requires consent.** A profile invitation states both the need and offer; private messaging opens only after acceptance.
-- **Communities create trust boundaries.** Invite-only circles can keep members, resources, work, reputation, and barter chains private.
+- **Place creates useful context.** Invite-only communities connect people through a shared area or organization and make transport, timing, tools, materials, workspace, and access visible before work begins.
+- **Community trust is earned through work.** Each community shows open needs, shared resources, completed work, returning contributors, and completion history for its members.
 - **Multi-person barter is operational.** A chain forms one closed loop, requires unanimous versioned consent, and tracks every contribution independently.
 - **New members get an immediate starting point.** Guided match setup turns plain-language offers, needs, location, availability, privacy, and exchange preferences into ranked work and collaborator suggestions.
 
@@ -38,7 +39,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Social network             | Connected             | Two-way match scores and explanations, follows, saves, feedback, invitations, activity, and strong-match notifications |
 | Local discovery            | Connected             | Nearby/remote modes, normalized skill aliases, explainable reciprocal ranking, availability and sort filters, coarse location bands, privacy controls, and saved alerts |
 | Introductions              | Connected             | Consent gate, private messaging, shared planning workspace, conversion to work                   |
-| Trusted circles            | Connected pilot       | Membership workflows, roles, private work, resources, rules, scoped reputation                   |
+| Trusted communities        | Connected pilot       | Organizer guidance, membership workflows, roles, local needs, shared resources, rules, and scoped reputation |
 | Multi-person barter chains | Connected pilot       | Circle-only discovery, unanimous consent, execution modes, holds, approvals, disputes            |
 | Moderation operations      | Pilot ready           | Private reports, staff queue, restrictions, appeals, immutable actions, initial admin, and an operating runbook |
 | Transactional email        | Safe staging          | Private outbox, preferences, retries, delivery logs, and sink dispatcher; production provider/domain remain disabled |
@@ -161,7 +162,7 @@ The hosted integration tests create temporary users, exercise invitation accepta
 
 Do not place the secret key in GitHub Pages configuration or public CI logs. See [docs/UAT_REPORT.md](docs/UAT_REPORT.md) for automated coverage and the remaining manual checks.
 
-Browser UAT runs 72 checks across desktop, tablet, phone, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, accessible names, target sizes, primary navigation, invite-only onboarding, first-use activation, guided proposals, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
+Browser UAT runs 76 checks across desktop, tablet, phone, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, accessible names, target sizes, primary navigation, invite-only onboarding, community positioning, first-use activation, guided proposals, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
 
 ## Deployment
 
