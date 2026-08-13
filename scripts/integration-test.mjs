@@ -58,6 +58,29 @@ try {
   await rpc(owner.token, "set_my_profile", { payload: { display_name: owner.name, location_text: "Richmond, VA", bio: "Owner test account", needs: ["Carpentry"], offers: ["Photography"] } });
   await rpc(provider.token, "set_my_profile", { payload: { display_name: provider.name, location_text: "Richmond, VA", bio: "Provider test account", needs: ["Photography"], offers: ["Carpentry"] } });
 
+  const invitationId = await rpc(owner.token, "send_collaboration_invitation", { target_profile_id: provider.id, need_value: "Carpentry for workshop storage", offer_value: "Product photography", note_value: "A reciprocal fit for both profiles", target_request_id: null });
+  let inbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.equal(inbox.invitations.some((item) => item.id === invitationId && item.status === "pending"), true);
+  await assert.rejects(() => rpc(owner.token, "respond_collaboration_invitation", { target_invitation_id: invitationId, response: "accepted" }), /pending recipient invitation required/i);
+  await rpc(provider.token, "respond_collaboration_invitation", { target_invitation_id: invitationId, response: "accepted" });
+  await rpc(owner.token, "send_introduction_message", { target_invitation_id: invitationId, message_body: "Let’s define the shelves, access, and exchange before committing." });
+  inbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.equal(inbox.messages.some((item) => item.invitation_id === invitationId), true);
+  let workspace = await rpc(owner.token, "update_introduction_workspace", { target_invitation_id: invitationId, expected_version: 1, payload: { scope: "Build and install two workshop shelves", responsibilities: { [owner.id]: "Provide lumber and access", [provider.id]: "Provide tools and labor" }, materials: "Owner supplies lumber; provider supplies fasteners", exclusions: "No painting or electrical work", exchange_terms: "Carpentry for a product photography session", proposed_windows: "Saturday morning", timezone: "America/New_York" } });
+  await rpc(owner.token, "confirm_introduction_workspace", { target_invitation_id: invitationId, expected_version: workspace.version });
+  workspace = await rpc(provider.token, "update_introduction_workspace", { target_invitation_id: invitationId, expected_version: workspace.version, payload: { scope: "Build and install two reinforced workshop shelves", proposed_windows: "Saturday morning after 9" } });
+  assert.equal(workspace.sender_confirmed_version, null);
+  assert.equal(workspace.recipient_confirmed_version, null);
+  await assert.rejects(() => rpc(owner.token, "convert_introduction_to_request", { target_invitation_id: invitationId }), /both participants must confirm current terms/i);
+  await rpc(owner.token, "confirm_introduction_workspace", { target_invitation_id: invitationId, expected_version: workspace.version });
+  await rpc(provider.token, "confirm_introduction_workspace", { target_invitation_id: invitationId, expected_version: workspace.version });
+  const privateRequestId = await rpc(provider.token, "convert_introduction_to_request", { target_invitation_id: invitationId });
+  const privateDraft = (await request(`/rest/v1/work_requests?id=eq.${privateRequestId}&select=*`, { token: provider.token }))[0];
+  assert.equal(privateDraft.stage, "draft");
+  assert.equal(privateDraft.visibility, "private");
+  inbox = await rpc(owner.token, "get_network_inbox", {});
+  assert.equal(inbox.invitations.find((item) => item.id === invitationId).status, "converted");
+
   const draftId=await rpc(owner.token,"create_work_request",{payload:{title:"Draft workshop planning request",description:"An intentionally unpublished draft for lifecycle testing.",kind:"build",publish:false,skills:["Planning"]}});
   let draft=(await request(`/rest/v1/work_requests?id=eq.${draftId}&select=*`,{token:owner.token}))[0];assert.equal(draft.stage,"draft");
   await rpc(owner.token,"request_lifecycle_action",{target_request_id:draftId,expected_version:draft.version,requested_action:"publish"});draft=(await request(`/rest/v1/work_requests?id=eq.${draftId}&select=*`,{token:owner.token}))[0];assert.equal(draft.stage,"open");

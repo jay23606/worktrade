@@ -145,7 +145,7 @@ npm run test:integration:email      # private outbox and sink dispatcher
 npm run test:browser                # desktop, tablet, phone, zoom, keyboard, axe
 ```
 
-The hosted integration tests create temporary users, exercise the real request-to-completion and reciprocal-chain workflows, validate authorization failures, and remove their test identities and evidence in `finally`. Both run through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
+The hosted integration tests create temporary users, exercise invitation acceptance, private messaging, versioned planning and confirmation reset, private-project conversion, the full request-to-completion workflow, and reciprocal chains; validate authorization failures; and remove their test identities and evidence in `finally`. They run through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
 
 - `WT_SUPABASE_URL`
 - `WT_SUPABASE_PUBLISHABLE_KEY`
