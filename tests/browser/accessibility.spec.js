@@ -94,8 +94,10 @@ test("community experience centers practical local coordination", async ({ page 
   await page.locator('[data-nav="profile"]').last().click();
   await page.getByRole("button", { name: "Improve my matches" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByLabel(/Comfortable travel radius/)).toBeVisible();
-  await expect(dialog.getByLabel(/Transport, tools, equipment/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await expect(dialog.getByLabel(/Travel radius/)).toBeVisible();
+  await expect(dialog.getByLabel(/Tools, materials, transportation/)).toBeVisible();
 });
 
 test("color theme can be changed and persists across reloads", async ({ page }) => {
@@ -161,11 +163,14 @@ test("guided match setup saves preferences and produces first matches", async ({
   await page.locator('[data-nav="profile"]').last().click();
   await page.getByRole("button", { name: "Improve my matches" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading", { name: /What would make WorkTrade useful/ })).toBeVisible();
-  await dialog.getByLabel(/What can you offer/).fill("Carpentry, design, bicycle repair");
-  await dialog.getByLabel(/What do you need/).fill("Greenhouse help, bookkeeping");
+  await expect(dialog.getByRole("heading", { name: /find a useful first connection/i })).toBeVisible();
+  await dialog.getByLabel(/Offer help/).check();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByLabel(/I can offer/).fill("Carpentry, design, bicycle repair");
+  await dialog.getByLabel(/I need/).fill("Greenhouse help, bookkeeping");
+  await dialog.getByRole("button", { name: "Continue" }).click();
   await dialog.getByLabel("Availability").fill("Saturday mornings");
-  await dialog.getByRole("button", { name: "Save and show my matches" }).click();
+  await dialog.getByRole("button", { name: "Save and continue" }).click();
   await expect(page.getByRole("heading", { name: "Useful overlap, explained." })).toBeVisible();
   await expect(page.getByText("Your carpentry, design may help", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Adjust matching profile" })).toBeVisible();

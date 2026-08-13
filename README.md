@@ -24,7 +24,7 @@ The wider public network remains available for discovery, but community context 
 
 | Area                       | Status                | Notes                                                                                            |
 | -------------------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
-| Accounts and profiles      | Connected             | Email-link authentication, privacy, availability, offers, needs, and resources                   |
+| Accounts and profiles      | Connected             | Email-link authentication plus resumable three-step setup, first-goal routing, profile completeness, location privacy, availability, offers, needs, exchange preferences, and resources |
 | Private pilot operations   | Connected             | Hashed invites, server-enforced membership, contextual feedback, private follow-up, triage, and activation funnel |
 | Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
 | Proposal negotiation       | Connected             | Versioned counters, highlighted term changes, counterparty-only acceptance, declines, and readable history |

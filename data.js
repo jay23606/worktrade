@@ -4,6 +4,7 @@ export const seedData = {
     bio: "Practical generalist, careful neighbor, and weekend furniture builder.",
     needs: ["Mobile welding", "Bookkeeping help", "Reclaimed hardwood"],
     offers: ["Web design", "Furniture assembly", "Product photography"],
+    onboardingComplete: true, preferredExchangeModes: ["cash", "barter", "hybrid"],
     following: [], joinedCircles: ["circle-makers"], blocked: [],
   },
   requests: [

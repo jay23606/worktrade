@@ -61,6 +61,17 @@ export async function updateMyProfile(values) {
   return data;
 }
 
+export async function recordOnboardingState(firstGoal, status = "complete") {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("record_onboarding_state", {
+    first_goal_value: firstGoal || null,
+    state_value: status,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function signInWithEmail(email) {
   const client = await getBackend();
   assertBackend(client);
