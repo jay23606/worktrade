@@ -116,6 +116,9 @@ features/core-click-handler.js      navigation, selection, and onboarding click 
 features/project-click-handler.js   proposals, agreements, milestones, and completion routing
 features/social-click-handler.js    profiles, matches, introductions, and conversation routing
 features/community-click-handler.js circles, membership, resources, and reciprocal-chain routing
+features/profile-click-handler.js   profile lists, follows, and device-local circles
+features/management-click-handler.js request lifecycle, inbox, offers, and media routing
+features/coordination-click-handler.js schedule, ledger, and change-order routing
 shell/                         PWA installation, updates, and connectivity lifecycle
 modules/backend.js             stable backend export facade
 modules/backend/               account, request, agreement, network, circle, chain, trust domains

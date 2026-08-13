@@ -17,6 +17,9 @@ import { createCoreClickHandler } from "./features/core-click-handler.js";
 import { createProjectClickHandler } from "./features/project-click-handler.js";
 import { createSocialClickHandler } from "./features/social-click-handler.js";
 import { createCommunityClickHandler } from "./features/community-click-handler.js";
+import { createProfileClickHandler } from "./features/profile-click-handler.js";
+import { createManagementClickHandler } from "./features/management-click-handler.js";
+import { createCoordinationClickHandler } from "./features/coordination-click-handler.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -368,6 +371,9 @@ const handleCoreClick = createCoreClickHandler({ getState: () => state, removePr
 const handleProjectClick = createProjectClickHandler({ getState: () => state, acceptOffer, loadRemoteWorkspace, notify, updateRequests, proposeAgreement, confirmAgreement, counterOfferModal, findOffer, declineOffer, performAgreementAction, transitionAgreement, handleCompletion, respondAmendment });
 const handleSocialClick = createSocialClickHandler({ getState: () => state, publicProfileModal, recordMatchKey, modalRoot, getConversationProfile, notify, matchFeedbackModal, matchFeedbackKey: MATCH_FEEDBACK_KEY, invitationModal, recordMatchEvent, contactRequestModal, setPendingRenderFocus: (value) => { pendingRenderFocus = value; }, setSavedProfile, loadNetwork, respondCollaborationInvitation, loadNotifications, manageConversation, offerModal, workspaceModal, confirmIntroductionWorkspace, closeModal, convertIntroductionToRequest, loadRemoteWorkspace, manageNetworkItem });
 const handleCommunityClick = createCommunityClickHandler({ getState: () => state, loadNetwork, notify, requestCircleMembership, manageCircleMembership, circleResourceModal, circleSettingsModal, circleInviteModal, circlePostModal, deleteCircleResource, chainBuilderModal, acceptTradeChain, activateTradeChain, manageTradeChainLink, chainHoldModal, manageTradeChain });
+const handleProfileClick = createProfileClickHandler({ getState: () => state, updateMyProfile, notify, persist, setFollow });
+const handleManagementClick = createManagementClickHandler({ getState: () => state, closeRequest, loadRemoteWorkspace, notify, markNotificationsRead, loadNotifications, closeModal, projectNotificationKey: PROJECT_NOTIFICATION_KEY, notificationsModal, requestLifecycleAction, reviseOfferModal, withdrawOffer, manageMilestone, manageRequestMedia });
+const handleCoordinationClick = createCoordinationClickHandler({ getState: () => state, respondScheduleWindow, loadRemoteWorkspace, closeModal, notify, scheduleCoordinationModal, manageLedgerItem, agreementLedgerModal, ledgerStatusModal, changeOrderModal, respondChangeOrder, changeOrderHubModal, manageWorkIssue });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -710,172 +716,10 @@ document.addEventListener("click", (event) => {
   const triageFeedback = event.target.closest("[data-triage-feedback]");
   if (triageFeedback) pilotFeedbackTriageModal(triageFeedback.dataset.triageFeedback);
   handleProjectClick(event);
-  const remove = event.target.closest("[data-remove]");
-  if (remove) {
-    const [list, index] = remove.dataset.remove.split(":");
-    const profile = structuredClone(state.profile);
-    profile[list].splice(Number(index), 1);
-    if (state.remote)
-      updateMyProfile({
-        display_name: profile.name,
-        location_text: profile.location,
-        bio: profile.bio,
-        needs: profile.needs,
-        offers: profile.offers,
-      })
-        .then(() => {
-          state.profile = profile;
-          notify("Profile updated");
-        })
-        .catch((error) => notify(error.message));
-    else {
-      state.profile = profile;
-      persist();
-    }
-  }
-  const followPerson = event.target.closest("[data-follow-person]");
-  if (followPerson) {
-    const id = followPerson.dataset.followPerson;
-    const following = state.profile.following || [];
-    const shouldFollow = !following.includes(id);
-    if (state.remote)
-      setFollow(id, shouldFollow)
-        .then(() => {
-          state.profile = {
-            ...state.profile,
-            following: shouldFollow
-              ? [...following, id]
-              : following.filter((x) => x !== id),
-          };
-          notify(
-            shouldFollow ? "Following collaborator" : "Unfollowed collaborator",
-          );
-        })
-        .catch((error) => notify(error.message));
-    else {
-      state.profile = {
-        ...state.profile,
-        following: shouldFollow
-          ? [...following, id]
-          : following.filter((x) => x !== id),
-      };
-      persist();
-      notify("Following updated");
-    }
-  }
-  const circle = event.target.closest("[data-circle]");
-  if (circle) {
-    const profile = structuredClone(state.profile);
-    profile.joinedCircles ||= [];
-    profile.joinedCircles = profile.joinedCircles.includes(
-      circle.dataset.circle,
-    )
-      ? profile.joinedCircles.filter((id) => id !== circle.dataset.circle)
-      : [...profile.joinedCircles, circle.dataset.circle];
-    state.profile = profile;
-    persist();
-    notify("Circle membership updated");
-  }
-  const requestAction = event.target.closest("[data-request-action]");
-  if (requestAction) {
-    const request = state.requests.find((item) => item.id === state.selectedId);
-    if (
-      confirm(
-        `${requestAction.dataset.requestAction[0].toUpperCase() + requestAction.dataset.requestAction.slice(1)} this request?`,
-      )
-    )
-      closeRequest(
-        request.id,
-        request.version,
-        requestAction.dataset.requestAction,
-      )
-        .then(async () => {
-          state.view = "workspace";
-          await loadRemoteWorkspace();
-          notify("Request updated");
-        })
-        .catch((error) => notify(error.message));
-  }
-  const notification = event.target.closest("[data-notification]");
-  if (notification) {
-    if (state.remote) markNotificationsRead([notification.dataset.notification]).then(loadNotifications);
-    else state.notifications = state.notifications.map((item) => item.id === notification.dataset.notification ? { ...item, read_at: item.read_at || new Date().toISOString() } : item);
-    closeModal();
-    if (notification.dataset.request) {
-      state.selectedId = notification.dataset.request;
-      state.projectDetailTab = notification.dataset.section || "overview";
-      state.view = "detail";
-    } else state.view = notification.dataset.route || "workspace";
-  }
-  const negotiationOpen = event.target.closest("[data-negotiation-open]");
-  if (negotiationOpen) {
-    state.selectedId = negotiationOpen.dataset.negotiationOpen;
-    state.projectDetailTab = "overview";
-    state.view = "detail";
-  }
-  const projectNotifications = event.target.closest("[data-project-notifications]");
-  if (projectNotifications) {
-    const [requestId, setting] = projectNotifications.dataset.projectNotifications.split(":");
-    state.projectNotificationSettings = { ...state.projectNotificationSettings, [requestId]: setting };
-    localStorage.setItem(PROJECT_NOTIFICATION_KEY, JSON.stringify(state.projectNotificationSettings));
-    notificationsModal();
-    notify(setting === "muted" ? "Project updates muted on this device; required actions remain in your inbox" : "Project updates unmuted");
-  }
-  const lifecycle = event.target.closest("[data-lifecycle]");
-  if (lifecycle) {
-    event.stopPropagation();
-    const [actionName, id, version] = lifecycle.dataset.lifecycle.split(":");
-    requestLifecycleAction(id, Number(version), actionName)
-      .then(loadRemoteWorkspace)
-      .then(() => notify(`Request ${actionName}d`))
-      .catch((error) => notify(error.message));
-  }
-  const editOffer = event.target.closest("[data-edit-offer]");
-  if (editOffer) {
-    event.stopPropagation();
-    reviseOfferModal(
-      state.myOffers.find((o) => o.id === editOffer.dataset.editOffer),
-    );
-  }
-  const withdraw = event.target.closest("[data-withdraw-offer]");
-  if (withdraw) {
-    event.stopPropagation();
-    if (confirm("Withdraw this proposal?"))
-      withdrawOffer(withdraw.dataset.withdrawOffer)
-        .then(loadRemoteWorkspace)
-        .then(() => notify("Proposal withdrawn"))
-        .catch((error) => notify(error.message));
-  }
-  const removeMilestone = event.target.closest("[data-remove-milestone]");
-  if (removeMilestone) {
-    event.stopPropagation();
-    const request = state.requests.find((x) => x.id === state.selectedId);
-    manageMilestone(request.agreement.id, request.agreement.version, "remove", {
-      milestone_id: removeMilestone.dataset.removeMilestone,
-    })
-      .then(loadRemoteWorkspace)
-      .then(() => notify("Milestone removed"))
-      .catch((error) => notify(error.message));
-  }
-  const deleteMedia = event.target.closest("[data-delete-media]");
-  if (deleteMedia) {
-    manageRequestMedia(deleteMedia.dataset.deleteMedia, "delete")
-      .then(loadRemoteWorkspace)
-      .then(() => notify("Photo removed"))
-      .catch((error) => notify(error.message));
-  }
+  handleProfileClick(event);
+  handleManagementClick(event);
   if (handleSocialClick(event)) return;
-  const scheduleResponse=event.target.closest("[data-schedule-response]");
-  if(scheduleResponse){const[response,id]=scheduleResponse.dataset.scheduleResponse.split(":");respondScheduleWindow(id,response).then(loadRemoteWorkspace).then(()=>{closeModal();notify(`Schedule ${response}`)}).catch(error=>notify(error.message));}
-  const scheduleCounter=event.target.closest("[data-schedule-counter]");
-  if(scheduleCounter)scheduleCoordinationModal(state.requests.find(x=>x.id===state.selectedId),scheduleCounter.dataset.scheduleCounter);
-  const calendarExport=event.target.closest("[data-calendar-export]");
-  if(calendarExport){const stamp=x=>new Date(x).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");const clean=x=>String(x||"").replace(/[\\;,\n]/g," ");const ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WorkTrade//Schedule//EN\r\nBEGIN:VEVENT\r\nUID:${calendarExport.dataset.calendarExport}@worktrade\r\nDTSTAMP:${stamp(new Date())}\r\nDTSTART:${stamp(calendarExport.dataset.start)}\r\nDTEND:${stamp(calendarExport.dataset.end)}\r\nSUMMARY:${clean(calendarExport.dataset.title)}\r\nLOCATION:${clean(calendarExport.dataset.location)}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"}));link.download="worktrade-schedule.ics";link.click();URL.revokeObjectURL(link.href);}
-  const ledgerAction=event.target.closest("[data-ledger-action]");if(ledgerAction){const[actionName,id]=ledgerAction.dataset.ledgerAction.split(":");manageLedgerItem(id,actionName).then(()=>agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId))).then(()=>notify("Shared item approved")).catch(error=>notify(error.message));}
-  const ledgerStatus=event.target.closest("[data-ledger-status]");if(ledgerStatus)ledgerStatusModal(ledgerStatus.dataset.ledgerStatus);
-  const proposeChange=event.target.closest("[data-propose-change]");if(proposeChange)changeOrderModal(proposeChange.dataset.proposeChange);
-  const changeResponse=event.target.closest("[data-change-response]");if(changeResponse){const[choice,id]=changeResponse.dataset.changeResponse.split(":");respondChangeOrder(id,choice==="accept").then(loadRemoteWorkspace).then(()=>changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId))).then(()=>notify(`Change ${choice}ed`)).catch(error=>notify(error.message));}
-  const issueAction=event.target.closest("[data-issue-action]");if(issueAction){const[actionName,id]=issueAction.dataset.issueAction.split(":");const allowed=actionName!=="escalate"||confirm("Escalate this issue and place the whole agreement in dispute?");if(allowed)manageWorkIssue(id,actionName).then(loadRemoteWorkspace).then(()=>{closeModal();notify(actionName==="escalate"?"Issue escalated to dispute":"Issue closed")}).catch(error=>notify(error.message));}
+  handleCoordinationClick(event);
   if (handleCommunityClick(event)) return;
 });
 

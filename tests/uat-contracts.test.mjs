@@ -9,6 +9,7 @@ const networkFeature = await readFile(new URL("features/network.js", root), "utf
 const projectsFeature = await readFile(new URL("features/projects.js", root), "utf8");
 const coreClickHandler = await readFile(new URL("features/core-click-handler.js", root), "utf8");
 const socialClickHandler = await readFile(new URL("features/social-click-handler.js", root), "utf8");
+const coordinationClickHandler = await readFile(new URL("features/coordination-click-handler.js", root), "utf8");
 const backendFiles = [
   "backend.js",
   "backend/core.js",
@@ -131,7 +132,7 @@ test("scheduling is private, reciprocal, and calendar-portable", () => {
   assert.match(sql,/participants read schedule proposals/);
   assert.match(sql,/respond_schedule_window/);
   assert.match(sql,/weather_sensitive/);
-  assert.match(app,/BEGIN:VCALENDAR/);
+  assert.match(coordinationClickHandler,/BEGIN:VCALENDAR/);
   for(const operation of ["getAgreementSchedule","proposeScheduleWindow","respondScheduleWindow","saveMyAvailability"])assert.match(backend,new RegExp(operation));
 });
 
