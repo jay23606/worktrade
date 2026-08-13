@@ -1319,9 +1319,12 @@ document.addEventListener("click", (event) => {
   const projectTab = event.target.closest("[data-project-tab]");
   if (projectTab) {
     const previousTop = projectTab.closest(".project-tabs").getBoundingClientRect().top;
-    state.projectDetailTab = projectTab.dataset.projectTab;
-    const nextTabs = document.querySelector(".project-tabs");
-    if (nextTabs) window.scrollBy({ top: nextTabs.getBoundingClientRect().top - previousTop, behavior: "instant" });
+    const nextProjectTab = projectTab.dataset.projectTab;
+    queueMicrotask(() => {
+      state.projectDetailTab = nextProjectTab;
+      const nextTabs = document.querySelector(".project-tabs");
+      if (nextTabs) window.scrollBy({ top: nextTabs.getBoundingClientRect().top - previousTop, behavior: "instant" });
+    });
     return;
   }
   if (event.target.closest("[data-focus-milestones]")) {
