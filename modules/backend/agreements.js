@@ -220,6 +220,10 @@ export async function setAgreementSchedule(
   if (error) throw error;
   return data;
 }
+export async function getAgreementSchedule(id){const client=await getBackend();assertBackend(client);const{data,error}=await client.rpc("get_agreement_schedule",{target_agreement_id:id});if(error)throw error;return data;}
+export async function proposeScheduleWindow(id,payload){const client=await getBackend();assertBackend(client);const{data,error}=await client.rpc("propose_schedule_window",{target_agreement_id:id,payload});if(error)throw error;return data;}
+export async function respondScheduleWindow(id,response){const client=await getBackend();assertBackend(client);const{error}=await client.rpc("respond_schedule_window",{target_proposal_id:id,response});if(error)throw error;}
+export async function saveMyAvailability(payload){const client=await getBackend();assertBackend(client);const{data,error}=await client.rpc("save_my_availability",{payload});if(error)throw error;return data;}
 
 export async function getProjectMessages(requestId) {
   const client = await getBackend();

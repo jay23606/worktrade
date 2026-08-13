@@ -49,6 +49,10 @@ import {
   saveNotificationPreferences,
   sendProjectMessage,
   setAgreementSchedule,
+  getAgreementSchedule,
+  proposeScheduleWindow,
+  respondScheduleWindow,
+  saveMyAvailability,
   signInWithEmail,
   signOut,
   submitOffer,
@@ -1103,6 +1107,14 @@ function scheduleModal(request) {
     `<span class="eyebrow">Work schedule</span><h2>Set practical timing.</h2><form data-form="schedule" data-agreement="${a.id}" data-version="${a.version}" class="form-grid"><label>Proposed start<input name="start_at" type="datetime-local" value="${a.proposed_start_at ? a.proposed_start_at.slice(0, 16) : ""}"></label><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><label class="wide">Working windows<textarea name="working_windows" placeholder="Saturdays 8–4; no work during store hours">${esc(a.working_windows || "")}</textarea></label><button class="primary wide">Save schedule</button></form>`,
   );
 }
+async function scheduleCoordinationModal(request, counterTo = "") {
+  const a=request.agreement;
+  try {
+    const hub=await getAgreementSchedule(a.id),pending=hub.proposals.find(x=>x.status==="pending"),accepted=hub.proposals.find(x=>x.status==="accepted");
+    openModal(`<span class="eyebrow">Private work scheduling</span><h2>Coordinate a practical window.</h2><p>Exact locations and arrival instructions are visible only to confirmed agreement participants.</p>${pending?`<article class="schedule-card"><span class="category">Pending proposal</span><h3>${new Date(pending.start_at).toLocaleString()}–${new Date(pending.end_at).toLocaleTimeString()}</h3><p>${esc(pending.location_detail||"Location to be coordinated")}${pending.weather_sensitive?" · Weather-sensitive":""}</p>${pending.proposed_by!==state.profile.id?`<button class="primary" data-schedule-response="accepted:${pending.id}">Accept</button><button class="secondary" data-schedule-counter="${pending.id}">Counter</button><button class="text-btn" data-schedule-response="declined:${pending.id}">Decline</button>`:"<small>Waiting for the other participant.</small>"}</article>`:""}${accepted?`<article class="schedule-card confirmed"><span class="category">Confirmed</span><h3>${new Date(accepted.start_at).toLocaleString()}</h3><p>${esc(accepted.location_detail||"")}</p><p>${esc(accepted.arrival_notes||"")}</p><button class="secondary" data-calendar-export="${accepted.id}" data-title="${esc(request.title)}" data-start="${accepted.start_at}" data-end="${accepted.end_at}" data-location="${esc(accepted.location_detail)}">Add to calendar (.ics)</button></article>`:""}<form data-form="schedule-proposal" data-agreement="${a.id}" data-counter="${counterTo}" class="form-grid"><label>Start<input name="start_at" type="datetime-local" required></label><label>End<input name="end_at" type="datetime-local" required></label><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><label>Exact meeting/work location<input name="location_detail" maxlength="500"></label><label class="wide">Arrival, access, parking, or entry details<textarea name="arrival_notes" maxlength="1500"></textarea></label><label><input type="checkbox" name="weather_sensitive"> Weather-sensitive work</label><button class="primary wide">${counterTo?"Send counterproposal":"Propose window"}</button></form><details><summary>My recurring availability</summary><form data-form="availability" class="form-grid"><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><label>Minimum notice (hours)<input name="lead_time_hours" type="number" min="0" max="8760" value="${hub.my_availability?.lead_time_hours??24}"></label><label class="wide">Usual windows<textarea name="windows" placeholder="Saturday 8am–2pm; weekday evenings">${esc((hub.my_availability?.weekly_windows||[]).join("\n"))}</textarea></label><button class="secondary wide">Save availability</button></form></details>`);
+  }catch(error){notify(error.message);}
+}
+
 function compareOffersModal(request) {
   openModal(
     `<span class="eyebrow">Proposal comparison</span><h2>Compare the whole exchange.</h2><div class="comparison">${request.offers.map((o) => `<article><h3>${esc(o.provider)}</h3><b>${modeLabel(o.mode)}</b><dl><dt>Scope</dt><dd>${esc(o.gives)}</dd><dt>Exclusions</dt><dd>${esc(o.exclusions || "None stated")}</dd><dt>Exchange</dt><dd>${esc(o.wants)}</dd><dt>Duration</dt><dd>${esc(o.duration)}</dd><dt>Responsibilities</dt><dd>${esc(JSON.stringify(o.responsibilities || {}))}</dd><dt>Expires</dt><dd>${o.expires_at ? new Date(o.expires_at).toLocaleDateString() : "No expiration"}</dd></dl><form data-form="proposal-question" data-offer="${o.id}" class="inline-form"><input name="body" required placeholder="Ask about this proposal"><button class="secondary">Ask</button></form><button class="primary full" data-accept="${o.id}" data-request="${request.id}">Select proposal</button></article>`).join("")}</div>`,
@@ -1281,7 +1293,7 @@ document.addEventListener("click", (event) => {
   if (action === "add-milestone")
     milestoneModal(state.requests.find((x) => x.id === state.selectedId));
   if (action === "schedule")
-    scheduleModal(state.requests.find((x) => x.id === state.selectedId));
+    scheduleCoordinationModal(state.requests.find((x) => x.id === state.selectedId));
   if (action === "compare-offers")
     compareOffersModal(state.requests.find((x) => x.id === state.selectedId));
   if (action === "publish-completion")
@@ -1830,6 +1842,12 @@ document.addEventListener("click", (event) => {
     state.networkQuery = skillSearch.dataset.skillSearch;
     loadNetwork();
   }
+  const scheduleResponse=event.target.closest("[data-schedule-response]");
+  if(scheduleResponse){const[response,id]=scheduleResponse.dataset.scheduleResponse.split(":");respondScheduleWindow(id,response).then(loadRemoteWorkspace).then(()=>{closeModal();notify(`Schedule ${response}`)}).catch(error=>notify(error.message));}
+  const scheduleCounter=event.target.closest("[data-schedule-counter]");
+  if(scheduleCounter)scheduleCoordinationModal(state.requests.find(x=>x.id===state.selectedId),scheduleCounter.dataset.scheduleCounter);
+  const calendarExport=event.target.closest("[data-calendar-export]");
+  if(calendarExport){const stamp=x=>new Date(x).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");const clean=x=>String(x||"").replace(/[\\;,\n]/g," ");const ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WorkTrade//Schedule//EN\r\nBEGIN:VEVENT\r\nUID:${calendarExport.dataset.calendarExport}@worktrade\r\nDTSTAMP:${stamp(new Date())}\r\nDTSTART:${stamp(calendarExport.dataset.start)}\r\nDTEND:${stamp(calendarExport.dataset.end)}\r\nSUMMARY:${clean(calendarExport.dataset.title)}\r\nLOCATION:${clean(calendarExport.dataset.location)}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"}));link.download="worktrade-schedule.ics";link.click();URL.revokeObjectURL(link.href);}
   const openCircle = event.target.closest("[data-open-circle]");
   if (openCircle) {
     const circle = state.circleHub.circles.find(
@@ -2614,6 +2632,12 @@ document.addEventListener("submit", async (event) => {
     } catch (error) {
       notify(error.message);
     }
+  }
+  if(form.dataset.form==="schedule-proposal"){
+    try{const start=new Date(data.get("start_at")),end=new Date(data.get("end_at"));if(end<=start)return notify("End time must be after the start");await proposeScheduleWindow(form.dataset.agreement,{start_at:start.toISOString(),end_at:end.toISOString(),timezone:data.get("timezone"),weather_sensitive:data.has("weather_sensitive"),location_detail:data.get("location_detail"),arrival_notes:data.get("arrival_notes"),counter_to:form.dataset.counter||""});closeModal();await loadRemoteWorkspace();notify(form.dataset.counter?"Counterproposal sent":"Schedule proposal sent");}catch(error){notify(error.message);}
+  }
+  if(form.dataset.form==="availability"){
+    try{await saveMyAvailability({timezone:data.get("timezone"),lead_time_hours:Number(data.get("lead_time_hours"))||0,weekly_windows:String(data.get("windows")||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean)});notify("Availability saved");}catch(error){notify(error.message);}
   }
   if (form.dataset.form === "proposal-question") {
     try {

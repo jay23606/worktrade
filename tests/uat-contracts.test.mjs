@@ -114,6 +114,15 @@ test("skill discovery normalizes aliases and explains reciprocal fit", () => {
   assert.match(app,/does not collect coordinates or reveal exact addresses/);
 });
 
+test("scheduling is private, reciprocal, and calendar-portable", () => {
+  assert.match(sql,/create table public\.schedule_proposals/);
+  assert.match(sql,/participants read schedule proposals/);
+  assert.match(sql,/respond_schedule_window/);
+  assert.match(sql,/weather_sensitive/);
+  assert.match(app,/BEGIN:VCALENDAR/);
+  for(const operation of ["getAgreementSchedule","proposeScheduleWindow","respondScheduleWindow","saveMyAvailability"])assert.match(backend,new RegExp(operation));
+});
+
 test("moderation data is private and restrictions guard interaction writes", () => {
   assert.match(sql, /moderation_actions_immutable/);
   assert.match(sql, /staff authorization required/);

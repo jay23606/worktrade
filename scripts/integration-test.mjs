@@ -122,6 +122,12 @@ try {
   await rpc(provider.token,"perform_agreement_action",{target_agreement_id:agreementId,expected_version:agreement.agreement.version,requested_action:"confirm",payload:{}});
   rows=await rpc(owner.token,"get_my_agreements",{});agreement=rows[0];assert.equal(agreement.agreement.status,"agreed");
 
+  await rpc(owner.token,"save_my_availability",{payload:{timezone:"America/New_York",weekly_windows:["Saturday 8am-2pm"],lead_time_hours:24}});
+  const scheduleId=await rpc(owner.token,"propose_schedule_window",{target_agreement_id:agreementId,payload:{start_at:new Date(Date.now()+172800000).toISOString(),end_at:new Date(Date.now()+176400000).toISOString(),timezone:"America/New_York",weather_sensitive:true,location_detail:"Private test workshop",arrival_notes:"Use the side entrance"}});
+  let scheduleHub=await rpc(provider.token,"get_agreement_schedule",{target_agreement_id:agreementId});assert.equal(scheduleHub.proposals[0].id,scheduleId);assert.equal(scheduleHub.proposals[0].location_detail,"Private test workshop");
+  await rpc(provider.token,"respond_schedule_window",{target_proposal_id:scheduleId,response:"accepted"});
+  rows=await rpc(owner.token,"get_my_agreements",{});agreement=rows[0];assert.equal(agreement.agreement.status,"scheduled");
+
   await rpc(owner.token, "perform_agreement_action", { target_agreement_id: agreementId, expected_version: agreement.agreement.version, requested_action: "transition", payload: { status: "active" } });
   rows = await rpc(owner.token, "get_my_agreements", {}); agreement = rows[0];
   await request("/rest/v1/project_messages", { token: provider.token, method: "POST", headers: { Prefer: "return=minimal" }, body: { request_id: requestId, author_id: provider.id, body: "Materials are ready; arrival is scheduled for Saturday." } });
