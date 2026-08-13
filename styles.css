@@ -80,4 +80,5 @@ body{background:radial-gradient(circle at 85% -5%,color-mix(in srgb,var(--green2
 @media(max-width:600px){.journey-panel{grid-template-columns:1fr}.journey-panel>button{width:100%}.journey-panel details{grid-column:auto}}
 .local-discovery{display:grid;grid-template-columns:minmax(240px,2fr) repeat(5,minmax(120px,1fr));align-items:end}.local-discovery label{display:grid;gap:.3rem;font-size:.72rem;font-weight:750}.local-discovery select{min-height:44px;border:1px solid var(--line);border-radius:9px;background:var(--field);color:var(--ink);padding:.5rem}.local-discovery .location-privacy{grid-column:1/-1;margin:0;font-size:.76rem}.saved-searches .chip:after{content:" alerts on";font-size:.65rem;color:var(--green)}
 @media(max-width:1000px){.local-discovery{grid-template-columns:repeat(3,1fr)}.local-discovery .search{grid-column:1/-1}}
+@media(max-width:800px){.local-discovery{grid-template-columns:repeat(2,minmax(0,1fr))}.local-discovery label,.local-discovery select{min-width:0}}
 @media(max-width:600px){.local-discovery{grid-template-columns:1fr}.local-discovery .search,.local-discovery .location-privacy{grid-column:auto}}
