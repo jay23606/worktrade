@@ -77,6 +77,22 @@ test("color theme can be changed and persists across reloads", async ({ page }) 
   await expect(page.getByRole("button", { name: "Switch to light mode" })).toBeVisible();
 });
 
+test("project follow feedback remains readable in dark mode", async ({ page }) => {
+  await page.evaluate(() => { document.documentElement.dataset.theme = "dark"; });
+  await page.getByRole("heading", { name: "Build a backyard greenhouse" }).click();
+  await page.getByRole("button", { name: "Follow project" }).click();
+  const toast = page.locator("#toast");
+  await expect(toast).toContainText("Project follow updated");
+  await expect(toast).toBeVisible();
+  await page.waitForTimeout(250);
+  const colors = await toast.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, text: style.color };
+  });
+  expect(colors.background).toBe("rgb(237, 242, 234)");
+  expect(colors.text).toBe("rgb(16, 23, 19)");
+});
+
 test("PWA shell registers and reloads while offline", async ({ page, context }) => {
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "manifest.webmanifest");
   await page.evaluate(async () => {
