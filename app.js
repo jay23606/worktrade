@@ -20,6 +20,7 @@ import { createCommunityClickHandler } from "./features/community-click-handler.
 import { createProfileClickHandler } from "./features/profile-click-handler.js";
 import { createManagementClickHandler } from "./features/management-click-handler.js";
 import { createCoordinationClickHandler } from "./features/coordination-click-handler.js";
+import { createCoordinationSubmitHandler } from "./features/coordination-submit-handler.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -374,6 +375,7 @@ const handleCommunityClick = createCommunityClickHandler({ getState: () => state
 const handleProfileClick = createProfileClickHandler({ getState: () => state, updateMyProfile, notify, persist, setFollow });
 const handleManagementClick = createManagementClickHandler({ getState: () => state, closeRequest, loadRemoteWorkspace, notify, markNotificationsRead, loadNotifications, closeModal, projectNotificationKey: PROJECT_NOTIFICATION_KEY, notificationsModal, requestLifecycleAction, reviseOfferModal, withdrawOffer, manageMilestone, manageRequestMedia });
 const handleCoordinationClick = createCoordinationClickHandler({ getState: () => state, respondScheduleWindow, loadRemoteWorkspace, closeModal, notify, scheduleCoordinationModal, manageLedgerItem, agreementLedgerModal, ledgerStatusModal, changeOrderModal, respondChangeOrder, changeOrderHubModal, manageWorkIssue });
+const handleCoordinationSubmit = createCoordinationSubmitHandler({ getState: () => state, notify, closeModal, loadRemoteWorkspace, setAgreementSchedule, proposeScheduleWindow, saveMyAvailability, saveLedgerItem, manageLedgerItem, uploadLedgerReceipt, reportWorkIssue, proposeChangeOrder, uploadWorkIssueEvidence, agreementLedgerModal, changeOrderHubModal });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -1428,50 +1430,7 @@ document.addEventListener("submit", async (event) => {
       notify(error.message);
     }
   }
-  if (form.dataset.form === "schedule") {
-    try {
-      await setAgreementSchedule(
-        form.dataset.agreement,
-        Number(form.dataset.version),
-        {
-          start_at: data.get("start_at")
-            ? new Date(data.get("start_at")).toISOString()
-            : "",
-          timezone: data.get("timezone"),
-          working_windows: data.get("working_windows"),
-        },
-      );
-      closeModal();
-      await loadRemoteWorkspace();
-      notify("Schedule saved");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if(form.dataset.form==="schedule-proposal"){
-    try{const start=new Date(data.get("start_at")),end=new Date(data.get("end_at"));if(end<=start)return notify("End time must be after the start");await proposeScheduleWindow(form.dataset.agreement,{start_at:start.toISOString(),end_at:end.toISOString(),timezone:data.get("timezone"),weather_sensitive:data.has("weather_sensitive"),location_detail:data.get("location_detail"),arrival_notes:data.get("arrival_notes"),counter_to:form.dataset.counter||""});closeModal();await loadRemoteWorkspace();notify(form.dataset.counter?"Counterproposal sent":"Schedule proposal sent");}catch(error){notify(error.message);}
-  }
-  if(form.dataset.form==="availability"){
-    try{await saveMyAvailability({timezone:data.get("timezone"),lead_time_hours:Number(data.get("lead_time_hours"))||0,weekly_windows:String(data.get("windows")||"").split(/\n|;/).map(x=>x.trim()).filter(Boolean)});notify("Availability saved");}catch(error){notify(error.message);}
-  }
-  if(form.dataset.form==="ledger-item"){
-    try{await saveLedgerItem(form.dataset.agreement,null,{item_type:data.get("item_type"),description:data.get("description"),responsibility:data.get("responsibility"),contribution_mode:data.get("contribution_mode"),status:data.get("status"),quantity:data.get("quantity"),unit:data.get("unit"),estimated_cost_cents:data.get("estimated_cost")?Math.round(Number(data.get("estimated_cost"))*100):"",barter_description:data.get("barter_description")});await agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));notify("Preparation item added");}catch(error){notify(error.message);}
-  }
-  if(form.dataset.form==="ledger-status"){
-    try{await manageLedgerItem(form.dataset.item,"status",{status:data.get("status"),quantity_actual:data.get("quantity_actual"),actual_cost_cents:data.get("actual_cost")?Math.round(Number(data.get("actual_cost"))*100):""});await agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));notify("Preparation status updated");}catch(error){notify(error.message);}
-  }
-  if(form.dataset.form==="ledger-receipt"){
-    const file=form.elements.receipt.files[0];if(!file||file.size>10485760)return notify("Choose a JPG, PNG, or WebP under 10 MB.");try{await uploadLedgerReceipt(form.dataset.agreement,form.dataset.item,file);await agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));notify("Receipt or item photo added");}catch(error){notify(error.message);}
-  }
-  if(form.dataset.form==="work-issue"){
-    try{await reportWorkIssue(form.dataset.agreement,{category:data.get("category"),title:data.get("title"),detail:data.get("detail"),milestone_id:"",obligation_id:"",unaffected_work_can_continue:data.has("continue")});await changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId));notify("Work issue documented");}catch(error){notify(error.message);}
-  }
-  if(form.dataset.form==="change-order"){
-    try{await proposeChangeOrder(form.dataset.issue,{scope_delta:data.get("scope_delta"),time_delta_minutes:Number(data.get("time_delta_minutes"))||0,cash_delta_cents:Math.round((Number(data.get("cash_delta"))||0)*100),barter_delta:data.get("barter_delta"),schedule_delta:data.get("schedule_delta")});await changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId));notify("Change order sent for approval");}catch(error){notify(error.message);}
-  }
-  if(form.dataset.form==="issue-evidence"){
-    const file=form.elements.photo.files[0];if(!file||file.size>10485760)return notify("Choose a JPG, PNG, or WebP under 10 MB.");try{await uploadWorkIssueEvidence(form.dataset.agreement,form.dataset.issue,file,data.get("caption"));await changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId));notify("Private issue evidence added");}catch(error){notify(error.message);}
-  }
+  if (await handleCoordinationSubmit(form, data)) return;
   if (form.dataset.form === "proposal-question") {
     try {
       await askProposalQuestion(form.dataset.offer, data.get("body"));

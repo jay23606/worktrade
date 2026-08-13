@@ -119,6 +119,7 @@ features/community-click-handler.js circles, membership, resources, and reciproc
 features/profile-click-handler.js   profile lists, follows, and device-local circles
 features/management-click-handler.js request lifecycle, inbox, offers, and media routing
 features/coordination-click-handler.js schedule, ledger, and change-order routing
+features/coordination-submit-handler.js scheduling, preparation, and work-change submissions
 shell/                         PWA installation, updates, and connectivity lifecycle
 modules/backend.js             stable backend export facade
 modules/backend/               account, request, agreement, network, circle, chain, trust domains
