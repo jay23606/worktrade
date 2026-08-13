@@ -31,6 +31,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Preparation ledger         | Connected             | Materials, tools, rentals, permits, delivery, cash/barter contributions, readiness, actual costs, shared approvals, and private receipt evidence |
 | Active-work change orders  | Connected             | Documented issues, private evidence, isolated impact, baseline diffs, cash/time/barter deltas, mutual approval, and dispute escalation |
 | Guided project path        | Connected             | Agreement → Schedule → Prepare → Work → Changes → Complete, with one contextual action and explicit ready, blocked, waiting, and available states |
+| Active project workspace   | Connected             | Compact Overview, unified Activity, Exchange, and Files sections keep current work visible without an endless detail page |
 | Evidence and reputation    | Connected             | Private evidence, contextual reviews, verified completion stories, public portfolios             |
 | Social network             | Connected             | Two-way match scores and explanations, follows, saves, feedback, invitations, activity, and strong-match notifications |
 | Local discovery            | Connected             | Nearby/remote modes, normalized skill aliases, explainable reciprocal ranking, availability and sort filters, coarse location bands, privacy controls, and saved alerts |

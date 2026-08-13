@@ -138,6 +138,7 @@ const store = createStore({
   query: "",
   category: "All",
   selectedId: null,
+  projectDetailTab: "overview",
   session: null,
   remote: false,
   profile: initial.profile,
@@ -314,6 +315,7 @@ function requestCard(request) {
 
 function renderDetail(request) {
   const isOwner = request.ownerId === "me";
+  const workspace = request.agreement ? projectWorkspace(request, isOwner) : requestOverview(request, isOwner);
   return shell(
     `<button class="back" data-nav="discover">← Back to requests</button>
     ${request.agreement ? projectPath(request) : ""}
@@ -321,23 +323,8 @@ function renderDetail(request) {
       <div class="card-top"><span class="category">${esc(request.category)}</span><span>${esc(request.status)}</span></div>
       ${isOwner && state.remote && request.status === "open" ? `<div class="owner-actions"><button class="secondary" data-action="edit-request">Edit request</button><button class="text-btn" data-request-action="close">Close</button><button class="text-btn" data-request-action="archive">Archive</button><button class="danger-text" data-request-action="cancel">Cancel</button></div>` : ""}
       <h1>${esc(request.title)}</h1><p class="lede">${esc(request.description)}</p>
-      ${request.media?.length ? `<div class="request-media">${request.media.map((item, index) => `<figure><img src="${esc(item.url)}" alt="${esc(item.caption || request.title)}"><figcaption><b>${esc(item.label || "current")}</b> ${esc(item.caption || "")}${isOwner && state.remote ? ` <button data-delete-media="${item.id}">Remove</button>` : ""}</figcaption></figure>`).join("")}</div>` : ""}
       <div class="facts"><div><small>Location</small><b>${esc(request.location)}</b></div><div><small>Timing</small><b>${esc(request.urgency)}</b></div><div><small>Cash range</small><b>${money(request.cashBudget)}</b></div></div>
-      <section><span class="eyebrow">Skills and capabilities</span><div class="tags large">${request.skills.map((s) => `<span>${esc(s)}</span>`).join("")}</div></section>
-      <section><span class="eyebrow">Value available in return</span><div class="value-list">${request.offersInReturn.map((item) => `<div><span>↔</span>${esc(item)}</div>`).join("")}</div></section>
-      ${request.constraints ? `<section><span class="eyebrow">Constraints and site conditions</span><p>${esc(request.constraints)}</p></section>` : ""}
-      ${request.hold ? holdCard(request.hold) : ""}
-      ${request.milestones ? milestones(request) : ""}
-      ${request.agreement?.history ? historySection(request.agreement.history) : ""}
-      ${request.agreement ? evidenceSection(request) : ""}
-      <section><div class="section-title"><div><span class="eyebrow">Project journal</span><h2>Progress in the open</h2></div></div>
-        <div class="timeline">${request.updates.map((u) => `<div><span class="dot"></span><p><b>${esc(u.author)}</b> ${esc(u.text)}<small>${esc(u.date)}</small></p></div>`).join("") || "<p>No updates yet.</p>"}</div>
-        ${request.status !== "open" ? `<form data-form="update" class="inline-form"><input name="text" required placeholder="Share a progress update"><button class="secondary">Post</button></form>` : ""}
-      </section>
-      <section><div class="section-title"><div><span class="eyebrow">Conversation</span><h2>Keep decisions beside the work.</h2></div></div>
-        <div class="messages">${(request.messages || []).map((m) => `<div class="message ${m.authorId === state.profile.id ? "mine" : ""}"><b>${esc(m.author)}</b><p>${esc(m.text)}</p><small>${esc(m.date)}</small></div>`).join("") || `<p>No messages yet. Ask a clear, project-specific question.</p>`}</div>
-        <form data-form="message" class="inline-form"><input name="text" required maxlength="1000" placeholder="Ask about scope, access, timing, or value"><button class="secondary">Send</button></form>
-      </section>
+      ${workspace}
     </article>
     <aside class="detail-side"><div class="person"><span class="avatar big">${request.initials}</span><div><small>Posted by</small><h3>${esc(request.owner)}</h3><p>${esc(request.location)}</p></div></div>
       ${request.agreement ? agreementCard(request) : isOwner ? `<div class="side-note"><b>Waiting for proposals</b><p>Compare scope and both sides of the exchange before selecting one.</p>${request.offers.length > 1 ? `<button class="secondary full" data-action="compare-offers">Compare proposals</button>` : ""}</div>` : `<button class="primary full" data-action="offer" data-id="${request.id}">Propose a trade</button>`}
@@ -347,6 +334,37 @@ function renderDetail(request) {
     </aside></div>`,
     "Work request",
   );
+}
+
+function requestMedia(request, isOwner) {
+  return request.media?.length ? `<div class="request-media">${request.media.map((item) => `<figure><img src="${esc(item.url)}" alt="${esc(item.caption || request.title)}"><figcaption><b>${esc(item.label || "current")}</b> ${esc(item.caption || "")}${isOwner && state.remote ? ` <button data-delete-media="${item.id}">Remove</button>` : ""}</figcaption></figure>`).join("")}</div>` : `<div class="empty compact"><b>No project photos yet</b><p>Add current-condition, progress, or completion photos when they help explain the work.</p></div>`;
+}
+
+function requestOverview(request, isOwner) {
+  return `${requestMedia(request, isOwner)}<section><span class="eyebrow">Skills and capabilities</span><div class="tags large">${request.skills.map((s) => `<span>${esc(s)}</span>`).join("")}</div></section><section><span class="eyebrow">Value available in return</span><div class="value-list">${request.offersInReturn.map((item) => `<div><span>↔</span>${esc(item)}</div>`).join("")}</div></section>${request.constraints ? `<section><span class="eyebrow">Constraints and site conditions</span><p>${esc(request.constraints)}</p></section>` : ""}`;
+}
+
+function projectWorkspace(request, isOwner) {
+  const active = ["overview", "activity", "exchange", "files"].includes(state.projectDetailTab) ? state.projectDetailTab : "overview";
+  const tabs = [["overview", "Overview"], ["activity", "Activity"], ["exchange", "Exchange"], ["files", "Files"]];
+  const nav = `<nav class="project-tabs" aria-label="Project sections">${tabs.map(([id, label]) => `<button class="${active === id ? "active" : ""}" data-project-tab="${id}" aria-current="${active === id ? "page" : "false"}">${label}</button>`).join("")}</nav>`;
+  const panels = {
+    overview: `<div class="project-panel" data-project-panel="overview"><section><span class="eyebrow">Skills and capabilities</span><div class="tags large">${request.skills.map((s) => `<span>${esc(s)}</span>`).join("")}</div></section>${request.constraints ? `<section><span class="eyebrow">Conditions to plan around</span><p>${esc(request.constraints)}</p></section>` : ""}${request.hold ? holdCard(request.hold) : ""}${request.milestones ? milestones(request) : ""}</div>`,
+    activity: projectActivity(request),
+    exchange: `<div class="project-panel" data-project-panel="exchange"><section><span class="eyebrow">Agreed value</span><h2>What each side is contributing</h2><div class="value-list">${request.offersInReturn.map((item) => `<div><span>↔</span>${esc(item)}</div>`).join("")}</div><button class="secondary" data-action="ledger">Open preparation and cost ledger</button></section>${request.agreement?.obligations?.length ? obligationCards(request.agreement) : `<div class="empty compact"><b>No separate exchange obligations</b><p>The accepted agreement remains the source of truth.</p></div>`}${request.agreement?.history ? historySection(request.agreement.history) : ""}</div>`,
+    files: `<div class="project-panel" data-project-panel="files"><section><span class="eyebrow">Project photos</span><h2>Conditions, progress, and results</h2>${requestMedia(request, isOwner)}</section>${evidenceSection(request)}</div>`,
+  };
+  return `${nav}${panels[active]}`;
+}
+
+function projectActivity(request) {
+  const entries = [
+    ...(request.updates || []).map((item) => ({ type: "Update", author: item.author, text: item.text, date: item.date })),
+    ...(request.messages || []).map((item) => ({ type: "Message", author: item.author, text: item.text, date: item.date, mine: item.authorId === state.profile.id })),
+    ...((request.agreement?.history || []).map((item) => ({ type: "Agreement", author: "WorkTrade", text: `${item.from_status || "Created"} → ${item.to_status}${item.note ? ` · ${item.note}` : ""}`, date: item.created_at }))),
+    ...(request.evidence || []).map((item) => ({ type: "Evidence", author: "Participant", text: `${item.skill}: ${item.description}`, date: item.created_at || item.verified_at })),
+  ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  return `<div class="project-panel" data-project-panel="activity"><section><div class="section-title"><div><span class="eyebrow">Project activity</span><h2>Updates, messages, and decisions</h2></div></div><div class="activity-feed">${entries.map((item) => `<article class="${item.mine ? "mine" : ""}"><span class="activity-type">${esc(item.type)}</span><div><b>${esc(item.author || "Participant")}</b><p>${esc(item.text)}</p><small>${item.date ? esc(new Date(item.date).toString() === "Invalid Date" ? item.date : new Date(item.date).toLocaleString()) : ""}</small></div></article>`).join("") || `<div class="empty compact"><b>No activity yet</b><p>Updates, messages, evidence, and agreement decisions will appear here.</p></div>`}</div><div class="activity-composers"><form data-form="update" class="inline-form"><input name="text" required placeholder="Share a progress update"><button class="secondary">Post update</button></form><form data-form="message" class="inline-form"><input name="text" required maxlength="1000" placeholder="Message the other participant"><button class="secondary">Send message</button></form></div></section></div>`;
 }
 
 function offerCard(offer, isOwner, requestId) {
@@ -1291,6 +1309,11 @@ function downloadExport(data) {
 }
 
 document.addEventListener("click", (event) => {
+  const projectTab = event.target.closest("[data-project-tab]");
+  if (projectTab) {
+    state.projectDetailTab = projectTab.dataset.projectTab;
+    return;
+  }
   if (event.target.closest("[data-focus-milestones]")) {
     document.querySelector(".milestones")?.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
@@ -1299,12 +1322,14 @@ document.addEventListener("click", (event) => {
   if (nav) {
     state.view = nav.dataset.nav;
     state.selectedId = null;
+    state.projectDetailTab = "overview";
     return;
   }
   const card = event.target.closest("[data-open]");
   if (card) {
     state.selectedId = card.dataset.open;
     state.view = "detail";
+    state.projectDetailTab = "overview";
     return;
   }
   const category = event.target.closest("[data-category]");

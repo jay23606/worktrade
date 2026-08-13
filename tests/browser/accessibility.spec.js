@@ -137,6 +137,14 @@ test("workspace presents one guided next action and links to its project", async
   await expect(path.getByText("Agreement", { exact: true })).toBeVisible();
   await expect(path.getByText("Complete", { exact: true })).toBeVisible();
   await expect(page.getByText(/Next action: Conditions/)).toBeVisible();
+  const sections = page.getByRole("navigation", { name: "Project sections" });
+  await sections.getByRole("button", { name: "Activity" }).click();
+  await expect(page.getByRole("heading", { name: "Updates, messages, and decisions" })).toBeVisible();
+  await expect(page.getByPlaceholder("Message the other participant")).toBeVisible();
+  await sections.getByRole("button", { name: "Exchange" }).click();
+  await expect(page.getByRole("heading", { name: "What each side is contributing" })).toBeVisible();
+  await sections.getByRole("button", { name: "Files" }).click();
+  await expect(page.getByRole("heading", { name: "Conditions, progress, and results" })).toBeVisible();
 });
 
 test("local discovery exposes privacy-safe filters and saved alerts", async ({ page }) => {
