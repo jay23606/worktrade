@@ -107,7 +107,7 @@ The client is plain HTML, CSS, and ES modules. UI behavior is split into focused
 
 ```text
 app.js                         UI composition and interaction routing
-features/                      matching, messaging, and network UI modules
+features/                      matching, messaging, network, community, project, and workspace UI modules
 shell/                         PWA installation, updates, and connectivity lifecycle
 modules/backend.js             stable backend export facade
 modules/backend/               account, request, agreement, network, circle, chain, trust domains

@@ -1,4 +1,4 @@
-export function createNetworkFeature({ getState, shell, esc, networkPersonCard, activityCard, scorePersonForProfile }) {
+export function createNetworkFeature({ getState, shell, esc, networkPersonCard, activityCard, scorePersonForProfile, circleDetail, renderChainHub }) {
   const state = getState();
 function renderNetwork() {
   const profiles = localDiscoveryProfiles(state.networkProfiles || []);

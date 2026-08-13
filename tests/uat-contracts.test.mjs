@@ -6,6 +6,7 @@ const root = new URL("../", import.meta.url);
 const app = await readFile(new URL("app.js", root), "utf8");
 const messagesFeature = await readFile(new URL("features/messages.js", root), "utf8");
 const networkFeature = await readFile(new URL("features/network.js", root), "utf8");
+const projectsFeature = await readFile(new URL("features/projects.js", root), "utf8");
 const backendFiles = [
   "backend.js",
   "backend/core.js",
@@ -325,7 +326,7 @@ test("project owners receive actionable collaborator recommendations", async () 
   assert.match(sql, /Matches required skills/);
   assert.match(sql, /e\.target_request_id=target_request_id/);
   for (const action of ["data-project-invite", "data-dismiss-recommendation", "data-contact-request", "data-save-person"])
-    assert.match(app, new RegExp(action));
+    assert.match(projectsFeature, new RegExp(action));
 });
 
 test("exchange planning opens from an existing conversation without profile discovery", () => {
