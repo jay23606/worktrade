@@ -123,6 +123,38 @@ export async function reviseOffer(offerId, input) {
   return data;
 }
 
+export async function counterOffer(offerId, input) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("counter_trade_offer", {
+    target_offer_id: offerId,
+    payload: input,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function declineOffer(offerId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { error } = await client.rpc("decline_trade_offer", {
+    target_offer_id: offerId,
+  });
+  if (error) throw error;
+}
+
+export async function getOfferVersions(offerId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client
+    .from("trade_offer_versions")
+    .select("*, profiles!trade_offer_versions_proposed_by_fkey(display_name)")
+    .eq("offer_id", offerId)
+    .order("version", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function withdrawOffer(offerId) {
   const client = await getBackend();
   assertBackend(client);

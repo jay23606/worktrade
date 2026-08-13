@@ -9,6 +9,8 @@ import {
 } from "./modules/agreements.js";
 import {
   acceptOffer,
+  counterOffer,
+  declineOffer,
   addProjectUpdate,
   askProposalQuestion,
   backendConfigured,
@@ -35,6 +37,7 @@ import {
   getProposalQuestions,
   getRequestMedia,
   getRequestOffers,
+  getOfferVersions,
   getSession,
   handleCompletion,
   listPublicRequests,
@@ -381,7 +384,11 @@ function activityDate(value) {
 }
 
 function offerCard(offer, isOwner, requestId) {
-  return `<article class="offer"><div><span class="mini-avatar">${offer.initials}</span><b>${esc(offer.provider)}</b><span class="mode">${modeLabel(offer.mode)}</span></div><p><strong>Will provide:</strong> ${esc(offer.gives)}</p><p><strong>In exchange:</strong> ${esc(offer.wants)}</p><small>${esc(offer.duration)} · ${esc(offer.note)}</small>${offer.discussion?.length ? `<div class="proposal-discussion">${offer.discussion.map((q) => `<p><b>${esc(q.profiles?.display_name || "Participant")}:</b> ${esc(q.body)}</p>`).join("")}</div>` : ""}${isOwner ? `<button class="secondary full" data-accept="${offer.id}" data-request="${requestId}">Accept and start</button>` : ""}</article>`;
+  const awaitingMe = !offer.lastProposedBy || offer.lastProposedBy !== state.profile.id;
+  return `<article class="offer"><div><span class="mini-avatar">${offer.initials}</span><b>${esc(offer.provider)}</b><span class="mode">${modeLabel(offer.mode)}</span></div><span class="proposal-version">Version ${offer.version || 1} · ${awaitingMe ? "Your response" : "Waiting for response"}</span><p><strong>Will provide:</strong> ${esc(offer.gives)}</p><p><strong>In exchange:</strong> ${esc(offer.wants)}</p><small>${esc(offer.duration)} · ${esc(offer.note)}</small>${offer.changedFields?.length ? `<div class="terms-changed"><b>Changed in this counter</b>${offer.changedFields.map((field) => `<span>${esc(field)}</span>`).join("")}</div>` : ""}${offer.history?.length ? `<details class="proposal-history"><summary>Earlier terms (${offer.history.length})</summary>${offer.history.map((version) => `<article><b>Version ${version.version} · ${esc(version.profiles?.display_name || "Participant")}</b><p>${esc(version.scope)} · ${esc(version.exchange_summary)}</p></article>`).join("")}</details>` : ""}${offer.discussion?.length ? `<div class="proposal-discussion">${offer.discussion.map((q) => `<p><b>${esc(q.profiles?.display_name || "Participant")}:</b> ${esc(q.body)}</p>`).join("")}</div>` : ""}${isOwner && awaitingMe ? `<div class="proposal-actions"><button class="primary" data-accept="${offer.id}" data-request="${requestId}">Accept latest terms</button><button class="secondary" data-counter-offer="${offer.id}" data-request="${requestId}">Counter</button><button class="text-btn" data-decline-offer="${offer.id}">Decline</button></div>` : ""}</article>`;
+}
+function findOffer(offerId) {
+  return state.myOffers.find((offer) => offer.id === offerId) || state.requests.flatMap((request) => request.offers || []).find((offer) => offer.id === offerId);
 }
 
 function agreementCard(request) {
@@ -579,7 +586,7 @@ function nextAction(r) {
   return r.hold ? "Resolve dependency" : "Continue milestones";
 }
 function offerDashboard() {
-  return `<section class="dashboard-group"><h2>Proposals I submitted</h2>${state.myOffers.map((o) => `<article class="work-row"><span class="category">${esc(o.status)}</span><div><h3>${esc(o.work_requests?.title || "Work request")}</h3><p>${esc(o.scope)} · ${esc(o.exchange_summary)}</p></div>${o.status === "pending" ? `<div class="dashboard-actions"><button data-edit-offer="${o.id}">Revise</button><button data-withdraw-offer="${o.id}">Withdraw</button></div>` : ""}</article>`).join("") || `<div class="empty">No submitted proposals.</div>`}</section>`;
+  return `<section class="dashboard-group"><h2>Proposals I submitted</h2>${state.myOffers.map((o) => { const countered = o.status === "pending" && o.last_proposed_by && o.last_proposed_by !== state.profile.id; return `<article class="work-row"><span class="category">${countered ? "countered" : esc(o.status)}</span><div><h3>${esc(o.work_requests?.title || "Work request")}</h3><p>${esc(o.scope)} · ${esc(o.exchange_summary)}</p><small>Version ${o.version || 1}${countered ? " · your response needed" : ""}</small></div>${o.status === "pending" ? `<div class="dashboard-actions">${countered ? `<button data-accept="${o.id}">Accept counter</button><button data-counter-offer="${o.id}">Counter again</button><button data-decline-offer="${o.id}">Decline</button>` : `<button data-edit-offer="${o.id}">Revise</button><button data-withdraw-offer="${o.id}">Withdraw</button>`}</div>` : ""}</article>`; }).join("") || `<div class="empty">No submitted proposals.</div>`}</section>`;
 }
 
 function networkPersonCard(p) {
@@ -1211,6 +1218,15 @@ function reviseOfferModal(offer) {
   );
   modalRoot.querySelector("[name=mode]").value = offer.mode;
 }
+function counterOfferModal(offer) {
+  const scope = offer.scope ?? offer.gives ?? "";
+  const exchange = offer.exchange_summary ?? offer.wants ?? "";
+  const duration = offer.duration_text ?? offer.duration ?? "";
+  openModal(
+    `<span class="eyebrow">Counterproposal · version ${(offer.version || 1) + 1}</span><h2>Change only what needs negotiating.</h2><p>The other participant will see exactly which terms changed. Your counter replaces the current actionable version.</p><form data-form="counter-offer" data-id="${offer.id}" class="form-grid"><label>Exchange<select name="mode"><option value="cash">Cash</option><option value="barter">Barter</option><option value="hybrid">Cash + barter</option></select></label><label>Duration<input name="duration" value="${esc(duration)}"></label><label class="wide">Scope<textarea name="scope" required>${esc(scope)}</textarea></label><label class="wide">Exclusions<textarea name="exclusions">${esc(offer.exclusions || "")}</textarea></label><label class="wide">Exchange terms<input name="exchange_summary" required value="${esc(exchange)}"></label><label class="wide">Questions or reason for the counter<textarea name="questions">${esc(offer.questions || offer.note || "")}</textarea></label><label>Offer expires<input name="expires_at" type="date" value="${offer.expires_at ? offer.expires_at.slice(0, 10) : ""}"></label><button class="primary wide">Send counterproposal</button></form>`,
+  );
+  modalRoot.querySelector("[name=mode]").value = offer.mode;
+}
 function scheduleModal(request) {
   const a = request.agreement;
   openModal(
@@ -1632,6 +1648,20 @@ document.addEventListener("click", (event) => {
         return list;
       });
       notify("Proposal selected — awaiting mutual confirmation");
+    }
+  }
+  const counter = event.target.closest("[data-counter-offer]");
+  if (counter) counterOfferModal(findOffer(counter.dataset.counterOffer));
+  const decline = event.target.closest("[data-decline-offer]");
+  if (decline && confirm("Decline the latest proposal terms?")) {
+    if (state.remote)
+      declineOffer(decline.dataset.declineOffer)
+        .then(loadRemoteWorkspace)
+        .then(() => notify("Proposal declined"))
+        .catch((error) => notify(error.message));
+    else {
+      updateRequests((list) => list.map((request) => ({ ...request, offers: (request.offers || []).filter((offer) => offer.id !== decline.dataset.declineOffer) })));
+      notify("Proposal declined");
     }
   }
   const agreementAction =
@@ -2782,6 +2812,22 @@ document.addEventListener("submit", async (event) => {
       notify(error.message);
     }
   }
+  if (form.dataset.form === "counter-offer") {
+    const original = findOffer(form.dataset.id);
+    const payload = {
+      mode: data.get("mode"), scope: data.get("scope"), exchange_summary: data.get("exchange_summary"),
+      duration: data.get("duration"), exclusions: data.get("exclusions"), responsibilities: original.responsibilities || {},
+      milestones: original.proposed_milestones || [], questions: data.get("questions"),
+      expires_at: data.get("expires_at") ? new Date(`${data.get("expires_at")}T23:59:59`).toISOString() : "",
+    };
+    try {
+      if (state.remote) await counterOffer(form.dataset.id, payload);
+      else updateRequests((list) => { const offer = list.flatMap((request) => request.offers || []).find((item) => item.id === form.dataset.id); if (offer) { offer.history ||= []; offer.history.unshift({ version: offer.version || 1, scope: offer.gives, exchange_summary: offer.wants, profiles: { display_name: offer.provider } }); offer.version = (offer.version || 1) + 1; offer.mode = payload.mode; offer.gives = payload.scope; offer.wants = payload.exchange_summary; offer.duration = payload.duration; offer.exclusions = payload.exclusions; offer.note = payload.questions; offer.lastProposedBy = state.profile.id; } });
+      closeModal();
+      if (state.remote) await loadRemoteWorkspace();
+      notify("Counterproposal sent", "success");
+    } catch (error) { notify(error.message); }
+  }
   if (form.dataset.form === "revise-offer") {
     try {
       const original = state.myOffers.find((o) => o.id === form.dataset.id);
@@ -3210,7 +3256,11 @@ async function loadRemoteWorkspace() {
     ownedOpen.map(async (request) => {
       const offers = await getRequestOffers(request.id);
       request.offers = await Promise.all(
-        offers.map(async (offer) => ({
+        offers.map(async (offer) => {
+          const [discussion, history] = await Promise.all([getProposalQuestions(offer.id), getOfferVersions(offer.id)]);
+          const previous = history[0];
+          const changedFields = previous ? [["scope", "Scope"], ["exchange_summary", "Exchange"], ["duration_text", "Duration"], ["exclusions", "Exclusions"], ["mode", "Exchange type"]].filter(([key]) => String(previous[key] || "") !== String(offer[key] || "")).map(([, label]) => label) : [];
+          return ({
           id: offer.id,
           provider: offer.profiles?.display_name || "WorkTrade member",
           initials: (offer.profiles?.display_name || "WM")
@@ -3226,8 +3276,12 @@ async function loadRemoteWorkspace() {
           exclusions: offer.exclusions,
           responsibilities: offer.responsibilities,
           expires_at: offer.expires_at,
-          discussion: await getProposalQuestions(offer.id),
-        })),
+          version: offer.version,
+          lastProposedBy: offer.last_proposed_by,
+          changedFields,
+          history,
+          discussion,
+        });}),
       );
     }),
   );

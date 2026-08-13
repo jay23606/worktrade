@@ -218,3 +218,17 @@ test("backend facade preserves domain API after module split", async () => {
   ])
     assert.equal(typeof facade[operation], "function");
 });
+
+test("proposal counters are versioned and require a counterparty response", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813028000_versioned_offer_counters.sql", root), "utf8");
+  assert.match(sql, /create table if not exists public\.trade_offer_versions/);
+  assert.match(sql, /create or replace function public\.counter_trade_offer/);
+  assert.match(sql, /auth\.uid\(\)=o\.last_proposed_by/);
+  assert.match(sql, /proposal_version/);
+  const defaults = await readFile(new URL("supabase/migrations/20260813029000_offer_counter_defaults.sql", root), "utf8");
+  assert.match(defaults, /set default auth\.uid\(\)/);
+  assert.match(defaults, /last_proposed_by set not null/);
+  const backend = await readFile(new URL("modules/backend/agreements.js", root), "utf8");
+  assert.match(backend, /export async function counterOffer/);
+  assert.match(backend, /export async function declineOffer/);
+});
