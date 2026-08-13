@@ -24,12 +24,14 @@ test("critical landing page has no serious accessibility violations", async ({
   }
 });
 
-test("account onboarding explains invite-only pilot access", async ({ page }) => {
+test("account onboarding is open and needs no invite code", async ({ page }) => {
   await page.getByRole("button", { name: "Open profile" }).click();
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Use a secure email link." })).toBeVisible();
-  await expect(page.getByLabel(/Pilot invite code/)).toBeVisible();
-  await expect(page.getByText(/new pilot members also need an invite code/i)).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Use a secure email link." });
+  await expect(dialog.getByRole("textbox", { name: "Email" })).toBeVisible();
+  await expect(page.getByText(/No password or invite code is required/i)).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: /invite code/i })).toHaveCount(0);
 });
 
 test("responsive layouts do not overflow horizontally", async ({ page }) => {

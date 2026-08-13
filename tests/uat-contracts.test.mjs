@@ -145,7 +145,7 @@ test("moderation data is private and restrictions guard interaction writes", () 
   );
 });
 
-test("private pilot access uses hashed codes and admin-only operations", () => {
+test("registration is open while legacy invite data and admin operations remain secure", async () => {
   assert.match(sql, /pilot_invite_codes/);
   assert.match(sql, /extensions\.digest\(upper\(trim\(invite_code\)\),'sha256'\)/);
   assert.match(sql, /admin authorization required/);
@@ -154,6 +154,10 @@ test("private pilot access uses hashed codes and admin-only operations", () => {
   assert.doesNotMatch(sql, /pilot_invite_codes[^;]*\bcode\s+text/i);
   for (const operation of ["getPilotAccess","redeemPilotInvite","getPilotDashboard","createPilotInvite"])
     assert.match(backend, new RegExp(operation));
+  const open = await readFile(new URL("supabase/migrations/20260813050000_open_registration.sql", root), "utf8");
+  assert.match(open, /enroll_open_registration/);
+  assert.match(open, /'member',auth\.uid\(\) is not null/);
+  assert.doesNotMatch(open, /account_can_interact[\s\S]*pilot_memberships[\s\S]*\$\$/);
 });
 
 test("pilot feedback is private, contextual, and admin triaged", () => {

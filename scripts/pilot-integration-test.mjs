@@ -35,23 +35,18 @@ try {
   const [admin, member, outsider] = await Promise.all([createUser("admin"),createUser("member"),createUser("outsider")]);
   await request("/rest/v1/moderation_roles", { key:secret,token:secret,method:"POST",headers:{Prefer:"return=minimal"},body:{profile_id:admin.id,role:"admin"} });
   const before = await rpc(member.token,"get_pilot_access");
-  assert.equal(before.member,false);
-  await assert.rejects(() => rpc(outsider.token,"create_work_request", {payload:{title:"Blocked pilot bypass",description:"This write must require pilot membership.",kind:"repair",publish:true,visibility:"public",exchange_modes:["barter"],skills:["Testing"]}}), /account interaction restricted/i);
+  assert.equal(before.member,true);
+  const openRequest = await rpc(outsider.token,"create_work_request", {payload:{title:"Open registration check",description:"Authenticated accounts can participate without an invite code.",kind:"repair",publish:true,visibility:"public",exchange_modes:["barter"],skills:["Testing"]}});
+  assert.ok(openRequest);
   await assert.rejects(() => rpc(outsider.token,"get_pilot_dashboard"), /admin authorization required/i);
   await assert.rejects(() => rpc(outsider.token,"create_pilot_invite", {invite_label:"Unauthorized",invite_max_uses:1}), /admin authorization required/i);
-  const invite = await rpc(admin.token,"create_pilot_invite", {invite_label:"Connected test",invite_max_uses:1});
-  invites.push(invite.id);
-  assert.match(invite.code,/^WT-[A-F0-9]{32}$/);
-  await rpc(member.token,"redeem_pilot_invite",{invite_code:invite.code.toLowerCase()});
   assert.equal((await rpc(member.token,"get_pilot_access")).member,true);
   const discovery = await rpc(member.token,"discover_profiles",{search_text:"carpenter",exchange_filter:null,remote_only:false});
   assert.ok(Array.isArray(discovery));
   const feedbackId = await rpc(member.token,"submit_pilot_feedback",{feedback_category:"confusing",feedback_body:"The connected pilot feedback lifecycle needs a clear explanation.",feedback_view:"workspace",feedback_stage:"proposed",feedback_context:{test:true}});
   assert.ok(feedbackId);
-  await assert.rejects(() => rpc(outsider.token,"redeem_pilot_invite",{invite_code:invite.code}), /invalid or no longer available/i);
   const dashboard = await rpc(admin.token,"get_pilot_dashboard");
   assert.ok(dashboard.metrics.members >= 1);
-  assert.ok(dashboard.invites.some((item) => item.id === invite.id && item.use_count === 1));
   assert.ok(dashboard.recent_members.some((item) => item.profile_id === member.id));
   assert.ok(dashboard.feedback.some((item) => item.id === feedbackId));
   await assert.rejects(() => rpc(outsider.token,"manage_pilot_feedback",{target_feedback_id:feedbackId,next_status:"closed",next_severity:"low"}), /admin authorization required/i);
@@ -59,5 +54,5 @@ try {
   const ownFeedback = await rpc(member.token,"get_my_pilot_feedback");
   assert.equal(ownFeedback[0].status,"planned");
   assert.equal(ownFeedback[0].replies[0].staff_reply,true);
-  console.log("Invite-only pilot authorization and redemption lifecycle passed.");
+  console.log("Open registration and admin authorization lifecycle passed.");
 } finally { await cleanup(); }

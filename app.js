@@ -1067,9 +1067,7 @@ async function pilotDashboardModal() {
       ].map(([label, value]) => `<div><b>${value}</b><span>${label}</span></div>`).join("")}</div>
       <h3>Activation funnel</h3><div class="pilot-funnel">${Object.entries(dashboard.funnel).map(([step,value]) => `<div><b>${value}</b><span>${esc(step.replaceAll("_"," "))}</span></div>`).join("")}</div>
       <section class="moderation-queue"><h3>Pilot feedback</h3>${dashboard.feedback.map((item) => `<article><span class="category">${esc(item.category)} · ${esc(item.severity)}</span><h3>${esc(item.reporter_name)}</h3><p>${esc(item.body)}</p><small>${esc(item.view_name)}${item.workflow_stage ? ` · ${esc(item.workflow_stage)}` : ""} · ${esc(item.status)}</small><button class="secondary" data-triage-feedback="${item.id}">Triage and reply</button></article>`).join("") || "<p>No pilot feedback yet.</p>"}</section>
-      <form data-form="pilot-invite-create" class="form-grid"><label>Invite label<input name="label" required minlength="2" placeholder="Richmond makers"></label><label>Maximum uses<input name="max_uses" type="number" min="1" max="1000" value="1" required></label><label>Expires<input name="expires_at" type="date"></label><button class="primary">Create invite</button></form>
-      <section class="moderation-queue"><h3>Invite capacity</h3>${dashboard.invites.map((invite) => `<article><b>${esc(invite.label)}</b><p>${invite.use_count} of ${invite.max_uses} used${invite.expires_at ? ` · expires ${new Date(invite.expires_at).toLocaleDateString()}` : ""}</p><button class="secondary" data-pilot-invite-toggle="${invite.id}" data-enabled="${invite.disabled_at ? "true" : "false"}">${invite.disabled_at ? "Enable" : "Disable"}</button></article>`).join("") || "<p>No invites yet.</p>"}
-      <h3>Recent members</h3>${dashboard.recent_members.map((member) => `<article><b>${esc(member.display_name)}</b><p>${esc(member.status)} · joined ${new Date(member.joined_at).toLocaleDateString()}</p></article>`).join("") || "<p>No members yet.</p>"}</section>`,
+      <section class="moderation-queue"><h3>Recent members</h3>${dashboard.recent_members.map((member) => `<article><b>${esc(member.display_name)}</b><p>${esc(member.status)} · joined ${new Date(member.joined_at).toLocaleDateString()}</p></article>`).join("") || "<p>No members yet.</p>"}</section>`,
     );
   } catch (error) { notify(error.message); }
 }
@@ -1358,7 +1356,7 @@ function reviewModal(request) {
 
 function signInModal() {
   openModal(
-    `<span class="eyebrow">Sign in</span><h2>Use a secure email link.</h2><p>No password is stored by WorkTrade. New pilot members also need an invite code.</p><form data-form="sign-in" class="form-grid"><label class="wide">Email<input name="email" type="email" autocomplete="email" required></label><label class="wide">Pilot invite code <small>(new members only)</small><input name="invite_code" autocomplete="one-time-code" spellcheck="false"></label><button class="primary wide">Send sign-in link</button></form>`,
+    `<span class="eyebrow">Sign in or join</span><h2>Use a secure email link.</h2><p>No password or invite code is required. Enter your email and WorkTrade will send a private sign-in link.</p><form data-form="sign-in" class="form-grid"><label class="wide">Email<input name="email" type="email" autocomplete="email" required></label><button class="primary wide">Send sign-in link</button></form>`,
   );
 }
 
@@ -2673,8 +2671,6 @@ document.addEventListener("submit", async (event) => {
     }
   }
   if (form.dataset.form === "sign-in") {
-    const inviteCode = String(data.get("invite_code") || "").trim();
-    if (inviteCode) sessionStorage.setItem("worktrade-pilot-invite", inviteCode);
     signInWithEmail(data.get("email"))
       .then(() => {
         closeModal();
@@ -3602,22 +3598,6 @@ async function bootstrapBackend() {
     const session = await getSession();
     state.session = session;
     if (session) {
-      let access = await getPilotAccess();
-      const pendingInvite = sessionStorage.getItem("worktrade-pilot-invite");
-      if (!access.member && pendingInvite) {
-        try {
-          await redeemPilotInvite(pendingInvite);
-          access = await getPilotAccess();
-        } catch (error) {
-          notify(error.message);
-        } finally {
-          sessionStorage.removeItem("worktrade-pilot-invite");
-        }
-      }
-      if (!access.member) {
-        pilotInviteModal();
-        return;
-      }
       await loadRemoteWorkspace();
       state.notificationPreferences = await getNotificationPreferences();
       await loadNotifications();

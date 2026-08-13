@@ -166,7 +166,7 @@ The hosted integration tests create temporary users, exercise invitation accepta
 
 Do not place the secret key in GitHub Pages configuration or public CI logs. See [docs/UAT_REPORT.md](docs/UAT_REPORT.md) for automated coverage and the remaining manual checks.
 
-Browser UAT runs 92 checks across desktop, tablet, phone, compact desktop, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, filter collision, accessible names, target sizes, primary navigation, invite-only onboarding, community positioning, dark-mode feedback contrast, first-use activation, dedicated messaging, simple question-first contact, formal offers, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
+Browser UAT runs 92 checks across desktop, tablet, phone, compact desktop, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, filter collision, accessible names, target sizes, primary navigation, open email-link onboarding, community positioning, dark-mode feedback contrast, first-use activation, dedicated messaging, simple question-first contact, formal offers, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
 
 ## Deployment
 
