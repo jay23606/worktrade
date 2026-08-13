@@ -137,15 +137,15 @@ test("workspace presents one guided next action and links to its project", async
   await expect(path.getByText("Agreement", { exact: true })).toBeVisible();
   await expect(path.getByText("Complete", { exact: true })).toBeVisible();
   await expect(page.getByText(/Next action: Conditions/)).toBeVisible();
-  const sections = page.getByRole("navigation", { name: "Project sections" });
-  await sections.getByRole("button", { name: "Activity" }).click();
+  const openProjectSection = (name) => page.getByRole("navigation", { name: "Project sections" }).getByRole("button", { name }).click();
+  await openProjectSection("Activity");
   await expect(page.getByRole("heading", { name: "Updates, messages, and decisions" })).toBeVisible();
   await expect(page.getByPlaceholder("Message the other participant")).toBeVisible();
   await expect(page.locator(".activity-feed")).toContainText("Aug 12");
   await expect(page.locator(".activity-feed")).not.toContainText("2001");
-  await sections.getByRole("button", { name: "Exchange" }).click();
+  await openProjectSection("Exchange");
   await expect(page.getByRole("heading", { name: "What each side is contributing" })).toBeVisible();
-  await sections.getByRole("button", { name: "Files" }).click();
+  await openProjectSection("Files");
   await expect(page.getByRole("heading", { name: "Conditions, progress, and results" })).toBeVisible();
 });
 
