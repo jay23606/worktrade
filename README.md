@@ -24,7 +24,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Area                       | Status                | Notes                                                                                            |
 | -------------------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
 | Accounts and profiles      | Connected             | Email-link authentication, privacy, availability, offers, needs, and resources                   |
-| Private pilot access       | Connected             | Hashed invite codes, magic-link onboarding, server-enforced membership, and an admin operations dashboard |
+| Private pilot operations   | Connected             | Hashed invites, server-enforced membership, contextual feedback, private follow-up, triage, and activation funnel |
 | Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
 | Agreements                 | Connected             | Mutual confirmation, amendments, scheduling, milestones, holds, obligations, completion approval |
 | Guided next actions        | Connected             | Prioritized participant-specific actions from invitation through completion, with explicit waiting states |
@@ -147,7 +147,7 @@ npm run test:integration:pilot      # invite redemption and admin authorization
 npm run test:browser                # desktop, tablet, phone, zoom, keyboard, axe
 ```
 
-The hosted integration tests create temporary users, exercise invitation acceptance, private messaging, versioned planning and confirmation reset, private-project conversion, the full request-to-completion workflow, and reciprocal chains; validate authorization failures; and remove their test identities and evidence in `finally`. They run through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
+The hosted integration tests create temporary users, exercise invitation acceptance, private messaging, versioned planning and confirmation reset, private-project conversion, the full request-to-completion workflow, reciprocal chains, and the member-to-admin pilot feedback loop; validate authorization failures; and remove their test identities and evidence in `finally`. They run through the protected `hosted-uat` GitHub Actions environment when backend or integration-test code changes. Local runs require:
 
 - `WT_SUPABASE_URL`
 - `WT_SUPABASE_PUBLISHABLE_KEY`

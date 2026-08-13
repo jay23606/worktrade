@@ -23,3 +23,7 @@ export const setPilotInviteEnabled = (id, enabled) =>
     target_invite_id: id,
     enabled,
   });
+export const submitPilotFeedback = (category, body, view, stage, context={}) => call("submit_pilot_feedback", { feedback_category:category, feedback_body:body, feedback_view:view, feedback_stage:stage, feedback_context:context });
+export const getMyPilotFeedback = () => call("get_my_pilot_feedback");
+export const managePilotFeedback = (id, status, severity, assignee=null, note="", reply="") => call("manage_pilot_feedback", { target_feedback_id:id, next_status:status, next_severity:severity, assignee_id:assignee||null, note, public_reply:reply });
+export const replyToPilotFeedback = (id, body) => call("reply_to_pilot_feedback", { target_feedback_id:id, reply_body:body });

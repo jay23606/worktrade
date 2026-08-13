@@ -60,6 +60,10 @@ import {
   redeemPilotInvite,
   createPilotInvite,
   setPilotInviteEnabled,
+  submitPilotFeedback,
+  getMyPilotFeedback,
+  managePilotFeedback,
+  replyToPilotFeedback,
   updateMyProfile,
   updateRequest,
   uploadRequestMedia,
@@ -883,12 +887,36 @@ async function pilotDashboardModal() {
     openModal(
       `<span class="eyebrow">Private pilot operations</span><h2>Pilot dashboard</h2><div class="pilot-metrics">${[
         ["Members", m.members], ["Open work", m.open_work], ["Stalled", m.stalled],
-        ["Open reports", m.open_reports], ["Email pending", m.email_pending], ["Email failed", m.email_failed],
+        ["Open reports", m.open_reports], ["Open feedback", m.open_feedback], ["Email failed", m.email_failed],
       ].map(([label, value]) => `<div><b>${value}</b><span>${label}</span></div>`).join("")}</div>
+      <h3>Activation funnel</h3><div class="pilot-funnel">${Object.entries(dashboard.funnel).map(([step,value]) => `<div><b>${value}</b><span>${esc(step.replaceAll("_"," "))}</span></div>`).join("")}</div>
+      <section class="moderation-queue"><h3>Pilot feedback</h3>${dashboard.feedback.map((item) => `<article><span class="category">${esc(item.category)} · ${esc(item.severity)}</span><h3>${esc(item.reporter_name)}</h3><p>${esc(item.body)}</p><small>${esc(item.view_name)}${item.workflow_stage ? ` · ${esc(item.workflow_stage)}` : ""} · ${esc(item.status)}</small><button class="secondary" data-triage-feedback="${item.id}">Triage and reply</button></article>`).join("") || "<p>No pilot feedback yet.</p>"}</section>
       <form data-form="pilot-invite-create" class="form-grid"><label>Invite label<input name="label" required minlength="2" placeholder="Richmond makers"></label><label>Maximum uses<input name="max_uses" type="number" min="1" max="1000" value="1" required></label><label>Expires<input name="expires_at" type="date"></label><button class="primary">Create invite</button></form>
       <section class="moderation-queue"><h3>Invite capacity</h3>${dashboard.invites.map((invite) => `<article><b>${esc(invite.label)}</b><p>${invite.use_count} of ${invite.max_uses} used${invite.expires_at ? ` · expires ${new Date(invite.expires_at).toLocaleDateString()}` : ""}</p><button class="secondary" data-pilot-invite-toggle="${invite.id}" data-enabled="${invite.disabled_at ? "true" : "false"}">${invite.disabled_at ? "Enable" : "Disable"}</button></article>`).join("") || "<p>No invites yet.</p>"}
       <h3>Recent members</h3>${dashboard.recent_members.map((member) => `<article><b>${esc(member.display_name)}</b><p>${esc(member.status)} · joined ${new Date(member.joined_at).toLocaleDateString()}</p></article>`).join("") || "<p>No members yet.</p>"}</section>`,
     );
+  } catch (error) { notify(error.message); }
+}
+
+function pilotFeedbackModal() {
+  if (!state.session) return notify("Sign in to send pilot feedback");
+  const selected = state.requests.find((item) => item.id === state.selectedId);
+  openModal(`<span class="eyebrow">Pilot feedback</span><h2>Help shape WorkTrade.</h2><p>We automatically include the current screen and workflow stage, but never private message contents.</p><form data-form="pilot-feedback" data-view="${esc(state.view)}" data-stage="${esc(selected?.stage || "")}" class="form-grid"><label>What kind?<select name="category"><option value="confusing">Confusing</option><option value="broken">Broken</option><option value="missing">Something is missing</option><option value="unsafe">Safety concern</option><option value="suggestion">Suggestion</option></select></label><label class="wide">What happened or would help?<textarea name="body" required minlength="10" maxlength="4000"></textarea></label><button class="primary wide">Send private feedback</button></form>`);
+}
+
+async function myPilotFeedbackModal() {
+  try {
+    const items = await getMyPilotFeedback();
+    openModal(`<span class="eyebrow">Your pilot feedback</span><h2>Updates from the team</h2><section class="moderation-queue">${items.map((item) => `<article><span class="category">${esc(item.category)} · ${esc(item.status)}</span><p>${esc(item.body)}</p>${item.replies.map((reply) => `<blockquote><b>${esc(reply.author_name)}</b><p>${esc(reply.body)}</p></blockquote>`).join("")}<form data-form="pilot-feedback-reply" data-id="${item.id}" class="inline-form"><input name="body" required minlength="2" placeholder="Reply"><button class="secondary">Send</button></form></article>`).join("") || "<p>You have not sent feedback yet.</p>"}</section>`);
+  } catch (error) { notify(error.message); }
+}
+
+async function pilotFeedbackTriageModal(id) {
+  try {
+    const dashboard = await getPilotDashboard();
+    const item = dashboard.feedback.find((entry) => entry.id === id);
+    if (!item) throw new Error("Feedback unavailable");
+    openModal(`<span class="eyebrow">Pilot feedback triage</span><h2>${esc(item.reporter_name)}</h2><p>${esc(item.body)}</p><form data-form="pilot-feedback-triage" data-id="${id}" class="form-grid"><label>Status<select name="status">${["new","reviewing","planned","resolved","closed"].map(x=>`<option ${x===item.status?"selected":""}>${x}</option>`).join("")}</select></label><label>Severity<select name="severity">${["low","normal","high","blocking"].map(x=>`<option ${x===item.severity?"selected":""}>${x}</option>`).join("")}</select></label><label>Assign to<select name="assignee"><option value="">Unassigned</option>${dashboard.staff.map(s=>`<option value="${s.id}" ${s.id===item.assigned_to?"selected":""}>${esc(s.name)} · ${esc(s.role)}</option>`).join("")}</select></label><label class="wide">Internal note<textarea name="note">${esc(item.internal_note || "")}</textarea></label><label class="wide">Reply visible to member<textarea name="reply"></textarea></label><button class="primary wide">Save triage</button></form>`);
   } catch (error) { notify(error.message); }
 }
 
@@ -1341,6 +1369,8 @@ document.addEventListener("click", (event) => {
   if (action === "deactivate") deactivateModal();
   if (action === "moderation-console") moderationConsoleModal();
   if (action === "pilot-dashboard") pilotDashboardModal();
+  if (action === "pilot-feedback") pilotFeedbackModal();
+  if (action === "my-pilot-feedback") myPilotFeedbackModal();
   if (action === "sign-out")
     signOut()
       .then(() => {
@@ -1370,6 +1400,8 @@ document.addEventListener("click", (event) => {
     navigator.clipboard.writeText(copyText.dataset.copyText)
       .then(() => notify("Invite code copied"))
       .catch(() => notify("Select and copy the code above"));
+  const triageFeedback = event.target.closest("[data-triage-feedback]");
+  if (triageFeedback) pilotFeedbackTriageModal(triageFeedback.dataset.triageFeedback);
   const accept = event.target.closest("[data-accept]");
   if (accept) {
     if (state.remote)
@@ -2302,6 +2334,20 @@ document.addEventListener("submit", async (event) => {
       openModal(`<span class="eyebrow">Invite created</span><h2>Copy this code now.</h2><p>Only a secure digest is stored, so it cannot be shown again.</p><div class="invite-code"><code>${esc(invite.code)}</code></div><button class="primary" data-copy-text="${esc(invite.code)}">Copy invite code</button>`);
     } catch (error) { notify(error.message); }
   }
+  if (form.dataset.form === "pilot-feedback") {
+    try {
+      await submitPilotFeedback(data.get("category"), data.get("body"), form.dataset.view, form.dataset.stage, { selected_id: state.selectedId || null });
+      closeModal(); notify("Feedback sent privately to the pilot team");
+    } catch (error) { notify(error.message); }
+  }
+  if (form.dataset.form === "pilot-feedback-reply") {
+    try { await replyToPilotFeedback(form.dataset.id, data.get("body")); await myPilotFeedbackModal(); notify("Reply sent"); }
+    catch (error) { notify(error.message); }
+  }
+  if (form.dataset.form === "pilot-feedback-triage") {
+    try { await managePilotFeedback(form.dataset.id, data.get("status"), data.get("severity"), data.get("assignee"), data.get("note"), data.get("reply")); await pilotDashboardModal(); notify("Feedback triage saved"); }
+    catch (error) { notify(error.message); }
+  }
   if (form.dataset.form === "profile") {
     const profile = {
       ...structuredClone(state.profile),
@@ -3093,7 +3139,7 @@ async function hydrateAccount() {
             )
             .join("")}</div>`
         : ""
-    }<div class="account-actions"><button class="secondary" data-action="notification-preferences">Notifications</button><button class="secondary" data-action="export-data">Export my data</button>${pilotAccess.admin ? `<button class="secondary" data-action="pilot-dashboard">Pilot dashboard</button>` : ""}${staffQueue ? `<button class="secondary" data-action="moderation-console">Safety queue (${staffQueue.reports.length + staffQueue.appeals.length})</button>` : ""}<button class="secondary" data-action="sign-out">Sign out</button><button class="danger-text" data-action="deactivate">Deactivate account</button></div>`;
+    }<div class="account-actions"><button class="secondary" data-action="my-pilot-feedback">My feedback</button><button class="secondary" data-action="notification-preferences">Notifications</button><button class="secondary" data-action="export-data">Export my data</button>${pilotAccess.admin ? `<button class="secondary" data-action="pilot-dashboard">Pilot dashboard</button>` : ""}${staffQueue ? `<button class="secondary" data-action="moderation-console">Safety queue (${staffQueue.reports.length + staffQueue.appeals.length})</button>` : ""}<button class="secondary" data-action="sign-out">Sign out</button><button class="danger-text" data-action="deactivate">Deactivate account</button></div>`;
   } catch (error) {
     panel.innerHTML = `<p>Account service unavailable: ${esc(error.message)}</p>`;
   }

@@ -97,3 +97,7 @@ body{background:radial-gradient(circle at 85% -5%,color-mix(in srgb,var(--green2
 .pilot-metrics b { display: block; font-size: 1.65rem; }
 .pilot-metrics span { color: var(--muted); font-size: .84rem; }
 .invite-code { overflow-wrap: anywhere; padding: 1rem; margin: 1rem 0; border-radius: 12px; background: var(--surface); }
+.feedback-button{border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);padding:.45rem .7rem;font-size:.72rem;font-weight:800;cursor:pointer}.pilot-funnel{display:flex;gap:.35rem;align-items:stretch;overflow:auto;margin:0 0 1.5rem}.pilot-funnel div{min-width:92px;flex:1;padding:.8rem;background:var(--green2);border-radius:9px;text-align:center}.pilot-funnel b,.pilot-funnel span{display:block}.pilot-funnel span{text-transform:capitalize;font-size:.7rem;color:var(--muted)}
+@media(max-width:600px){.feedback-button{font-size:0;width:40px;height:40px;padding:0}.feedback-button:after{content:"?";font-size:1rem}}
+.feedback-button{min-width:44px;min-height:44px}
+@media(max-width:600px){.feedback-button{width:44px;height:44px}}

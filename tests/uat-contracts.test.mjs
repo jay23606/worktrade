@@ -129,6 +129,15 @@ test("private pilot access uses hashed codes and admin-only operations", () => {
     assert.match(backend, new RegExp(operation));
 });
 
+test("pilot feedback is private, contextual, and admin triaged", () => {
+  assert.match(sql,/submit_pilot_feedback/);
+  assert.match(sql,/members read own feedback/);
+  assert.match(sql,/feedback_view/);
+  assert.match(sql,/admin authorization required/);
+  assert.match(sql,/'funnel'/);
+  for (const operation of ["submitPilotFeedback","getMyPilotFeedback","managePilotFeedback","replyToPilotFeedback"]) assert.match(backend,new RegExp(operation));
+});
+
 test("transactional email uses a private idempotent outbox with safe templates", () => {
   assert.match(sql, /notification_id uuid not null unique/);
   assert.match(sql, /for update skip locked/);

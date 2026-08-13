@@ -44,10 +44,18 @@ try {
   assert.match(invite.code,/^WT-[A-F0-9]{32}$/);
   await rpc(member.token,"redeem_pilot_invite",{invite_code:invite.code.toLowerCase()});
   assert.equal((await rpc(member.token,"get_pilot_access")).member,true);
+  const feedbackId = await rpc(member.token,"submit_pilot_feedback",{feedback_category:"confusing",feedback_body:"The connected pilot feedback lifecycle needs a clear explanation.",feedback_view:"workspace",feedback_stage:"proposed",feedback_context:{test:true}});
+  assert.ok(feedbackId);
   await assert.rejects(() => rpc(outsider.token,"redeem_pilot_invite",{invite_code:invite.code}), /invalid or no longer available/i);
   const dashboard = await rpc(admin.token,"get_pilot_dashboard");
   assert.ok(dashboard.metrics.members >= 1);
   assert.ok(dashboard.invites.some((item) => item.id === invite.id && item.use_count === 1));
   assert.ok(dashboard.recent_members.some((item) => item.profile_id === member.id));
+  assert.ok(dashboard.feedback.some((item) => item.id === feedbackId));
+  await assert.rejects(() => rpc(outsider.token,"manage_pilot_feedback",{target_feedback_id:feedbackId,next_status:"closed",next_severity:"low"}), /admin authorization required/i);
+  await rpc(admin.token,"manage_pilot_feedback",{target_feedback_id:feedbackId,next_status:"planned",next_severity:"high",assignee_id:admin.id,note:"Connected test note",public_reply:"Thanks. We have planned a clearer explanation."});
+  const ownFeedback = await rpc(member.token,"get_my_pilot_feedback");
+  assert.equal(ownFeedback[0].status,"planned");
+  assert.equal(ownFeedback[0].replies[0].staff_reply,true);
   console.log("Invite-only pilot authorization and redemption lifecycle passed.");
 } finally { await cleanup(); }
