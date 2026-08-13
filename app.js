@@ -10,6 +10,9 @@ import { createWorkspaceFeature } from "./features/workspace.js";
 import { createCommunitiesFeature } from "./features/communities.js";
 import { createProfileFeature } from "./features/profile.js";
 import { createCollaborationDialogs } from "./features/collaboration-dialogs.js";
+import { createOperationsDialogs } from "./features/operations-dialogs.js";
+import { createProjectCoordinationDialogs } from "./features/project-coordination-dialogs.js";
+import { createNotificationsFeature } from "./features/notifications.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -354,89 +357,9 @@ const { circleDetail, renderChainHub } = createCommunitiesFeature({ getState: ()
 const { hydrateLocalDiscovery, hydrateNetworkSocial, localDiscoveryProfiles, renderNetwork, socialPersonCard } = createNetworkFeature({ getState: () => state, shell, esc, networkPersonCard, activityCard, scorePersonForProfile, circleDetail, renderChainHub });
 const { onboardingCapabilities, onboardingModal, profileModal, renderProfile, saveOnboardingDraft, showOnboardingStep, validateOnboardingCapabilities, welcomeSetupModal } = createProfileFeature({ getState: () => state, shell, esc, avatarMarkup, backendConfigured, openModal, modalRoot, onboardingDraftKey: ONBOARDING_DRAFT_KEY, notify });
 const { chainBuilderModal, chainHoldModal, circleInviteModal, circlePostModal, circleResourceModal, circleSettingsModal, contactRequestModal, createCircleModal, invitationModal, saveSearchModal, workspaceModal } = createCollaborationDialogs({ getState: () => state, openModal, esc, modalRoot, categories, notify });
-
-async function moderationConsoleModal() {
-  try {
-    const queue = await getModerationQueue();
-    openModal(
-      `<span class="eyebrow">Private staff workspace · ${esc(queue.role)}</span><h2>Safety review queue</h2><p>Internal notes and reporter identities are confidential. Immediate danger belongs with local emergency services.</p><section class="moderation-queue"><h3>Open reports</h3>${queue.reports
-        .map(
-          (report) =>
-            `<article><span class="category">${esc(report.category)} · ${esc(report.severity)}</span><h3>${esc(report.target_name || report.target_type)}</h3><p>${esc(report.detail)}</p><small>Reported by ${esc(report.reporter_name)} · ${esc(report.reporter_status)}</small><button class="secondary" data-review-report="${report.id}">Review case</button></article>`,
-        )
-        .join("") || "<p>No open reports.</p>"}<h3>Open appeals</h3>${queue.appeals
-        .map(
-          (appeal) =>
-            `<article><p>${esc(appeal.statement)}</p><button class="secondary" data-review-appeal="${appeal.id}">Review appeal</button></article>`,
-        )
-        .join("") || "<p>No open appeals.</p>"}</section>`,
-    );
-  } catch (error) {
-    notify(error.message);
-  }
-}
-
-async function pilotDashboardModal() {
-  try {
-    const dashboard = await getPilotDashboard();
-    const m = dashboard.metrics;
-    openModal(
-      `<span class="eyebrow">Private pilot operations</span><h2>Pilot dashboard</h2><div class="pilot-metrics">${[
-        ["Members", m.members], ["Open work", m.open_work], ["Stalled", m.stalled],
-        ["Open reports", m.open_reports], ["Open feedback", m.open_feedback], ["Email failed", m.email_failed],
-      ].map(([label, value]) => `<div><b>${value}</b><span>${label}</span></div>`).join("")}</div>
-      <h3>Activation funnel</h3><div class="pilot-funnel">${Object.entries(dashboard.funnel).map(([step,value]) => `<div><b>${value}</b><span>${esc(step.replaceAll("_"," "))}</span></div>`).join("")}</div>
-      <section class="moderation-queue"><h3>Pilot feedback</h3>${dashboard.feedback.map((item) => `<article><span class="category">${esc(item.category)} · ${esc(item.severity)}</span><h3>${esc(item.reporter_name)}</h3><p>${esc(item.body)}</p><small>${esc(item.view_name)}${item.workflow_stage ? ` · ${esc(item.workflow_stage)}` : ""} · ${esc(item.status)}</small><button class="secondary" data-triage-feedback="${item.id}">Triage and reply</button></article>`).join("") || "<p>No pilot feedback yet.</p>"}</section>
-      <section class="moderation-queue"><h3>Recent members</h3>${dashboard.recent_members.map((member) => `<article><b>${esc(member.display_name)}</b><p>${esc(member.status)} · joined ${new Date(member.joined_at).toLocaleDateString()}</p></article>`).join("") || "<p>No members yet.</p>"}</section>`,
-    );
-  } catch (error) { notify(error.message); }
-}
-
-function pilotFeedbackModal() {
-  if (!state.session) return notify("Sign in to send pilot feedback");
-  const selected = state.requests.find((item) => item.id === state.selectedId);
-  openModal(`<span class="eyebrow">Pilot feedback</span><h2>Help shape WorkTrade.</h2><p>We automatically include the current screen and workflow stage, but never private message contents.</p><form data-form="pilot-feedback" data-view="${esc(state.view)}" data-stage="${esc(selected?.stage || "")}" class="form-grid"><label>What kind?<select name="category"><option value="confusing">Confusing</option><option value="broken">Broken</option><option value="missing">Something is missing</option><option value="unsafe">Safety concern</option><option value="suggestion">Suggestion</option></select></label><label class="wide">What happened or would help?<textarea name="body" required minlength="10" maxlength="4000"></textarea></label><button class="primary wide">Send private feedback</button></form>`);
-}
-
-async function myPilotFeedbackModal() {
-  try {
-    const items = await getMyPilotFeedback();
-    openModal(`<span class="eyebrow">Your pilot feedback</span><h2>Updates from the team</h2><section class="moderation-queue">${items.map((item) => `<article><span class="category">${esc(item.category)} · ${esc(item.status)}</span><p>${esc(item.body)}</p>${item.replies.map((reply) => `<blockquote><b>${esc(reply.author_name)}</b><p>${esc(reply.body)}</p></blockquote>`).join("")}<form data-form="pilot-feedback-reply" data-id="${item.id}" class="inline-form"><input name="body" required minlength="2" placeholder="Reply"><button class="secondary">Send</button></form></article>`).join("") || "<p>You have not sent feedback yet.</p>"}</section>`);
-  } catch (error) { notify(error.message); }
-}
-
-async function pilotFeedbackTriageModal(id) {
-  try {
-    const dashboard = await getPilotDashboard();
-    const item = dashboard.feedback.find((entry) => entry.id === id);
-    if (!item) throw new Error("Feedback unavailable");
-    openModal(`<span class="eyebrow">Pilot feedback triage</span><h2>${esc(item.reporter_name)}</h2><p>${esc(item.body)}</p><form data-form="pilot-feedback-triage" data-id="${id}" class="form-grid"><label>Status<select name="status">${["new","reviewing","planned","resolved","closed"].map(x=>`<option ${x===item.status?"selected":""}>${x}</option>`).join("")}</select></label><label>Severity<select name="severity">${["low","normal","high","blocking"].map(x=>`<option ${x===item.severity?"selected":""}>${x}</option>`).join("")}</select></label><label>Assign to<select name="assignee"><option value="">Unassigned</option>${dashboard.staff.map(s=>`<option value="${s.id}" ${s.id===item.assigned_to?"selected":""}>${esc(s.name)} · ${esc(s.role)}</option>`).join("")}</select></label><label class="wide">Internal note<textarea name="note">${esc(item.internal_note || "")}</textarea></label><label class="wide">Reply visible to member<textarea name="reply"></textarea></label><button class="primary wide">Save triage</button></form>`);
-  } catch (error) { notify(error.message); }
-}
-
-function pilotInviteModal() {
-  openModal(
-    `<span class="eyebrow">Private pilot</span><h2>Enter your WorkTrade invite.</h2><p>This early community is intentionally small while we learn what makes work exchanges safe and useful.</p><form data-form="pilot-invite-redeem" class="form-grid"><label class="wide">Invite code<input name="invite_code" required autocomplete="one-time-code" spellcheck="false"></label><button class="primary wide">Join the pilot</button></form>`,
-  );
-}
-
-function moderationDecisionModal(reportId) {
-  openModal(
-    `<span class="eyebrow">Staff case action</span><h2>Record a proportionate decision.</h2><form data-form="moderation-decision" data-report="${reportId}" class="form-grid"><label>Action<select name="action"><option value="note">Continue review</option><option value="dismissed">Dismiss</option><option value="warned">Warn</option><option value="restricted">Restrict interactions</option><option value="suspended">Suspend</option><option value="banned">Ban (admin only)</option><option value="resolved">Resolve without restriction</option></select></label><label>Restriction ends<input name="expires_at" type="datetime-local"></label><label class="wide">Internal rationale<textarea name="internal_note" required minlength="5" maxlength="4000"></textarea></label><label class="wide">Update visible to reporter<textarea name="reporter_update" maxlength="1000"></textarea></label><button class="primary wide">Record immutable action</button></form>`,
-  );
-}
-
-function appealDecisionModal(appealId) {
-  openModal(
-    `<span class="eyebrow">Appeal review</span><h2>Uphold or restore access.</h2><form data-form="appeal-decision" data-appeal="${appealId}" class="form-grid"><label>Decision<select name="decision"><option value="granted">Grant and restore access</option><option value="upheld">Uphold restriction</option></select></label><label class="wide">Internal rationale<textarea name="internal_note" required minlength="5" maxlength="4000"></textarea></label><label class="wide">Explanation visible to member<textarea name="member_update" required minlength="5" maxlength="1000"></textarea></label><button class="primary wide">Record appeal decision</button></form>`,
-  );
-}
-
-function moderationAppealModal(restrictionId) {
-  openModal(
-    `<span class="eyebrow">Appeal a restriction</span><h2>Explain what should be reconsidered.</h2><p>A different moderator should review appeals when staffing permits.</p><form data-form="moderation-appeal" data-restriction="${restrictionId}" class="form-grid"><label class="wide">Appeal statement<textarea name="statement" required minlength="20" maxlength="4000"></textarea></label><button class="primary wide">Submit appeal</button></form>`,
-  );
-}
+const { appealDecisionModal, moderationAppealModal, moderationConsoleModal, moderationDecisionModal, myPilotFeedbackModal, pilotDashboardModal, pilotFeedbackModal, pilotFeedbackTriageModal, pilotInviteModal } = createOperationsDialogs({ getState: () => state, openModal, esc, notify, getModerationQueue, getPilotDashboard, getMyPilotFeedback });
+const { agreementLedgerModal, changeOrderHubModal, changeOrderModal, ledgerStatusModal, scheduleCoordinationModal } = createProjectCoordinationDialogs({ getState: () => state, openModal, esc, money, notify, getAgreementSchedule, getAgreementLedger, getChangeOrderHub });
+const { notificationRoute, notificationsModal, preferencesModal } = createNotificationsFeature({ getState: () => state, openModal, esc });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -543,22 +466,6 @@ function scheduleModal(request) {
     `<span class="eyebrow">Work schedule</span><h2>Set practical timing.</h2><form data-form="schedule" data-agreement="${a.id}" data-version="${a.version}" class="form-grid"><label>Proposed start<input name="start_at" type="datetime-local" value="${a.proposed_start_at ? a.proposed_start_at.slice(0, 16) : ""}"></label><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><label class="wide">Working windows<textarea name="working_windows" placeholder="Saturdays 8–4; no work during store hours">${esc(a.working_windows || "")}</textarea></label><button class="primary wide">Save schedule</button></form>`,
   );
 }
-async function scheduleCoordinationModal(request, counterTo = "") {
-  const a=request.agreement;
-  try {
-    const hub=await getAgreementSchedule(a.id),pending=hub.proposals.find(x=>x.status==="pending"),accepted=hub.proposals.find(x=>x.status==="accepted");
-    openModal(`<span class="eyebrow">Private work scheduling</span><h2>Coordinate a practical window.</h2><p>Exact locations and arrival instructions are visible only to confirmed agreement participants.</p>${pending?`<article class="schedule-card"><span class="category">Pending proposal</span><h3>${new Date(pending.start_at).toLocaleString()}–${new Date(pending.end_at).toLocaleTimeString()}</h3><p>${esc(pending.location_detail||"Location to be coordinated")}${pending.weather_sensitive?" · Weather-sensitive":""}</p>${pending.proposed_by!==state.profile.id?`<button class="primary" data-schedule-response="accepted:${pending.id}">Accept</button><button class="secondary" data-schedule-counter="${pending.id}">Counter</button><button class="text-btn" data-schedule-response="declined:${pending.id}">Decline</button>`:"<small>Waiting for the other participant.</small>"}</article>`:""}${accepted?`<article class="schedule-card confirmed"><span class="category">Confirmed</span><h3>${new Date(accepted.start_at).toLocaleString()}</h3><p>${esc(accepted.location_detail||"")}</p><p>${esc(accepted.arrival_notes||"")}</p><button class="secondary" data-calendar-export="${accepted.id}" data-title="${esc(request.title)}" data-start="${accepted.start_at}" data-end="${accepted.end_at}" data-location="${esc(accepted.location_detail)}">Add to calendar (.ics)</button></article>`:""}<form data-form="schedule-proposal" data-agreement="${a.id}" data-counter="${counterTo}" class="form-grid"><label>Start<input name="start_at" type="datetime-local" required></label><label>End<input name="end_at" type="datetime-local" required></label><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><label>Exact meeting/work location<input name="location_detail" maxlength="500"></label><label class="wide">Arrival, access, parking, or entry details<textarea name="arrival_notes" maxlength="1500"></textarea></label><label><input type="checkbox" name="weather_sensitive"> Weather-sensitive work</label><button class="primary wide">${counterTo?"Send counterproposal":"Propose window"}</button></form><details><summary>My recurring availability</summary><form data-form="availability" class="form-grid"><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><label>Minimum notice (hours)<input name="lead_time_hours" type="number" min="0" max="8760" value="${hub.my_availability?.lead_time_hours??24}"></label><label class="wide">Usual windows<textarea name="windows" placeholder="Saturday 8am–2pm; weekday evenings">${esc((hub.my_availability?.weekly_windows||[]).join("\n"))}</textarea></label><button class="secondary wide">Save availability</button></form></details>`);
-  }catch(error){notify(error.message);}
-}
-
-async function agreementLedgerModal(request){
-  try{const ledger=await getAgreementLedger(request.agreement.id);openModal(`<span class="eyebrow">Agreement preparation</span><h2>Materials, tools & value ledger</h2><div class="ledger-summary"><div><b>${ledger.summary.ready}</b><span>ready</span></div><div><b>${ledger.summary.needed}</b><span>still needed</span></div><div><b>${money(ledger.summary.estimated_cash_cents/100)}</b><span>estimated cash</span></div><div><b>${money(ledger.summary.actual_cash_cents/100)}</b><span>actual cash</span></div></div><section class="ledger-list">${ledger.items.map(i=>{const approved=i.approvals?.some(a=>a.profile_id===state.profile.id&&a.version===i.version);return `<article><span class="category">${esc(i.item_type)} · ${esc(i.status)}</span><h3>${esc(i.description)}</h3><p>${esc(i.responsibility)} · ${esc(i.contribution_mode)}${i.quantity_estimate?` · ${i.quantity_estimate} ${esc(i.unit)}`:""}${i.estimated_cost_cents!=null?` · est. ${money(i.estimated_cost_cents/100)}`:""}${i.barter_description?` · ${esc(i.barter_description)}`:""}</p>${i.responsibility==="shared"?`<button class="secondary" data-ledger-action="approve:${i.id}" ${approved?"disabled":""}>${approved?"You approved":"Approve shared cost"}</button>`:""}<button class="text-btn" data-ledger-status="${i.id}">Update readiness/cost</button><form data-form="ledger-receipt" data-agreement="${request.agreement.id}" data-item="${i.id}" class="inline-form"><input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" required aria-label="Receipt or item photo"><button class="secondary">Add receipt/photo</button></form></article>`}).join("")||"<p>No preparation items yet.</p>"}</section><form data-form="ledger-item" data-agreement="${request.agreement.id}" class="form-grid"><label>Type<select name="item_type"><option value="material">Material</option><option value="tool">Tool</option><option value="rental">Rental</option><option value="permit">Permit</option><option value="delivery">Delivery</option><option value="expense">Other expense</option><option value="service">Service</option><option value="other">Other</option></select></label><label>Responsibility<select name="responsibility"><option value="requester">Requester</option><option value="provider">Provider</option><option value="shared">Shared (both approve)</option><option value="third_party">Third party</option></select></label><label class="wide">Item or contribution<input name="description" required maxlength="500"></label><label>Value type<select name="contribution_mode"><option value="cash">Cash expense</option><option value="barter">Barter contribution</option><option value="included">Already included</option></select></label><label>Initial state<select name="status"><option value="needed">Needed</option><option value="available">Already available</option><option value="ordered">Ordered</option><option value="ready">Ready</option></select></label><label>Estimated quantity<input name="quantity" type="number" min="0" step="0.001"></label><label>Unit<input name="unit" placeholder="boards, hours, days"></label><label>Estimated cash cost<input name="estimated_cost" type="number" min="0" step="0.01"></label><label class="wide">Barter/non-cash detail<input name="barter_description" placeholder="Use of trailer in exchange for cleanup"></label><button class="primary wide">Add preparation item</button></form>`);}catch(error){notify(error.message);}
-}
-function ledgerStatusModal(id){openModal(`<span class="eyebrow">Preparation update</span><h2>Record what changed.</h2><form data-form="ledger-status" data-item="${id}" class="form-grid"><label>Status<select name="status"><option value="available">Available</option><option value="needed">Needed</option><option value="ordered">Ordered</option><option value="ready">Ready</option><option value="used">Used</option><option value="cancelled">Cancelled</option></select></label><label>Actual quantity<input name="quantity_actual" type="number" min="0" step="0.001"></label><label>Actual cash cost<input name="actual_cost" type="number" min="0" step="0.01"></label><button class="primary wide">Save update</button></form>`);}
-
-async function changeOrderHubModal(request){try{const hub=await getChangeOrderHub(request.agreement.id);openModal(`<span class="eyebrow">Active-work changes</span><h2>Issues & change orders</h2><div class="baseline-card"><b>Accepted baseline · v${hub.baseline.version}</b><p>${esc(hub.baseline.scope)}</p><small>${esc(hub.baseline.exchange?.summary||"")}</small></div><section class="issue-list">${hub.issues.map(i=>{const order=i.orders.find(o=>o.status==="proposed");return `<article><span class="category">${esc(i.category.replaceAll("_"," "))} · ${esc(i.status)}</span><h3>${esc(i.title)}</h3><p>${esc(i.detail)}</p><small>${i.unaffected_work_can_continue?"Unaffected work may continue":"Pause affected work"}</small>${order?`<div class="change-diff"><b>Proposed difference from baseline</b><p>${esc(order.scope_delta)}</p><dl><dt>Time</dt><dd>${order.time_delta_minutes} minutes</dd><dt>Cash</dt><dd>${money(order.cash_delta_cents/100)}</dd><dt>Barter</dt><dd>${esc(order.barter_delta||"No change")}</dd><dt>Schedule</dt><dd>${esc(order.schedule_delta||"No change")}</dd></dl>${order.proposed_by!==state.profile.id?`<button class="primary" data-change-response="accept:${order.id}">Accept change</button><button class="text-btn" data-change-response="decline:${order.id}">Decline</button>`:"<small>Waiting for counterparty.</small>"}</div>`:`${!["resolved","closed","escalated"].includes(i.status)?`<button class="secondary" data-propose-change="${i.id}">Propose resolution</button><button class="text-btn" data-issue-action="close:${i.id}">Resolve without change</button><button class="danger-text" data-issue-action="escalate:${i.id}">Escalate to dispute</button>`:""}`}<form data-form="issue-evidence" data-agreement="${request.agreement.id}" data-issue="${i.id}" class="inline-form"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required aria-label="Issue photo"><input name="caption" required maxlength="500" placeholder="What does this show?"><button class="secondary">Add evidence</button></form></article>`}).join("")||"<p>No active-work issues have been reported.</p>"}</section><form data-form="work-issue" data-agreement="${request.agreement.id}" class="form-grid"><label>Category<select name="category"><option value="hidden_condition">Hidden condition</option><option value="damaged_material">Damaged material</option><option value="access">Access problem</option><option value="weather">Weather</option><option value="safety">Safety</option><option value="scope_discovery">Scope discovery</option><option value="mistake">Mistake</option><option value="other">Other</option></select></label><label class="wide">Short title<input name="title" required minlength="3" maxlength="180"></label><label class="wide">What was discovered and what is affected?<textarea name="detail" required minlength="10" maxlength="4000"></textarea></label><label><input type="checkbox" name="continue" checked> Unaffected work can continue</label><button class="primary wide">Report issue</button></form>`);}catch(error){notify(error.message);}}
-function changeOrderModal(issueId){openModal(`<span class="eyebrow">Proposed difference</span><h2>Change only what the issue requires.</h2><form data-form="change-order" data-issue="${issueId}" class="form-grid"><label class="wide">Added or removed scope<textarea name="scope_delta" required></textarea></label><label>Time change (minutes)<input name="time_delta_minutes" type="number" value="0"></label><label>Cash change<input name="cash_delta" type="number" step="0.01" value="0"></label><label class="wide">Barter change<input name="barter_delta" placeholder="Additional cleanup in exchange for materials"></label><label class="wide">Schedule impact<input name="schedule_delta" placeholder="Adds one workday after materials arrive"></label><button class="primary wide">Send for counterparty approval</button></form>`);}
-
 function compareOffersModal(request) {
   openModal(
     `<span class="eyebrow">Proposal comparison</span><h2>Compare the whole exchange.</h2><div class="comparison">${request.offers.map((o) => `<article><h3>${esc(o.provider)}</h3><b>${modeLabel(o.mode)}</b><dl><dt>Scope</dt><dd>${esc(o.gives)}</dd><dt>Exclusions</dt><dd>${esc(o.exclusions || "None stated")}</dd><dt>Exchange</dt><dd>${esc(o.wants)}</dd><dt>Duration</dt><dd>${esc(o.duration)}</dd><dt>Responsibilities</dt><dd>${esc(JSON.stringify(o.responsibilities || {}))}</dd><dt>Expires</dt><dd>${o.expires_at ? new Date(o.expires_at).toLocaleDateString() : "No expiration"}</dd></dl><form data-form="proposal-question" data-offer="${o.id}" class="inline-form"><input name="body" required placeholder="Ask about this proposal"><button class="secondary">Ask</button></form><button class="primary full" data-accept="${o.id}" data-request="${request.id}">Select proposal</button></article>`).join("")}</div>`,
@@ -608,66 +515,6 @@ function editRequestModal(request) {
       .join(
         "",
       )}</select></label><label>Location<input name="location" value="${esc(request.location)}"></label><label class="wide">Desired outcome<textarea name="description" required>${esc(request.description)}</textarea></label><label>Skills<input name="skills" value="${esc(request.skills.join(", "))}"></label><label>Cash budget<input name="budget" type="number" min="0" value="${request.cashBudget || ""}"></label><label class="wide">Timing<input name="urgency" value="${esc(request.urgency)}"></label><button class="primary wide">Save changes</button></form>`,
-  );
-}
-
-function notificationsModal() {
-  const unread = state.notifications.filter((item) => !item.read_at);
-  const groups = { action: [], message: [], update: [] };
-  state.notifications.forEach((item) => {
-    const group = notificationGroup(item);
-    if (group === "update" && item.request_id && state.projectNotificationSettings[item.request_id] === "muted") return;
-    groups[group].push(item);
-  });
-  openModal(
-    `<span class="eyebrow">Inbox</span><div class="section-title inbox-title"><div><h2>Work that changed</h2><p>${unread.length ? `${unread.length} unread` : "You’re caught up"}</p></div>${unread.length ? `<button class="text-btn" data-action="read-all">Mark all read</button>` : ""}</div><div class="inbox-groups">${notificationGroupSection("Needs your action", groups.action, "Confirmations, proposals, and reviews that cannot move without you.")}${notificationGroupSection("Messages", groups.message, "Project conversations from other participants.")}${notificationGroupSection("Updates", groups.update, "Status changes and useful context; no response is required.")}</div><button class="text-btn" data-action="notification-preferences">Notification preferences</button>`,
-  );
-}
-
-function notificationGroup(item) {
-  if (item.kind === "message" || /message/i.test(item.title)) return "message";
-  if (/new trade proposal|counterproposal|approval requested|needs? (your )?review|proposed|invitation|membership request|renewed consent|work issue reported/i.test(item.title)) return "action";
-  return "update";
-}
-
-function notificationRoute(item) {
-  if (/new introduction message|new message request|new question about your work/i.test(item.title)) return { view: "messages" };
-  if (item.request_id) return { view: "detail", section: item.kind === "message" ? "activity" : /change|issue/i.test(item.title) ? "overview" : /cost|contribution|exchange/i.test(item.title) ? "exchange" : "overview" };
-  if (item.kind === "network") return { view: "network" };
-  if (item.kind === "safety") return { view: "profile" };
-  return { view: "workspace" };
-}
-
-function notificationGroupSection(title, items, emptyText) {
-  return `<section class="inbox-group"><div class="inbox-group-head"><h3>${title}</h3><span>${items.length}</span></div>${items.length ? `<div class="notification-list">${items.map(notificationItem).join("")}</div>` : `<div class="empty compact"><b>Nothing here</b><p>${emptyText}</p></div>`}</section>`;
-}
-
-function notificationItem(item) {
-  const route = notificationRoute(item);
-  const waiting = notificationGroup(item) === "action" ? "Waiting on you" : "For your awareness";
-  const muted = item.request_id && state.projectNotificationSettings[item.request_id] === "muted";
-  return `<article class="notification-item ${item.read_at ? "" : "unread"}"><button data-notification="${item.id}" data-request="${item.request_id || ""}" data-route="${route.view}" data-section="${route.section || ""}"><span>${esc(waiting)}</span><b>${esc(item.title)}</b><p>${esc(item.body)}</p><small>${new Date(item.created_at).toLocaleString()}</small></button>${item.request_id ? `<button class="notification-mute" data-project-notifications="${item.request_id}:${muted ? "normal" : "muted"}">${muted ? "Unmute project" : "Mute project"}</button>` : ""}</article>`;
-}
-
-function preferencesModal() {
-  const p = state.notificationPreferences || {};
-  openModal(
-    `<span class="eyebrow">Notification preferences</span><h2>Choose what reaches you.</h2><p>Email routing is active in safe sink mode while the production sending domain is being authorized. Your preferences are already enforced.</p><form data-form="preferences" class="preference-form">${[
-      ["in_app", "In-app notifications"],
-      ["browser_notifications", "Browser/PWA new-message alerts"],
-      ["email_enabled", "Allow transactional email"],
-      ["email_proposals", "Proposal emails"],
-      ["email_messages", "Message emails"],
-      ["email_agreements", "Agreement emails"],
-      ["email_reminders", "Reminder emails"],
-      ["email_network", "Network and circle emails"],
-      ["email_safety", "Safety and account emails"],
-    ]
-      .map(
-        ([name, label]) =>
-          `<label><span>${label}</span><input type="checkbox" name="${name}" ${(name === "browser_notifications" ? ("Notification" in window && Notification.permission === "granted") : p[name]) ? "checked" : ""}></label>`,
-      )
-      .join("")}<button class="primary">Save preferences</button></form>`,
   );
 }
 
