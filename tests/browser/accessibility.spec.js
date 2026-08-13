@@ -187,6 +187,10 @@ test("first-use activation explains the path to a credible exchange", async ({ p
   await page.getByRole("heading", { name: "Build a backyard greenhouse" }).click();
   await page.getByRole("button", { name: "Propose a trade" }).click();
   const dialog = page.getByRole("dialog");
+  const context = dialog.getByRole("complementary", { name: "Work and exchange you are proposing for" });
+  await expect(context.getByRole("heading", { name: "Build a backyard greenhouse" })).toBeVisible();
+  await expect(context.getByText("They are offering")).toBeVisible();
+  await expect(context.getByText(/Exchange options/)).toBeVisible();
   await expect(dialog.getByText("1 · Value", { exact: true })).toBeVisible();
   await expect(dialog.getByText("2 · Scope", { exact: true })).toBeVisible();
   await expect(dialog.getByText(/Mutual confirmation protects both people/)).toBeVisible();

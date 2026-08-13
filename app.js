@@ -1182,7 +1182,12 @@ function postModal() {
 }
 
 function offerModal(id) {
-  openModal(`<span class="eyebrow">Guided proposal · four clear parts</span><h2>Make the exchange clear.</h2><p>The requester can accept these terms as an agreement, so name uncertainties now. Mutual confirmation protects both people if anything changes later.</p><form data-form="offer" data-id="${id}" class="form-grid">
+  const request = state.requests.find((item) => item.id === id);
+  if (!request) return notify("That work request is no longer available.", "warning");
+  const availableValue = request.offersInReturn?.length
+    ? request.offersInReturn.join(" · ")
+    : "Open to a fair proposal";
+  openModal(`<span class="eyebrow">Guided proposal · four clear parts</span><h2>Make the exchange clear.</h2><p>The requester can accept these terms as an agreement, so name uncertainties now. Mutual confirmation protects both people if anything changes later.</p><aside class="proposal-context" aria-label="Work and exchange you are proposing for"><span class="eyebrow">You are proposing for</span><h3>${esc(request.title)}</h3><p>${esc(request.description)}</p><dl><div><dt>They are offering</dt><dd>${esc(availableValue)}</dd></div><div><dt>Exchange options</dt><dd>${request.exchange.map(modeLabel).join(" · ")}${request.cashBudget ? ` · up to ${money(request.cashBudget)}` : ""}</dd></div><div><dt>Posted by</dt><dd>${esc(request.owner)} · ${esc(request.location)}</dd></div></dl></aside><form data-form="offer" data-id="${id}" class="form-grid">
     <div class="wide proposal-step"><b>1 · Value</b><span>Choose how value moves between both people.</span></div>
     <label>Exchange<select name="mode"><option value="hybrid">Cash + barter</option><option value="barter">Barter</option><option value="cash">Cash</option></select></label><label>Cash component<input name="cash" type="number" min="0" placeholder="0"></label>
     <div class="wide proposal-step"><b>2 · Scope</b><span>State the result you will deliver and what is outside this proposal.</span></div>
