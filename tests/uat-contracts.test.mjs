@@ -297,3 +297,10 @@ test("each participant pair has only one live conversation", async () => {
   assert.match(sql, /status in\('pending','accepted','converted'\)/);
   assert.match(app, /seenPeople\.has\(otherId\)/);
 });
+
+test("formal exchange reuses an existing conversation", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813083000_reuse_conversation_for_exchange.sql", root), "utf8");
+  assert.match(sql, /conversation_pair=/);
+  assert.match(sql, /invitation_kind='exchange'/);
+  assert.match(sql, /insert into public\.introduction_messages/);
+});

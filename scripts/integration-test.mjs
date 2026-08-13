@@ -71,7 +71,11 @@ try {
   const contact = contactInbox.invitations.find((item) => item.id === contactId);
   assert.equal(contact.invitation_kind, "message");
   assert.match(contact.note, /quick question/);
-  await rpc(provider.token, "respond_collaboration_invitation", { target_invitation_id: contactId, response: "accepted" });
+  const reciprocalContactId = await rpc(provider.token, "send_contact_request", { target_profile_id: owner.id, message_body: "Yes—Saturday mornings are usually available.", target_request_id: null, contact_kind: "message" });
+  assert.equal(reciprocalContactId, contactId, "reciprocal contact should open the same conversation");
+  contactInbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.equal(contactInbox.invitations.find((item) => item.id === contactId).status, "accepted");
+  assert.equal(contactInbox.invitations.filter((item) => [item.sender_id,item.recipient_id].includes(owner.id) && [item.sender_id,item.recipient_id].includes(provider.id) && ["pending","accepted","converted"].includes(item.status)).length, 1);
   await rpc(owner.token, "send_introduction_message", { target_invitation_id: contactId, message_body: "Thanks for opening the conversation." });
   contactInbox = await rpc(provider.token, "get_network_inbox", {});
   assert.equal(contactInbox.messages.some((item) => item.invitation_id === contactId), true);
@@ -81,6 +85,14 @@ try {
   contactInbox = await rpc(provider.token, "get_network_inbox", {});
   assert.equal(Number(contactInbox.invitations.find((item) => item.id === contactId).unread_count), 0);
   assert.equal(contactInbox.invitations.find((item) => item.id === contactId).member_state.muted, true);
+  let ownerContactInbox = await rpc(owner.token, "get_network_inbox", {});
+  assert.ok(ownerContactInbox.invitations.find((item) => item.id === contactId).other_read_at);
+  await rpc(provider.token, "manage_conversation", { target_invitation_id: contactId, requested_action: "archive" });
+  contactInbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.ok(contactInbox.invitations.find((item) => item.id === contactId).member_state.archived_at);
+  await rpc(provider.token, "manage_conversation", { target_invitation_id: contactId, requested_action: "restore" });
+  contactInbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.equal(contactInbox.invitations.find((item) => item.id === contactId).member_state.archived_at, null);
   const attachmentPath = `${contactId}/${owner.id}/${crypto.randomUUID()}.txt`;
   const attachmentBody = "Private WorkTrade attachment test";
   const attachmentUploadResponse = await fetch(`${base}/storage/v1/object/message-attachments/${attachmentPath}`, { method: "POST", headers: { apikey: publishable, Authorization: `Bearer ${owner.token}`, "Content-Type": "text/plain", "x-upsert": "false" }, body: attachmentBody });
@@ -91,10 +103,10 @@ try {
   assert.equal(contactInbox.attachments.some((item) => item.message_id === attachmentMessageId && item.file_name === "worktrade-note.txt"), true);
 
   const invitationId = await rpc(owner.token, "send_collaboration_invitation", { target_profile_id: provider.id, need_value: "Carpentry for workshop storage", offer_value: "Product photography", note_value: "A reciprocal fit for both profiles", target_request_id: null });
+  assert.equal(invitationId, contactId, "formal exchange should reuse the existing conversation");
   let inbox = await rpc(provider.token, "get_network_inbox", {});
-  assert.equal(inbox.invitations.some((item) => item.id === invitationId && item.status === "pending"), true);
-  await assert.rejects(() => rpc(owner.token, "respond_collaboration_invitation", { target_invitation_id: invitationId, response: "accepted" }), /pending recipient invitation required/i);
-  await rpc(provider.token, "respond_collaboration_invitation", { target_invitation_id: invitationId, response: "accepted" });
+  assert.equal(inbox.invitations.filter((item) => [item.sender_id,item.recipient_id].includes(owner.id) && [item.sender_id,item.recipient_id].includes(provider.id) && ["pending","accepted","converted"].includes(item.status)).length, 1);
+  assert.equal(inbox.invitations.find((item) => item.id === invitationId).status, "accepted");
   await rpc(owner.token, "send_introduction_message", { target_invitation_id: invitationId, message_body: "Let’s define the shelves, access, and exchange before committing." });
   inbox = await rpc(provider.token, "get_network_inbox", {});
   assert.equal(inbox.messages.some((item) => item.invitation_id === invitationId), true);
