@@ -1,10 +1,10 @@
 {
-  "id": "./",
+  "id": "/worktrade/",
   "name": "WorkTrade",
   "short_name": "WorkTrade",
   "description": "Exchange practical work through cash, barter, or both.",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/worktrade/",
+  "scope": "/worktrade/",
   "display": "standalone",
   "background_color": "#f4f0e6",
   "theme_color": "#176044",

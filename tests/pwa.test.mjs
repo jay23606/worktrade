@@ -13,10 +13,12 @@ test("the installable shell wires a scoped manifest and versioned service worker
   assert.match(html, /rel="apple-touch-icon"/);
   assert.match(app, /serviceWorker\.register\("\.\/service-worker\.js"\)/);
   assert.equal(manifest.display, "standalone");
-  assert.equal(manifest.start_url, "./");
-  assert.equal(manifest.scope, "./");
+  assert.equal(manifest.id, "/worktrade/");
+  assert.equal(manifest.start_url, "/worktrade/");
+  assert.equal(manifest.scope, "/worktrade/");
   assert.ok(manifest.icons.some(({ sizes, purpose }) => sizes === "512x512" && purpose === "maskable"));
-  assert.match(worker, /const CACHE = "worktrade-v[\da-z]+"/);
+  assert.match(worker, /const CACHE_PREFIX = "worktrade-"/);
+  assert.match(worker, /key\.startsWith\(CACHE_PREFIX\)/);
   assert.match(worker, /assets\/worktrade-hero\.webp/);
   assert.match(worker, /caches\.match\("\.\/index\.html"\)/);
   assert.match(worker, /SKIP_WAITING/);

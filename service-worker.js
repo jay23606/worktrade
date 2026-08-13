@@ -1,4 +1,5 @@
-const CACHE = "worktrade-v20260813conversationprofile";
+const CACHE_PREFIX = "worktrade-";
+const CACHE = `${CACHE_PREFIX}v20260813isolated`;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -38,7 +39,7 @@ self.addEventListener("message", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
+      Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE).map((key) => caches.delete(key))),
     ),
   );
   self.clients.claim();
