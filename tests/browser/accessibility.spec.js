@@ -42,6 +42,23 @@ test("responsive layouts do not overflow horizontally", async ({ page }) => {
   await expect(page.locator("article[data-open]").first()).toBeVisible();
 });
 
+test("discovery filters do not collide at compact desktop widths", async ({ page }) => {
+  await page.setViewportSize({ width: 1042, height: 700 });
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Community" }).click();
+  const form = page.locator(".local-discovery");
+  await expect(form).toBeVisible();
+  const layout = await form.evaluate((element) => {
+    const controls = [...element.children].filter((child) => !child.classList.contains("location-privacy"));
+    const boxes = controls.map((child) => { const box = child.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom }; });
+    const overlaps = boxes.some((a, index) => boxes.slice(index + 1).some((b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1));
+    const shortcuts = element.querySelector(".skill-shortcuts");
+    return { overlaps, formWidth: element.scrollWidth, available: element.clientWidth, shortcutWidth: shortcuts.scrollWidth, shortcutAvailable: shortcuts.clientWidth };
+  });
+  expect(layout.overlaps).toBe(false);
+  expect(layout.formWidth).toBeLessThanOrEqual(layout.available + 1);
+  expect(layout.shortcutWidth).toBeLessThanOrEqual(layout.shortcutAvailable + 1);
+});
+
 test("inline submissions preserve the current scroll position", async ({ page }) => {
   await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /Community/ }).click();
   await expect(page.getByRole("heading", { name: /Useful work starts/ })).toBeVisible();
