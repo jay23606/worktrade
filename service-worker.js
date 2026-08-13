@@ -1,9 +1,9 @@
-const CACHE = "worktrade-v20260813b";
+const CACHE = "worktrade-v20260813c";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260813b",
-  "./app.js?v=20260813a",
+  "./styles.css?v=20260813c",
+  "./app.js?v=20260813c",
   "./config.js",
   "./data.js",
   "./manifest.webmanifest",
@@ -23,7 +23,8 @@ const APP_SHELL = [
   "./modules/backend/network.js",
   "./modules/backend/circles.js",
   "./modules/backend/chains.js",
-  "./modules/backend/agreements.js"
+  "./modules/backend/agreements.js",
+  "./modules/backend/pilot.js"
 ];
 
 self.addEventListener("install", (event) => {

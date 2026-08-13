@@ -24,6 +24,14 @@ test("critical landing page has no serious accessibility violations", async ({
   }
 });
 
+test("account onboarding explains invite-only pilot access", async ({ page }) => {
+  await page.getByRole("button", { name: "Open profile" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Use a secure email link." })).toBeVisible();
+  await expect(page.getByLabel(/Pilot invite code/)).toBeVisible();
+  await expect(page.getByText(/new pilot members also need an invite code/i)).toBeVisible();
+});
+
 test("responsive layouts do not overflow horizontally", async ({ page }) => {
   const dimensions = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,

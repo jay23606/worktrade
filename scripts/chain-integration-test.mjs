@@ -77,6 +77,7 @@ async function createUser(spec) {
     },
   });
   createdUserIds.push(record.id);
+  await request("/rest/v1/pilot_memberships", { key: secret, token: secret, method: "POST", body: { profile_id: record.id } });
   const session = await request("/auth/v1/token?grant_type=password", {
     method: "POST",
     body: { email: spec.email, password },

@@ -82,3 +82,18 @@ body{background:radial-gradient(circle at 85% -5%,color-mix(in srgb,var(--green2
 @media(max-width:1000px){.local-discovery{grid-template-columns:repeat(3,1fr)}.local-discovery .search{grid-column:1/-1}}
 @media(max-width:800px){.local-discovery{grid-template-columns:repeat(2,minmax(0,1fr))}.local-discovery label,.local-discovery select{min-width:0}}
 @media(max-width:600px){.local-discovery{grid-template-columns:1fr}.local-discovery .search,.local-discovery .location-privacy{grid-column:auto}}
+.pilot-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: .75rem;
+  margin: 1rem 0 1.5rem;
+}
+.pilot-metrics div {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.pilot-metrics b { display: block; font-size: 1.65rem; }
+.pilot-metrics span { color: var(--muted); font-size: .84rem; }
+.invite-code { overflow-wrap: anywhere; padding: 1rem; margin: 1rem 0; border-radius: 12px; background: var(--surface); }

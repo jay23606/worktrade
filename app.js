@@ -26,6 +26,8 @@ import {
   getMyRestrictions,
   getMySafetyReports,
   getModerationQueue,
+  getPilotAccess,
+  getPilotDashboard,
   getNotificationPreferences,
   getNotifications,
   getProjectMessages,
@@ -55,6 +57,9 @@ import {
   submitReview,
   moderateReport,
   resolveModerationAppeal,
+  redeemPilotInvite,
+  createPilotInvite,
+  setPilotInviteEnabled,
   updateMyProfile,
   updateRequest,
   uploadRequestMedia,
@@ -871,6 +876,28 @@ async function moderationConsoleModal() {
   }
 }
 
+async function pilotDashboardModal() {
+  try {
+    const dashboard = await getPilotDashboard();
+    const m = dashboard.metrics;
+    openModal(
+      `<span class="eyebrow">Private pilot operations</span><h2>Pilot dashboard</h2><div class="pilot-metrics">${[
+        ["Members", m.members], ["Open work", m.open_work], ["Stalled", m.stalled],
+        ["Open reports", m.open_reports], ["Email pending", m.email_pending], ["Email failed", m.email_failed],
+      ].map(([label, value]) => `<div><b>${value}</b><span>${label}</span></div>`).join("")}</div>
+      <form data-form="pilot-invite-create" class="form-grid"><label>Invite label<input name="label" required minlength="2" placeholder="Richmond makers"></label><label>Maximum uses<input name="max_uses" type="number" min="1" max="1000" value="1" required></label><label>Expires<input name="expires_at" type="date"></label><button class="primary">Create invite</button></form>
+      <section class="moderation-queue"><h3>Invite capacity</h3>${dashboard.invites.map((invite) => `<article><b>${esc(invite.label)}</b><p>${invite.use_count} of ${invite.max_uses} used${invite.expires_at ? ` · expires ${new Date(invite.expires_at).toLocaleDateString()}` : ""}</p><button class="secondary" data-pilot-invite-toggle="${invite.id}" data-enabled="${invite.disabled_at ? "true" : "false"}">${invite.disabled_at ? "Enable" : "Disable"}</button></article>`).join("") || "<p>No invites yet.</p>"}
+      <h3>Recent members</h3>${dashboard.recent_members.map((member) => `<article><b>${esc(member.display_name)}</b><p>${esc(member.status)} · joined ${new Date(member.joined_at).toLocaleDateString()}</p></article>`).join("") || "<p>No members yet.</p>"}</section>`,
+    );
+  } catch (error) { notify(error.message); }
+}
+
+function pilotInviteModal() {
+  openModal(
+    `<span class="eyebrow">Private pilot</span><h2>Enter your WorkTrade invite.</h2><p>This early community is intentionally small while we learn what makes work exchanges safe and useful.</p><form data-form="pilot-invite-redeem" class="form-grid"><label class="wide">Invite code<input name="invite_code" required autocomplete="one-time-code" spellcheck="false"></label><button class="primary wide">Join the pilot</button></form>`,
+  );
+}
+
 function moderationDecisionModal(reportId) {
   openModal(
     `<span class="eyebrow">Staff case action</span><h2>Record a proportionate decision.</h2><form data-form="moderation-decision" data-report="${reportId}" class="form-grid"><label>Action<select name="action"><option value="note">Continue review</option><option value="dismissed">Dismiss</option><option value="warned">Warn</option><option value="restricted">Restrict interactions</option><option value="suspended">Suspend</option><option value="banned">Ban (admin only)</option><option value="resolved">Resolve without restriction</option></select></label><label>Restriction ends<input name="expires_at" type="datetime-local"></label><label class="wide">Internal rationale<textarea name="internal_note" required minlength="5" maxlength="4000"></textarea></label><label class="wide">Update visible to reporter<textarea name="reporter_update" maxlength="1000"></textarea></label><button class="primary wide">Record immutable action</button></form>`,
@@ -1080,7 +1107,7 @@ function reviewModal(request) {
 
 function signInModal() {
   openModal(
-    `<span class="eyebrow">Sign in</span><h2>Use a secure email link.</h2><p>No password is stored by WorkTrade. We will send a one-time sign-in link.</p><form data-form="sign-in" class="form-grid"><label class="wide">Email<input name="email" type="email" autocomplete="email" required></label><button class="primary wide">Send sign-in link</button></form>`,
+    `<span class="eyebrow">Sign in</span><h2>Use a secure email link.</h2><p>No password is stored by WorkTrade. New pilot members also need an invite code.</p><form data-form="sign-in" class="form-grid"><label class="wide">Email<input name="email" type="email" autocomplete="email" required></label><label class="wide">Pilot invite code <small>(new members only)</small><input name="invite_code" autocomplete="one-time-code" spellcheck="false"></label><button class="primary wide">Send sign-in link</button></form>`,
   );
 }
 
@@ -1313,6 +1340,7 @@ document.addEventListener("click", (event) => {
       .catch((error) => notify(error.message));
   if (action === "deactivate") deactivateModal();
   if (action === "moderation-console") moderationConsoleModal();
+  if (action === "pilot-dashboard") pilotDashboardModal();
   if (action === "sign-out")
     signOut()
       .then(() => {
@@ -1332,6 +1360,16 @@ document.addEventListener("click", (event) => {
   if (reviewAppeal) appealDecisionModal(reviewAppeal.dataset.reviewAppeal);
   const submitAppeal = event.target.closest("[data-submit-appeal]");
   if (submitAppeal) moderationAppealModal(submitAppeal.dataset.submitAppeal);
+  const inviteToggle = event.target.closest("[data-pilot-invite-toggle]");
+  if (inviteToggle)
+    setPilotInviteEnabled(inviteToggle.dataset.pilotInviteToggle, inviteToggle.dataset.enabled === "true")
+      .then(pilotDashboardModal)
+      .catch((error) => notify(error.message));
+  const copyText = event.target.closest("[data-copy-text]");
+  if (copyText)
+    navigator.clipboard.writeText(copyText.dataset.copyText)
+      .then(() => notify("Invite code copied"))
+      .catch(() => notify("Select and copy the code above"));
   const accept = event.target.closest("[data-accept]");
   if (accept) {
     if (state.remote)
@@ -2237,12 +2275,32 @@ document.addEventListener("submit", async (event) => {
     }
   }
   if (form.dataset.form === "sign-in") {
+    const inviteCode = String(data.get("invite_code") || "").trim();
+    if (inviteCode) sessionStorage.setItem("worktrade-pilot-invite", inviteCode);
     signInWithEmail(data.get("email"))
       .then(() => {
         closeModal();
         notify("Check your email for the secure link");
       })
       .catch((error) => notify(error.message));
+  }
+  if (form.dataset.form === "pilot-invite-redeem") {
+    try {
+      await redeemPilotInvite(data.get("invite_code"));
+      sessionStorage.removeItem("worktrade-pilot-invite");
+      closeModal();
+      await bootstrapBackend();
+      notify("Welcome to the WorkTrade pilot");
+    } catch (error) { notify(error.message); }
+  }
+  if (form.dataset.form === "pilot-invite-create") {
+    try {
+      const invite = await createPilotInvite(
+        data.get("label"), Number(data.get("max_uses")),
+        data.get("expires_at") ? new Date(`${data.get("expires_at")}T23:59:59`).toISOString() : null,
+      );
+      openModal(`<span class="eyebrow">Invite created</span><h2>Copy this code now.</h2><p>Only a secure digest is stored, so it cannot be shown again.</p><div class="invite-code"><code>${esc(invite.code)}</code></div><button class="primary" data-copy-text="${esc(invite.code)}">Copy invite code</button>`);
+    } catch (error) { notify(error.message); }
   }
   if (form.dataset.form === "profile") {
     const profile = {
@@ -3010,10 +3068,11 @@ async function hydrateAccount() {
       panel.innerHTML = `<b>Ready for a real account</b><p>Sign in with a secure email link.</p><button class="primary" data-action="sign-in">Sign in</button>`;
       return;
     }
-    const [reports, restrictions, staffQueue] = await Promise.all([
+    const [reports, restrictions, staffQueue, pilotAccess] = await Promise.all([
       getMySafetyReports(),
       getMyRestrictions(),
       getModerationQueue().catch(() => null),
+      getPilotAccess().catch(() => ({ member: true, admin: false })),
     ]);
     const activeRestriction = restrictions.find(
       (restriction) =>
@@ -3034,7 +3093,7 @@ async function hydrateAccount() {
             )
             .join("")}</div>`
         : ""
-    }<div class="account-actions"><button class="secondary" data-action="notification-preferences">Notifications</button><button class="secondary" data-action="export-data">Export my data</button>${staffQueue ? `<button class="secondary" data-action="moderation-console">Safety queue (${staffQueue.reports.length + staffQueue.appeals.length})</button>` : ""}<button class="secondary" data-action="sign-out">Sign out</button><button class="danger-text" data-action="deactivate">Deactivate account</button></div>`;
+    }<div class="account-actions"><button class="secondary" data-action="notification-preferences">Notifications</button><button class="secondary" data-action="export-data">Export my data</button>${pilotAccess.admin ? `<button class="secondary" data-action="pilot-dashboard">Pilot dashboard</button>` : ""}${staffQueue ? `<button class="secondary" data-action="moderation-console">Safety queue (${staffQueue.reports.length + staffQueue.appeals.length})</button>` : ""}<button class="secondary" data-action="sign-out">Sign out</button><button class="danger-text" data-action="deactivate">Deactivate account</button></div>`;
   } catch (error) {
     panel.innerHTML = `<p>Account service unavailable: ${esc(error.message)}</p>`;
   }
@@ -3048,6 +3107,22 @@ async function bootstrapBackend() {
     const session = await getSession();
     state.session = session;
     if (session) {
+      let access = await getPilotAccess();
+      const pendingInvite = sessionStorage.getItem("worktrade-pilot-invite");
+      if (!access.member && pendingInvite) {
+        try {
+          await redeemPilotInvite(pendingInvite);
+          access = await getPilotAccess();
+        } catch (error) {
+          notify(error.message);
+        } finally {
+          sessionStorage.removeItem("worktrade-pilot-invite");
+        }
+      }
+      if (!access.member) {
+        pilotInviteModal();
+        return;
+      }
       await loadRemoteWorkspace();
       state.notificationPreferences = await getNotificationPreferences();
       await loadNotifications();

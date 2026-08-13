@@ -24,6 +24,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Area                       | Status                | Notes                                                                                            |
 | -------------------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
 | Accounts and profiles      | Connected             | Email-link authentication, privacy, availability, offers, needs, and resources                   |
+| Private pilot access       | Connected             | Hashed invite codes, magic-link onboarding, server-enforced membership, and an admin operations dashboard |
 | Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
 | Agreements                 | Connected             | Mutual confirmation, amendments, scheduling, milestones, holds, obligations, completion approval |
 | Guided next actions        | Connected             | Prioritized participant-specific actions from invitation through completion, with explicit waiting states |
@@ -35,7 +36,6 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Multi-person barter chains | Connected pilot       | Circle-only discovery, unanimous consent, execution modes, holds, approvals, disputes            |
 | Moderation operations      | Pilot ready           | Private reports, staff queue, restrictions, appeals, immutable actions, initial admin, and an operating runbook |
 | Transactional email        | Safe staging          | Private outbox, preferences, retries, delivery logs, and sink dispatcher; production provider/domain remain disabled |
-| Transactional email        | Incomplete            | Preferences persist; production delivery is not active                                           |
 | Payments or escrow         | Not planned for pilot | Participants settle directly                                                                     |
 
 ## Primary journeys
@@ -143,6 +143,7 @@ npm run test:integration         # two-user request-to-completion lifecycle
 npm run test:integration:chains  # private circle and three-party chain
 npm run test:integration:moderation # report, restriction, appeal, audit
 npm run test:integration:email      # private outbox and sink dispatcher
+npm run test:integration:pilot      # invite redemption and admin authorization
 npm run test:browser                # desktop, tablet, phone, zoom, keyboard, axe
 ```
 
@@ -154,7 +155,7 @@ The hosted integration tests create temporary users, exercise invitation accepta
 
 Do not place the secret key in GitHub Pages configuration or public CI logs. See [docs/UAT_REPORT.md](docs/UAT_REPORT.md) for automated coverage and the remaining manual checks.
 
-Browser UAT runs 24 checks across desktop, tablet, phone, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, accessible names, target sizes, primary navigation, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
+Browser UAT runs 64 checks across desktop, tablet, phone, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, accessible names, target sizes, primary navigation, invite-only onboarding, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
 
 ## Deployment
 

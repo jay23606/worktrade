@@ -13,6 +13,7 @@ const backendFiles = [
   "backend/circles.js",
   "backend/chains.js",
   "backend/trust.js",
+  "backend/pilot.js",
 ];
 const backend = (
   await Promise.all(
@@ -117,6 +118,17 @@ test("moderation data is private and restrictions guard interaction writes", () 
   );
 });
 
+test("private pilot access uses hashed codes and admin-only operations", () => {
+  assert.match(sql, /pilot_invite_codes/);
+  assert.match(sql, /extensions\.digest\(upper\(trim\(invite_code\)\),'sha256'\)/);
+  assert.match(sql, /admin authorization required/);
+  assert.match(sql, /insert into public\.pilot_memberships/);
+  assert.match(sql, /exists\(select 1 from public\.pilot_memberships where profile_id=target_profile_id and status='active'\)/);
+  assert.doesNotMatch(sql, /pilot_invite_codes[^;]*\bcode\s+text/i);
+  for (const operation of ["getPilotAccess","redeemPilotInvite","getPilotDashboard","createPilotInvite"])
+    assert.match(backend, new RegExp(operation));
+});
+
 test("transactional email uses a private idempotent outbox with safe templates", () => {
   assert.match(sql, /notification_id uuid not null unique/);
   assert.match(sql, /for update skip locked/);
@@ -165,6 +177,8 @@ test("backend facade preserves domain API after module split", async () => {
     "submitSafetyReport",
     "getModerationQueue",
     "resolveModerationAppeal",
+    "getPilotDashboard",
+    "redeemPilotInvite",
   ])
     assert.equal(typeof facade[operation], "function");
 });
