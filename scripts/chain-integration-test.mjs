@@ -98,15 +98,14 @@ async function cleanup() {
 }
 
 async function getChain(user, circleId, chainId) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const hub = await rpc(user.token, "get_trade_chain_hub", { target_circle_id: circleId });
-      return hub.chains.find((chain) => chain.id === chainId);
-    } catch (error) {
-      if (error.data?.code !== "57014" || attempt === 2) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
-    }
-  }
+  const [rows, links, acceptances, holds, history] = await Promise.all([
+    request(`/rest/v1/trade_chains?id=eq.${chainId}&circle_id=eq.${circleId}&select=*`, { token:user.token }),
+    request(`/rest/v1/trade_chain_links?chain_id=eq.${chainId}&select=*`, { token:user.token }),
+    request(`/rest/v1/trade_chain_acceptances?chain_id=eq.${chainId}&select=*`, { token:user.token }),
+    request(`/rest/v1/trade_chain_holds?chain_id=eq.${chainId}&select=*`, { token:user.token }),
+    request(`/rest/v1/trade_chain_history?chain_id=eq.${chainId}&select=*`, { token:user.token }),
+  ]);
+  return { ...rows[0], links, acceptances, holds, history };
 }
 
 function linksFor(users, suffix = "") {
