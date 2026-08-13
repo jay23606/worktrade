@@ -1140,8 +1140,8 @@ function renderProfile() {
   return shell(
     `<section class="profile-head">${avatarMarkup(p.avatarUrl, p.name, "giant")}<div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div><div class="profile-actions"><button class="primary" data-action="onboarding">${p.onboardingComplete ? "Improve my matches" : "Finish match setup"}</button><button class="secondary profile-edit" data-action="edit-profile">Edit profile</button></div></section>
     <section class="profile-quality"><div><span class="eyebrow">Profile readiness</span><h2>${quality.score}% ready for useful matches</h2><p>${quality.missing.length ? `Next improvement: ${esc(quality.missing[0])}.` : "Your profile gives collaborators enough context to start a grounded conversation."}</p></div><div class="quality-meter"><span style="width:${quality.score}%"></span></div>${quality.missing.length ? `<ul>${quality.missing.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : ""}</section>
-    <div class="two-col"><section class="list-panel"><span class="eyebrow">I can offer</span><h2>Skills, goods, and access</h2><div class="editable-list">${p.offers.map((x, i) => `<span>${esc(x)}<button data-remove="offers:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="offers" class="inline-form"><input name="item" required placeholder="Add something you can offer"><button class="secondary">Add</button></form></section>
-    <section class="list-panel warm"><span class="eyebrow">I need</span><h2>Things that could move you forward</h2><div class="editable-list">${p.needs.map((x, i) => `<span>${esc(x)}<button data-remove="needs:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="needs" class="inline-form"><input name="item" required placeholder="Add something you need"><button class="secondary">Add</button></form></section></div>
+    <div class="two-col"><section class="list-panel"><span class="eyebrow">I can offer</span><h2>Skills, goods, and access</h2><div class="editable-list">${p.offers.map((x, i) => `<span>${esc(x)}<button data-remove="offers:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="offers" class="inline-form"><input name="item" required minlength="2" maxlength="100" placeholder="Add something you can offer"><button class="secondary">Add</button></form></section>
+    <section class="list-panel warm"><span class="eyebrow">I need</span><h2>Things that could move you forward</h2><div class="editable-list">${p.needs.map((x, i) => `<span>${esc(x)}<button data-remove="needs:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="needs" class="inline-form"><input name="item" required minlength="2" maxlength="100" placeholder="Add something you need"><button class="secondary">Add</button></form></section></div>
     <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid">${(p.portfolio || []).map((entry) => `<div>${entry.asset_url ? `<img class="portfolio-photo" src="${esc(entry.asset_url)}" alt="Work example: ${esc(entry.title)}">` : ""}<b>${esc(entry.title)}</b><p>${esc(entry.summary)}</p>${state.remote ? `<form data-form="portfolio-photo" data-entry="${entry.id}" data-path="${esc(entry.asset_path || "")}"><label class="photo-picker">${entry.asset_path ? "Replace photo" : "Add photo"}<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label><button class="secondary compact">Upload</button>${entry.asset_path ? `<button type="button" class="text-btn" data-remove-portfolio-photo="${entry.id}" data-path="${esc(entry.asset_path)}">Remove</button>` : ""}</form>` : ""}</div>`).join("") || `<div><b>No completed-work portfolio yet</b><p>After a project is completed, publish it to your portfolio and add a photo here.</p></div>`}</div>${backendConfigured ? `<div class="account-panel" id="account-panel"><p>Checking account…</p></div>` : `<div class="account-panel"><b>Device-local demonstration</b><p>Real accounts become available when this installation is connected to its own Supabase project.</p></div>`}<button class="danger-text" data-action="reset">Reset demo data</button></section>`,
     "Profile and capabilities",
   );
@@ -1515,6 +1515,25 @@ function saveOnboardingDraft(form) {
   localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(Object.fromEntries(data.entries())));
 }
 
+function onboardingCapabilities(form) {
+  const split = (value) => String(value || "").split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
+  return { offers: split(form.elements.offers?.value), needs: split(form.elements.needs?.value) };
+}
+
+function validateOnboardingCapabilities(form) {
+  const { offers, needs } = onboardingCapabilities(form);
+  const invalid = [...offers, ...needs].find((item) => item.length < 2 || item.length > 100);
+  if (!offers.length || !needs.length) {
+    notify("Add at least one thing you can offer and one thing you need.", "warning");
+    return false;
+  }
+  if (invalid) {
+    notify(`“${invalid}” is too short. Use at least 2 characters for each offer or need.`, "warning");
+    return false;
+  }
+  return true;
+}
+
 function showOnboardingStep(form, step) {
   form.dataset.step = String(step);
   form.querySelectorAll("[data-onboarding-step]").forEach((panel) => { panel.hidden = Number(panel.dataset.onboardingStep) !== step; });
@@ -1563,6 +1582,7 @@ document.addEventListener("click", (event) => {
     const step = Number(onboardingForm.dataset.step || 1);
     const required = [...onboardingForm.querySelectorAll(`[data-onboarding-step="${step}"] [required]`)];
     if (required.some((field) => !field.reportValidity())) return;
+    if (step === 2 && !validateOnboardingCapabilities(onboardingForm)) return;
     saveOnboardingDraft(onboardingForm);
     showOnboardingStep(onboardingForm, Math.min(3, step + 1));
     return;
@@ -2739,8 +2759,10 @@ document.addEventListener("submit", async (event) => {
     notify("Private report recorded for moderator review");
   }
   if (form.dataset.form === "profile-item") {
+    const item = String(data.get("item") || "").trim();
+    if (item.length < 2 || item.length > 100) return notify("Use 2–100 characters for each offer or need.", "warning");
     const profile = structuredClone(state.profile);
-    profile[form.dataset.list].push(data.get("item"));
+    profile[form.dataset.list].push(item);
     if (state.remote) {
       try {
         await updateMyProfile({
@@ -2894,6 +2916,10 @@ document.addEventListener("submit", async (event) => {
   }
   if (form.dataset.form === "onboarding") {
     const splitList = (value) => value.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
+    if (!validateOnboardingCapabilities(form)) {
+      showOnboardingStep(form, 2);
+      return;
+    }
     const exchanges = data.getAll("exchange");
     if (!exchanges.length) return notify("Choose at least one way to exchange value.", "warning");
     const profile = {
