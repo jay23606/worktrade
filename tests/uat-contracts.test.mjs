@@ -289,3 +289,11 @@ test("conversation requests refresh in realtime and crossed requests open one th
   assert.match(client, /table: "collaboration_invitations"/);
   assert.match(app, /state\.view === "messages" && state\.session\) loadNetwork\(\)/);
 });
+
+test("each participant pair has only one live conversation", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813080000_one_conversation_per_pair.sql", root), "utf8");
+  assert.match(sql, /update public\.introduction_messages set invitation_id=keeper/);
+  assert.match(sql, /one_live_conversation_per_pair/);
+  assert.match(sql, /status in\('pending','accepted','converted'\)/);
+  assert.match(app, /seenPeople\.has\(otherId\)/);
+});

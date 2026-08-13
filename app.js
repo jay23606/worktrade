@@ -702,11 +702,15 @@ function renderMessages() {
   if (!state.session) return shell(`<section class="messages-welcome"><span class="eyebrow">Private conversations</span><h1>Talk first. Trade when it makes sense.</h1><p>Sign in to see message requests and conversations.</p><button class="primary" data-action="sign-in">Sign in</button></section>`, "Messages");
   const inbox = state.networkInbox || { invitations: [], messages: [] };
   const query = (state.messageQuery || "").trim().toLowerCase();
+  const seenPeople = new Set();
   const conversations = (inbox.invitations || []).filter((item) => {
     const archived = !!item.member_state?.archived_at;
     if (archived !== !!state.showArchivedMessages) return false;
     const other = item.sender_id === state.profile.id ? item.recipient_name : item.sender_name;
     const request = state.requests.find((entry) => entry.id === item.request_id);
+    const otherId = item.sender_id === state.profile.id ? item.recipient_id : item.sender_id;
+    if (seenPeople.has(otherId)) return false;
+    seenPeople.add(otherId);
     return !query || `${other} ${item.note || ""} ${request?.title || ""}`.toLowerCase().includes(query);
   });
   const selected = state.messageListOnly && window.matchMedia("(max-width: 760px)").matches ? null : conversations.find((item) => item.id === state.selectedConversationId) || conversations[0] || null;
@@ -2173,6 +2177,13 @@ document.addEventListener("click", (event) => {
   const contactPerson = event.target.closest("[data-contact-person]");
   if (contactPerson) {
     const profileId = contactPerson.dataset.contactPerson;
+    const existing = (state.networkInbox.invitations || []).find((item) => ["pending", "accepted", "converted"].includes(item.status) && ((item.sender_id === state.profile.id && item.recipient_id === profileId) || (item.recipient_id === state.profile.id && item.sender_id === profileId)));
+    if (existing) {
+      state.selectedConversationId = existing.id;
+      state.messageListOnly = false;
+      state.view = "messages";
+      return;
+    }
     const request = state.requests.find((item) => item.id === contactPerson.dataset.contactRequest) || null;
     const profile = (state.networkProfiles || []).find((item) => item.id === profileId);
     contactRequestModal(profileId, profile?.display_name || request?.owner || "this member", request, contactPerson.dataset.contactKind || "message");
@@ -3254,8 +3265,9 @@ document.addEventListener("submit", async (event) => {
   }
   if (form.dataset.form === "contact-request") {
     try {
+      let conversationId = null;
       if (state.remote) {
-        await sendContactRequest(
+        conversationId = await sendContactRequest(
           form.dataset.profile,
           data.get("message"),
           form.dataset.request || null,
@@ -3264,8 +3276,10 @@ document.addEventListener("submit", async (event) => {
         await loadNetwork();
       }
       closeModal();
-      state.view = "network";
-      notify("Message request sent", "success");
+      state.selectedConversationId = conversationId;
+      state.messageListOnly = false;
+      state.view = "messages";
+      notify("Message request sent — it’s now in Messages", "success");
     } catch (error) {
       notify(error.message);
     }
