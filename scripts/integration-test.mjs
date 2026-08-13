@@ -99,8 +99,12 @@ try {
   let notifications = await rpc(owner.token,"get_my_notifications",{});
   assert.equal(notifications.some((row)=>row.notification.kind==="proposal"),true);
 
-  await assert.rejects(() => rpc(provider.token, "accept_trade_offer", { target_offer_id: offerId }), /only the request owner/i);
-  const agreementId = await rpc(owner.token, "accept_trade_offer", { target_offer_id: offerId });
+  await assert.rejects(() => rpc(provider.token, "accept_trade_offer", { target_offer_id: offerId }), /counterparty acceptance required/i);
+  const counter=await rpc(owner.token,"counter_trade_offer",{target_offer_id:offerId,payload:{mode:"hybrid",scope:"Build and install two reinforced shelves",exchange_summary:"$175 and a product photography session",duration:"One weekend",exclusions:"Wall painting",responsibilities:{provider:"Tools and labor",requester:"Lumber and access"},milestones:[{title:"Confirm measurements",responsible:"requester",due_at:""},{title:"Build and install",responsible:"provider",due_at:""}],questions:"Countered to $175; Saturday access is confirmed.",expires_at:new Date(Date.now()+604800000).toISOString()}});
+  assert.equal(counter.version,2);
+  await assert.rejects(() => rpc(owner.token, "accept_trade_offer", { target_offer_id: offerId }), /counterparty acceptance required/i);
+  const versions=await request(`/rest/v1/trade_offer_versions?offer_id=eq.${offerId}&select=*`,{token:provider.token});assert.equal(versions.length,1);assert.equal(versions[0].version,1);
+  const agreementId = await rpc(provider.token, "accept_trade_offer", { target_offer_id: offerId });
 
   let rows = await rpc(owner.token, "get_my_agreements", {});
   let agreement = rows.find((row) => row.agreement.id === agreementId);
