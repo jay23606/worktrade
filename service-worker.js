@@ -1,10 +1,10 @@
 const CACHE_PREFIX = "worktrade-";
-const CACHE = `${CACHE_PREFIX}v20260813projects-module`;
+const CACHE = `${CACHE_PREFIX}v20260813profile-module`;
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20260813projects",
-  "./app.js?v=20260813projects-module",
+  "./app.js?v=20260813profile-module",
   "./config.js",
   "./data.js",
   "./manifest.webmanifest",
@@ -28,9 +28,11 @@ const APP_SHELL = [
   "./modules/backend/pilot.js",
   "./features/matching.js",
   "./features/communities.js",
+  "./features/collaboration-dialogs.js",
   "./features/messages.js",
   "./features/network.js",
   "./features/projects.js",
+  "./features/profile.js",
   "./features/workspace.js",
   "./shell/pwa.js",
 ];

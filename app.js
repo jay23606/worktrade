@@ -8,6 +8,8 @@ import { createNetworkFeature } from "./features/network.js";
 import { createProjectsFeature } from "./features/projects.js";
 import { createWorkspaceFeature } from "./features/workspace.js";
 import { createCommunitiesFeature } from "./features/communities.js";
+import { createProfileFeature } from "./features/profile.js";
+import { createCollaborationDialogs } from "./features/collaboration-dialogs.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -350,123 +352,8 @@ const matchingFeature = createMatchingFeature({ getState: () => state, esc, noti
 const { announceStrongMatches, feedbackControls, recordMatchKey, renderFirstMatches, scorePersonForProfile, scoreRequestForProfile } = matchingFeature;
 const { circleDetail, renderChainHub } = createCommunitiesFeature({ getState: () => state, esc });
 const { hydrateLocalDiscovery, hydrateNetworkSocial, localDiscoveryProfiles, renderNetwork, socialPersonCard } = createNetworkFeature({ getState: () => state, shell, esc, networkPersonCard, activityCard, scorePersonForProfile, circleDetail, renderChainHub });
-
-function invitationModal(profile, selectedRequestId = null) {
-  openModal(
-    `<span class="eyebrow">Collaboration invitation</span><h2>Propose an exchange with ${esc(profile.display_name)}.</h2><p>They choose whether to open a private conversation.</p><form data-form="collaboration-invite" data-profile="${profile.id}" class="form-grid"><label class="wide">What do you need?<input name="need" required maxlength="500" value="${esc((state.profile.needs || []).join(", "))}"></label><label class="wide">What can you offer?<input name="offer" required maxlength="500" value="${esc((state.profile.offers || []).join(", "))}"></label><label class="wide">Short note<textarea name="note" maxlength="1000" placeholder="Why this might be a useful fit"></textarea></label><label class="wide">Related request<select name="request"><option value="">No specific request</option>${state.requests
-      .filter((r) => r.ownerId === state.profile.id && r.status === "open")
-      .map((r) => `<option value="${r.id}" ${r.id === selectedRequestId ? "selected" : ""}>${esc(r.title)}</option>`)
-      .join(
-        "",
-      )}</select></label><button class="primary wide">Send invitation</button></form>`,
-  );
-}
-function contactRequestModal(profileId, displayName, request = null, kind = "message") {
-  const question = kind === "question";
-  openModal(`<span class="eyebrow">${question ? "Question about work" : "Message request"}</span><h2>${request ? `Ask ${esc(displayName)} about ${esc(request.title)}.` : `Message ${esc(displayName)}.`}</h2><p>Start with a short, useful message. They choose whether to open the conversation. You can discuss scope and exchange terms afterward.</p><form data-form="contact-request" data-profile="${profileId}" data-request="${request?.id || ""}" data-kind="${question ? "question" : "message"}" class="form-grid"><label class="wide">Message<textarea name="message" required minlength="2" maxlength="1000" placeholder="${request ? "Is this still available? Would weekday evenings work?" : "Introduce yourself or ask a practical question."}"></textarea></label><button class="primary wide">Send message request</button></form>`);
-}
-function saveSearchModal() {
-  openModal(
-    `<span class="eyebrow">Discovery alert</span><h2>Keep this local search.</h2><form data-form="save-network-search" class="form-grid"><label class="wide">Name<input name="name" required maxlength="80" placeholder="Nearby carpenters open to barter"></label><label class="wide"><input type="checkbox" name="alerts" checked> Notify me when a strong new match appears</label><button class="primary wide">Save alert</button></form>`,
-  );
-}
-
-function workspaceModal(invitation) {
-  const w = invitation.workspace || {
-    version: 1,
-    scope: "",
-    responsibilities: {},
-    materials: "",
-    exclusions: "",
-    exchange_terms: "",
-    proposed_windows: "",
-    timezone: "America/New_York",
-  };
-  openModal(
-    `<span class="eyebrow">Shared planning workspace · v${w.version}</span><h2>Shape the work before committing.</h2><p>Any edit clears both confirmations. Both people must confirm the same version before conversion.</p><form data-form="intro-workspace" data-invitation="${invitation.id}" data-version="${w.version}" class="form-grid"><label class="wide">Scope and desired outcome<textarea name="scope" required>${esc(w.scope)}</textarea></label><label>My responsibilities<textarea name="mine">${esc(w.responsibilities?.[state.profile.id] || "")}</textarea></label><label>Their responsibilities<textarea name="theirs">${esc(w.responsibilities?.other || "")}</textarea></label><label class="wide">Materials, tools, and access<textarea name="materials">${esc(w.materials)}</textarea></label><label class="wide">Exclusions and boundaries<textarea name="exclusions">${esc(w.exclusions)}</textarea></label><label class="wide">Exchange terms<textarea name="exchange_terms" required>${esc(w.exchange_terms)}</textarea></label><label>Proposed availability<textarea name="proposed_windows" placeholder="Saturday mornings; after 5pm weekdays">${esc(w.proposed_windows)}</textarea></label><label>Time zone<select name="timezone"><option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option><option>America/Los_Angeles</option></select></label><button class="secondary wide">Save revised terms</button></form>${invitation.workspace ? `<button class="primary full" data-confirm-workspace="${invitation.id}:${w.version}">Confirm current terms</button>` : ""}`,
-  );
-}
-
-function createCircleModal() {
-  openModal(
-    `<span class="eyebrow">New trusted community</span><h2>Start with people connected by place.</h2><p>A block, shop, maker space, trade school, nonprofit, or small-business network all work well.</p><form data-form="create-circle" class="form-grid"><label class="wide">Community name<input name="name" required minlength="2" maxlength="100" placeholder="East End Fixers"></label><label class="wide">Shared place and purpose<textarea name="description" required maxlength="1000" placeholder="Who this is for, the area you share, and the practical work you want to make easier"></textarea></label><label>Visibility<select name="visibility"><option value="private">Invite-only (recommended)</option><option value="public">Publicly discoverable</option></select></label><label class="wide">Community rules<textarea name="rules" required placeholder="Who belongs, what may be posted, safety expectations, fair exchange, and moderation norms"></textarea></label><button class="primary wide">Create community</button></form>`,
-  );
-}
-function circleSettingsModal(circle) {
-  openModal(
-    `<span class="eyebrow">Circle settings</span><h2>Edit rules and visibility.</h2><form data-form="circle-settings" data-circle="${circle.id}" class="form-grid"><label class="wide">Purpose<textarea name="description" required>${esc(circle.description || "")}</textarea></label><label>Visibility<select name="visibility"><option value="private">Invite-only</option><option value="public">Publicly discoverable</option></select></label><label class="wide">Rules<textarea name="rules" required>${esc(circle.rules || "")}</textarea></label><button class="primary wide">Save circle settings</button></form>`,
-  );
-  modalRoot.querySelector("[name=visibility]").value = circle.visibility;
-}
-
-function circleResourceModal(circleId) {
-  openModal(
-    `<span class="eyebrow">Shared circle resource</span><h2>What can members coordinate around?</h2><form data-form="circle-resource" data-circle="${circleId}" class="form-grid"><label>Type<select name="kind"><option>tool</option><option>equipment</option><option>workspace</option><option>vehicle</option><option>material</option><option>access</option><option>other</option></select></label><label>Name<input name="name" required maxlength="120"></label><label class="wide">Description<textarea name="description"></textarea></label><label class="wide">Availability and conditions<input name="availability"></label><button class="primary wide">Share with circle</button></form>`,
-  );
-}
-function circleInviteModal(circleId) {
-  openModal(
-    `<span class="eyebrow">Circle invitation</span><h2>Invite a visible WorkTrade profile.</h2><form data-form="circle-invite" data-circle="${circleId}" class="form-grid"><label class="wide">Profile<select name="profile" required>${(
-      state.networkProfiles || []
-    )
-      .filter((p) => p.id !== state.profile.id)
-      .map((p) => `<option value="${p.id}">${esc(p.display_name)}</option>`)
-      .join(
-        "",
-      )}</select></label><button class="primary wide">Send invitation</button></form>`,
-  );
-}
-function circlePostModal(circleId) {
-  openModal(
-    `<span class="eyebrow">Private circle work</span><h2>Post work only members can see.</h2><form data-form="circle-post" data-circle="${circleId}" class="form-grid"><label class="wide">Title<input name="title" required minlength="5" maxlength="140"></label><label>Type<select name="kind">${categories
-      .slice(1)
-      .map((c) => `<option value="${c.toLowerCase()}">${c}</option>`)
-      .join(
-        "",
-      )}<option value="other">Other</option></select></label><label>Location<input name="location"></label><label class="wide">Desired outcome<textarea name="description" required></textarea></label><label>Skills<input name="skills" placeholder="Carpentry, design"></label><label>Timing<input name="urgency" placeholder="Flexible"></label><label class="wide">Exchange terms<input name="exchange_summary" required placeholder="Garden help for welding, cash, or a mix"></label><label class="wide">Constraints<textarea name="constraints"></textarea></label><button class="primary wide">Post inside circle</button></form>`,
-  );
-}
-function chainBuilderModal(circleId, suggestion = null, chain = null) {
-  const members = (state.circleHub.members || [])
-    .filter((m) => m.circle_id === circleId && m.status === "active")
-    .sort(
-      (a, b) =>
-        Number(b.profile_id === state.profile.id) -
-        Number(a.profile_id === state.profile.id),
-    );
-  const links =
-    chain?.links ||
-    suggestion?.links ||
-    members.slice(0, 3).map((member, index, list) => ({
-      from_profile_id: member.profile_id,
-      to_profile_id: list[(index + 1) % list.length]?.profile_id || "",
-      value_description: "",
-      position: index,
-      conditions: "",
-      due_at: "",
-    }));
-  if (members.length < 3)
-    return notify(
-      "A circle needs at least three active members for a trade chain",
-    );
-  const memberOptions = (selected) =>
-    members
-      .map(
-        (m) =>
-          `<option value="${m.profile_id}" ${m.profile_id === selected ? "selected" : ""}>${esc(m.display_name)}</option>`,
-      )
-      .join("");
-  openModal(
-    `<span class="eyebrow">${chain ? "Revise" : "Propose"} reciprocal chain</span><h2>Every person gives once and receives once.</h2><p>Changes reset all confirmations. Describe concrete deliverables without converting them to platform credits.</p><form data-form="chain-builder" data-circle="${circleId}" ${chain ? `data-chain="${chain.id}" data-version="${chain.version}"` : ""} class="form-grid"><label class="wide">Title<input name="title" required maxlength="140" value="${esc(chain?.title || "Circle reciprocal exchange")}"></label><label class="wide">Purpose<textarea name="description">${esc(chain?.description || suggestion?.explanation || "")}</textarea></label><label>Execution<select name="execution_mode"><option value="sequential">Sequential</option><option value="simultaneous">Simultaneous</option><option value="conditional">Conditional</option></select></label><div class="wide chain-builder-links">${links.map((link, index) => `<fieldset><legend>Link ${index + 1}</legend><label>Provider<select name="from_${index}">${memberOptions(link.from_profile_id)}</select></label><label>Recipient<select name="to_${index}">${memberOptions(link.to_profile_id)}</select></label><label>Contribution<input name="value_${index}" required value="${esc(link.value_description || "")}"></label><label>Due date<input name="due_${index}" type="date" value="${link.due_at ? link.due_at.slice(0, 10) : ""}"></label><label>Conditions<input name="conditions_${index}" value="${esc(link.conditions || "")}"></label></fieldset>`).join("")}</div><input type="hidden" name="link_count" value="${links.length}"><button class="primary wide">${chain ? "Publish revision" : "Propose to everyone"}</button></form>`,
-  );
-  modalRoot.querySelector("[name=execution_mode]").value =
-    chain?.execution_mode || "sequential";
-}
-function chainHoldModal(chainId, linkId) {
-  openModal(
-    `<span class="eyebrow">Chain dependency</span><h2>What must happen before this link can proceed?</h2><form data-form="chain-hold" data-chain="${chainId}" data-link="${linkId}" class="form-grid"><label>Type<select name="kind"><option value="materials">Materials</option><option value="equipment">Equipment</option><option value="weather">Weather</option><option value="access_permission">Access or permission</option><option value="customer_decision">Decision</option><option value="specialist">Specialist</option><option value="third_party">Third party</option><option value="custom">Other</option></select></label><label>Review date<input name="review_at" type="date"></label><label class="wide">Detail<textarea name="detail" required></textarea></label><button class="primary wide">Place dependency hold</button></form>`,
-  );
-}
+const { onboardingCapabilities, onboardingModal, profileModal, renderProfile, saveOnboardingDraft, showOnboardingStep, validateOnboardingCapabilities, welcomeSetupModal } = createProfileFeature({ getState: () => state, shell, esc, avatarMarkup, backendConfigured, openModal, modalRoot, onboardingDraftKey: ONBOARDING_DRAFT_KEY, notify });
+const { chainBuilderModal, chainHoldModal, circleInviteModal, circlePostModal, circleResourceModal, circleSettingsModal, contactRequestModal, createCircleModal, invitationModal, saveSearchModal, workspaceModal } = createCollaborationDialogs({ getState: () => state, openModal, esc, modalRoot, categories, notify });
 
 async function moderationConsoleModal() {
   try {
@@ -549,31 +436,6 @@ function moderationAppealModal(restrictionId) {
   openModal(
     `<span class="eyebrow">Appeal a restriction</span><h2>Explain what should be reconsidered.</h2><p>A different moderator should review appeals when staffing permits.</p><form data-form="moderation-appeal" data-restriction="${restrictionId}" class="form-grid"><label class="wide">Appeal statement<textarea name="statement" required minlength="20" maxlength="4000"></textarea></label><button class="primary wide">Submit appeal</button></form>`,
   );
-}
-
-function renderProfile() {
-  const p = state.profile;
-  const quality = profileQuality(p);
-  return shell(
-    `<section class="profile-head">${avatarMarkup(p.avatarUrl, p.name, "giant")}<div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div><div class="profile-actions"><button class="primary" data-action="onboarding">${p.onboardingComplete ? "Improve my matches" : "Finish match setup"}</button><button class="secondary profile-edit" data-action="edit-profile">Edit profile</button></div></section>
-    <section class="profile-quality"><div><span class="eyebrow">Profile readiness</span><h2>${quality.score}% ready for useful matches</h2><p>${quality.missing.length ? `Next improvement: ${esc(quality.missing[0])}.` : "Your profile gives collaborators enough context to start a grounded conversation."}</p></div><div class="quality-meter"><span style="width:${quality.score}%"></span></div>${quality.missing.length ? `<ul>${quality.missing.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : ""}</section>
-    <div class="two-col"><section class="list-panel"><span class="eyebrow">I can offer</span><h2>Skills, goods, and access</h2><div class="editable-list">${p.offers.map((x, i) => `<span>${esc(x)}<button data-remove="offers:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="offers" class="inline-form"><input name="item" required minlength="2" maxlength="100" placeholder="Add something you can offer"><button class="secondary">Add</button></form></section>
-    <section class="list-panel warm"><span class="eyebrow">I need</span><h2>Things that could move you forward</h2><div class="editable-list">${p.needs.map((x, i) => `<span>${esc(x)}<button data-remove="needs:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="needs" class="inline-form"><input name="item" required minlength="2" maxlength="100" placeholder="Add something you need"><button class="secondary">Add</button></form></section></div>
-    <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid">${(p.portfolio || []).map((entry) => `<div>${entry.asset_url ? `<img class="portfolio-photo" src="${esc(entry.asset_url)}" alt="Work example: ${esc(entry.title)}">` : ""}<b>${esc(entry.title)}</b><p>${esc(entry.summary)}</p>${state.remote ? `<form data-form="portfolio-photo" data-entry="${entry.id}" data-path="${esc(entry.asset_path || "")}"><label class="photo-picker">${entry.asset_path ? "Replace photo" : "Add photo"}<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label><button class="secondary compact">Upload</button>${entry.asset_path ? `<button type="button" class="text-btn" data-remove-portfolio-photo="${entry.id}" data-path="${esc(entry.asset_path)}">Remove</button>` : ""}</form>` : ""}</div>`).join("") || `<div><b>No completed-work portfolio yet</b><p>After a project is completed, publish it to your portfolio and add a photo here.</p></div>`}</div>${backendConfigured ? `<div class="account-panel" id="account-panel"><p>Checking account…</p></div>` : `<div class="account-panel"><b>Device-local demonstration</b><p>Real accounts become available when this installation is connected to its own Supabase project.</p></div>`}<button class="danger-text" data-action="reset">Reset demo data</button></section>`,
-    "Profile and capabilities",
-  );
-}
-
-function profileQuality(profile) {
-  const checks = [
-    [profile.bio && profile.bio.length >= 30, "Add a short introduction about how you work"],
-    [profile.location, "Add a general location or mark yourself remote"],
-    [profile.availability, "Describe when you are usually available"],
-    [(profile.offers || []).length >= 2, "List at least two specific things you can offer"],
-    [(profile.needs || []).length >= 1, "Add something you genuinely need"],
-    [(profile.preferredExchangeModes || []).length > 0, "Choose acceptable exchange types"],
-  ];
-  return { score: Math.round(checks.filter(([done]) => done).length / checks.length * 100), missing: checks.filter(([done]) => !done).map(([, text]) => text) };
 }
 
 let renderedLocation = null;
@@ -807,101 +669,6 @@ function preferencesModal() {
       )
       .join("")}<button class="primary">Save preferences</button></form>`,
   );
-}
-
-function profileModal() {
-  const profile = state.profile;
-  openModal(
-    `<span class="eyebrow">Work profile</span><h2>Show how you can participate.</h2><form data-form="profile" class="form-grid"><label class="wide">Display name<input name="display_name" required minlength="2" maxlength="80" value="${esc(profile.name)}"></label><label>General location<input name="location_text" maxlength="120" value="${esc(profile.location)}"></label><label>Work radius (km)<input name="work_radius_km" type="number" min="0" max="1000" value="${profile.workRadius || ""}"></label><label class="wide">Short biography<textarea name="bio" maxlength="500">${esc(profile.bio)}</textarea></label><label class="wide">Availability<input name="availability_text" value="${esc(profile.availability || "")}"></label><label class="wide">Tools, workspace, vehicles, and equipment<textarea name="resources_text">${esc(profile.resources || "")}</textarea></label><label>Visibility<select name="profile_visibility"><option value="public">Public</option><option value="members">Members</option><option value="private">Private</option></select></label><label><input type="checkbox" name="remote_available" ${profile.remoteAvailable ? "checked" : ""}> Available for remote work</label><button class="primary wide">Save profile</button></form>`,
-  );
-  const photoField = document.createElement("div");
-  photoField.className = "wide profile-photo-field";
-  photoField.innerHTML = `${avatarMarkup(profile.avatarUrl, profile.name, "giant")}<label>Profile photo<span class="field-help">JPG, PNG, or WebP. Large images are resized before upload.</span><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label>${profile.avatarPath ? `<button type="button" class="text-btn" data-remove-avatar>Remove current photo</button>` : ""}`;
-  modalRoot.querySelector('form[data-form="profile"]')?.prepend(photoField);
-  const locationPrivacy = document.createElement("label");
-  locationPrivacy.innerHTML = `Location visibility<span class="field-help">Controls who can see the general area above; your exact address is never collected.</span><select name="location_visibility"><option value="region">Show general region</option><option value="members">Signed-in members only</option><option value="private">Keep private</option></select>`;
-  modalRoot.querySelector('[name="location_text"]')?.closest("label")?.after(locationPrivacy);
-  locationPrivacy.querySelector("select").value = profile.locationVisibility || "region";
-  modalRoot.querySelector("[name=profile_visibility]").value =
-    profile.visibility || "public";
-}
-
-function onboardingModal() {
-  const profile = state.profile;
-  openModal(`<span class="eyebrow">Match setup · about 2 minutes</span><h2>What would make WorkTrade useful to you?</h2><p>Use plain language. You can change every answer later.</p><form data-form="onboarding" class="form-grid onboarding-form">
-    <label class="wide">What can you offer?<span class="field-help">Skills, labor, goods, tools, space, access, or materials</span><textarea name="offers" required placeholder="Carpentry, bookkeeping, trailer access">${esc((profile.offers || []).join(", "))}</textarea></label>
-    <label class="wide">What do you need?<span class="field-help">Work, knowledge, goods, equipment, or help finishing something</span><textarea name="needs" required placeholder="Fence repair, welding lessons, reclaimed lumber">${esc((profile.needs || []).join(", "))}</textarea></label>
-    <label>General location<input name="location_text" maxlength="120" value="${esc(profile.location || "")}" placeholder="Richmond, VA"></label>
-    <label>Availability<input name="availability_text" maxlength="240" value="${esc(profile.availability || "")}" placeholder="Weekends; weekday evenings"></label>
-    <label>Comfortable travel radius (km)<input name="work_radius_km" type="number" min="0" max="1000" value="${profile.workRadius || ""}" placeholder="25"></label>
-    <label class="wide">Transport, tools, equipment, materials, or workspace<span class="field-help">Useful access you could share with a local community</span><textarea name="resources_text" placeholder="Pickup truck, table saw, garage workspace">${esc(profile.resources || "")}</textarea></label>
-    <label>Location visibility<select name="location_visibility"><option value="region">Show general region</option><option value="members">Signed-in members only</option><option value="private">Keep private</option></select></label>
-    <fieldset class="wide"><legend>Ways you are open to exchanging value</legend><label><input type="checkbox" name="exchange" value="barter" checked> Barter</label><label><input type="checkbox" name="exchange" value="cash" checked> Cash</label><label><input type="checkbox" name="exchange" value="hybrid" checked> Cash + barter</label></fieldset>
-    <label>Profile visibility<select name="profile_visibility"><option value="public">Public profile</option><option value="members">Members only</option><option value="private">Private</option></select></label>
-    <label><input type="checkbox" name="remote_available" ${profile.remoteAvailable ? "checked" : ""}> Include remote opportunities</label>
-    <div class="wide privacy-note"><b>Your exact address is never requested here.</b><span>General location improves nearby matches; visibility controls who can discover your profile.</span></div>
-    <button class="primary wide">Save and show my matches</button>
-  </form>`);
-}
-
-function welcomeSetupModal() {
-  const profile = state.profile;
-  let draft = {};
-  try { draft = JSON.parse(localStorage.getItem(ONBOARDING_DRAFT_KEY)) || {}; } catch { draft = {}; }
-  const value = (key, fallback = "") => esc(draft[key] ?? fallback ?? "");
-  openModal(`<span class="eyebrow">Welcome to WorkTrade · about 2 minutes</span><h2>Let’s find a useful first connection.</h2><p>You can skip, resume, or change any answer later.</p><form data-form="onboarding" class="onboarding-form" data-step="1">
-    <div class="onboarding-progress"><span>Step <b data-onboarding-step-number>1</b> of 3</span><div><i data-onboarding-progress></i></div></div>
-    <section data-onboarding-step="1"><fieldset class="goal-cards"><legend>What would you like to do first?</legend><label><input type="radio" name="first_goal" value="find_help" checked><span><b>Find help</b><small>Meet people who offer what you need.</small></span></label><label><input type="radio" name="first_goal" value="offer_help"><span><b>Offer help</b><small>Find work and people who need your skills.</small></span></label><label><input type="radio" name="first_goal" value="post_work"><span><b>Post work</b><small>Describe something you want done or built.</small></span></label></fieldset></section>
-    <section data-onboarding-step="2" hidden class="form-grid"><label class="wide">Display name<input name="display_name" required minlength="2" maxlength="80" value="${value("display_name", profile.name)}"></label><label class="wide">I can offer<span class="field-help">Skills, labor, goods, tools, space, access, or materials—for example carpentry, bookkeeping, or a pickup truck.</span><textarea name="offers" required>${value("offers", (profile.offers || []).join(", "))}</textarea></label><label class="wide">I need<span class="field-help">Work, knowledge, goods, equipment, or help—for example fence repair, sewing lessons, or reclaimed lumber.</span><textarea name="needs" required>${value("needs", (profile.needs || []).join(", "))}</textarea></label><fieldset class="wide exchange-cards"><legend>How are you open to exchanging value?</legend><label><input type="checkbox" name="exchange" value="barter" checked> Barter</label><label><input type="checkbox" name="exchange" value="cash" checked> Cash</label><label><input type="checkbox" name="exchange" value="hybrid" checked> Cash + barter</label><label><input type="checkbox" name="flexible"> Flexible</label></fieldset></section>
-    <section data-onboarding-step="3" hidden class="form-grid"><label>General area<span class="field-help">City, county, or region only—never an exact address.</span><input name="location_text" maxlength="120" value="${value("location_text", profile.location)}" placeholder="Richmond, VA"></label><label>Who can see it?<span class="field-help">This controls the general area beside it.</span><select name="location_visibility"><option value="region">Everyone</option><option value="members">Signed-in members</option><option value="private">Only me</option></select></label><label>Availability<input name="availability_text" maxlength="240" value="${value("availability_text", profile.availability)}" placeholder="Saturday mornings"></label><label>Travel radius (km)<input name="work_radius_km" type="number" min="0" max="1000" value="${value("work_radius_km", profile.workRadius)}" placeholder="25"></label><label class="wide"><input type="checkbox" name="remote_available" ${profile.remoteAvailable ? "checked" : ""}> Include remote opportunities</label><label class="wide">Tools, materials, transportation, or workspace <span class="optional">optional</span><textarea name="resources_text" placeholder="Pickup truck, table saw, garage workspace">${value("resources_text", profile.resources)}</textarea></label><label class="wide">Portfolio photo <span class="optional">optional</span><span class="field-help">Photo upload will be added to profiles next. Completed projects already accept proof-of-work photos.</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled></label><div class="wide privacy-note"><b>Your precise location stays private.</b><span>Share meeting details yourself only after deciding to work together.</span></div></section>
-    <div class="onboarding-actions"><button type="button" class="text-btn" data-onboarding-skip>Skip for now</button><button type="button" class="secondary" data-onboarding-back hidden>Back</button><button type="button" class="primary" data-onboarding-next>Continue</button><button class="primary" data-onboarding-finish hidden>Save and continue</button></div>
-  </form>`);
-  const goal = draft.first_goal || profile.firstGoal;
-  if (goal) modalRoot.querySelector(`[name="first_goal"][value="${goal}"]`)?.click();
-  const visibility = modalRoot.querySelector('[name="location_visibility"]');
-  if (visibility) visibility.value = draft.location_visibility || profile.locationVisibility || "region";
-  const onboardingPhoto = modalRoot.querySelector('input[type="file"][disabled]');
-  if (onboardingPhoto) {
-    onboardingPhoto.disabled = false;
-    onboardingPhoto.name = "avatar";
-    const help = onboardingPhoto.closest("label")?.querySelector(".field-help");
-    if (help) help.textContent = "Optional profile photo. Large images are resized before upload.";
-  }
-}
-
-function saveOnboardingDraft(form) {
-  const data = new FormData(form);
-  localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(Object.fromEntries(data.entries())));
-}
-
-function onboardingCapabilities(form) {
-  const split = (value) => String(value || "").split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
-  return { offers: split(form.elements.offers?.value), needs: split(form.elements.needs?.value) };
-}
-
-function validateOnboardingCapabilities(form) {
-  const { offers, needs } = onboardingCapabilities(form);
-  const invalid = [...offers, ...needs].find((item) => item.length < 2 || item.length > 100);
-  if (!offers.length || !needs.length) {
-    notify("Add at least one thing you can offer and one thing you need.", "warning");
-    return false;
-  }
-  if (invalid) {
-    notify(`“${invalid}” is too short. Use at least 2 characters for each offer or need.`, "warning");
-    return false;
-  }
-  return true;
-}
-
-function showOnboardingStep(form, step) {
-  form.dataset.step = String(step);
-  form.querySelectorAll("[data-onboarding-step]").forEach((panel) => { panel.hidden = Number(panel.dataset.onboardingStep) !== step; });
-  form.querySelector("[data-onboarding-step-number]").textContent = String(step);
-  form.querySelector("[data-onboarding-progress]").style.width = `${step / 3 * 100}%`;
-  form.querySelector("[data-onboarding-back]").hidden = step === 1;
-  form.querySelector("[data-onboarding-next]").hidden = step === 3;
-  form.querySelector("[data-onboarding-finish]").hidden = step !== 3;
-  modalRoot.querySelector(".modal")?.scrollTo({ top: 0, behavior: "instant" });
 }
 
 function matchFeedbackModal(matchKey) {

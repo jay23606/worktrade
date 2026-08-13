@@ -5,7 +5,7 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("application shell delegates matching and PWA lifecycle to feature modules", async () => {
-  const [app, matching, messages, network, projects, workspace, communities, pwa, deployment, worker] = await Promise.all([
+  const [app, matching, messages, network, projects, workspace, communities, profile, dialogs, pwa, deployment, worker] = await Promise.all([
     readFile(new URL("app.js", root), "utf8"),
     readFile(new URL("features/matching.js", root), "utf8"),
     readFile(new URL("features/messages.js", root), "utf8"),
@@ -13,6 +13,8 @@ test("application shell delegates matching and PWA lifecycle to feature modules"
     readFile(new URL("features/projects.js", root), "utf8"),
     readFile(new URL("features/workspace.js", root), "utf8"),
     readFile(new URL("features/communities.js", root), "utf8"),
+    readFile(new URL("features/profile.js", root), "utf8"),
+    readFile(new URL("features/collaboration-dialogs.js", root), "utf8"),
     readFile(new URL("shell/pwa.js", root), "utf8"),
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
     readFile(new URL("service-worker.js", root), "utf8"),
@@ -25,11 +27,13 @@ test("application shell delegates matching and PWA lifecycle to feature modules"
   assert.match(projects, /projectWorkspace/);
   assert.match(workspace, /buildJourneyActions/);
   assert.match(communities, /renderChainHub/);
+  assert.match(profile, /validateOnboardingCapabilities/);
+  assert.match(dialogs, /chainBuilderModal/);
   assert.match(network, /circleDetail, renderChainHub/);
   assert.match(pwa, /applyConnectivityState/);
   assert.match(deployment, /cp -r features shell dist/);
   assert.match(worker, /features\/matching\.js/);
   assert.match(worker, /features\/projects\.js/);
   assert.match(worker, /features\/workspace\.js/);
-  assert.ok(app.split(/\r?\n/).length < 3250, "app.js must keep shrinking as feature modules are extracted");
+  assert.ok(app.split(/\r?\n/).length < 3000, "app.js must keep shrinking as feature modules are extracted");
 });
