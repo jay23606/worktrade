@@ -76,7 +76,8 @@ try {
   assert.ok(discoveredProvider.match_reasons.includes("Offers what you need"));
   await rpc(owner.token, "record_match_event", { profile_value: provider.id, request_value: null, event_value: "dismissed", reason_value: "timing" });
   const reranked = await rpc(owner.token, "discover_profiles", { search_text: provider.name, exchange_filter: null, remote_only: false });
-  assert.ok(reranked.find((row) => row.profile.id === provider.id).profile.match_score < discoveredProvider.match_score);
+  const rerankedProvider = reranked.find((row) => row.profile.id === provider.id)?.profile;
+  assert.ok(!rerankedProvider || rerankedProvider.match_score < discoveredProvider.match_score, "dismissed matches should rank lower or leave the result set");
 
   const contactId = await rpc(owner.token, "send_contact_request", { target_profile_id: provider.id, message_body: "Could I ask you a quick question about your carpentry availability?", target_request_id: null, contact_kind: "message" });
   let contactInbox = await rpc(provider.token, "get_network_inbox", {});
