@@ -1,9 +1,9 @@
-const CACHE = "worktrade-v20260813onechat";
+const CACHE = "worktrade-v20260813matching";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20260813photos",
-  "./app.js?v=20260813onechat",
+  "./app.js?v=20260813matching",
   "./config.js",
   "./data.js",
   "./manifest.webmanifest",

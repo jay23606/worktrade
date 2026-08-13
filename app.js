@@ -97,6 +97,7 @@ import {
   getNetworkActivity,
   publishCompletion,
   setFollow,
+  recordMatchEvent,
 } from "./modules/backend.js";
 import {
   getNetworkInbox,
@@ -834,7 +835,7 @@ function hydrateNetworkSocial() {
           .querySelector("h3")
           ?.insertAdjacentHTML(
             "afterend",
-            `<small class="match-score">Match ${profile.match_score} · skills, location, availability, exchange fit, and proven work</small>`,
+            `<small class="match-score">Match ${profile.match_score} · ${esc((profile.match_reasons || ["Profile information overlaps your preferences"]).join(" · "))}</small>`,
           );
     });
   const saved = state.networkInbox?.saved_searches || [];
@@ -1188,8 +1189,10 @@ function scorePersonForProfile(person) {
   const locationFit = !!state.profile.location && !!person.location_text && person.location_text.toLowerCase().includes(state.profile.location.split(",")[0].toLowerCase());
   const exchangeFit = (state.profile.preferredExchangeModes || ["barter", "cash", "hybrid"]).some((mode) => (person.preferred_exchange_modes || []).includes(mode));
   const proof = Math.min(2, Number(person.completed_count || 0));
-  const score = Math.min(100, helpsMe.length * 18 + helpThem.length * 18 + (locationFit ? 12 : 0) + (person.remote_available && state.profile.remoteAvailable ? 8 : 0) + (exchangeFit ? 8 : 0) + proof * 4);
-  return { person, helpsMe, helpThem, locationFit, exchangeFit, score };
+  const serverHelpsMe = person.matched_offers || [];
+  const serverHelpThem = person.matched_needs || [];
+  const score = person.match_score == null ? Math.min(100, helpsMe.length * 18 + helpThem.length * 18 + (locationFit ? 12 : 0) + (person.remote_available && state.profile.remoteAvailable ? 8 : 0) + (exchangeFit ? 8 : 0) + proof * 4) : Number(person.match_score);
+  return { person, helpsMe: serverHelpsMe.length ? serverHelpsMe : helpsMe, helpThem: serverHelpThem.length ? serverHelpThem : helpThem, locationFit, exchangeFit, score, reasons: person.match_reasons || [] };
 }
 
 function announceStrongMatches(profiles) {
@@ -1210,6 +1213,12 @@ function announceStrongMatches(profiles) {
 function feedbackControls(key) {
   const current = state.matchFeedback[key];
   return `<div class="match-feedback" aria-label="Rate this match"><button class="text-btn ${current === "useful" ? "selected" : ""}" data-match-feedback="${key}:useful">Useful</button><button class="text-btn ${current?.startsWith("not-relevant") ? "selected" : ""}" data-match-feedback="${key}:not-relevant">Not relevant</button><button class="text-btn" data-match-dismiss="${key}">Hide</button></div>`;
+}
+
+function recordMatchKey(key, event, reason = null) {
+  if (!state.remote || !state.session) return;
+  const [kind, id] = String(key).split(":");
+  recordMatchEvent({ profileId: kind === "profile" ? id : null, requestId: kind === "request" ? id : null, event, reason }).catch(() => {});
 }
 
 function renderFirstMatches() {
@@ -2139,6 +2148,7 @@ document.addEventListener("click", (event) => {
     );
     if (profile) {
       publicProfileModal(profile);
+      recordMatchKey(`profile:${profile.id}`, "viewed");
       if (state.session && profile.id !== state.profile.id)
         modalRoot
           .querySelector(".modal")
@@ -2158,6 +2168,7 @@ document.addEventListener("click", (event) => {
     else {
       state.matchFeedback = { ...state.matchFeedback, [key]: feedback };
       localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
+      recordMatchKey(key, "useful");
       notify("Thanks—this match was marked useful");
     }
   }
@@ -2165,6 +2176,7 @@ document.addEventListener("click", (event) => {
   if (dismissMatch) {
     state.matchFeedback = { ...state.matchFeedback, [dismissMatch.dataset.matchDismiss]: "dismissed" };
     localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
+    recordMatchKey(dismissMatch.dataset.matchDismiss, "dismissed", "hidden");
     notify("Match hidden");
   }
   const invitePerson = event.target.closest("[data-invite-person]");
@@ -2179,6 +2191,7 @@ document.addEventListener("click", (event) => {
     const profileId = contactPerson.dataset.contactPerson;
     const existing = (state.networkInbox.invitations || []).find((item) => ["pending", "accepted", "converted"].includes(item.status) && ((item.sender_id === state.profile.id && item.recipient_id === profileId) || (item.recipient_id === state.profile.id && item.sender_id === profileId)));
     if (existing) {
+      recordMatchKey(`profile:${profileId}`, "contacted");
       state.selectedConversationId = existing.id;
       state.messageListOnly = false;
       state.view = "messages";
@@ -2517,6 +2530,7 @@ document.addEventListener("submit", async (event) => {
   if (form.dataset.form === "match-feedback") {
     state.matchFeedback = { ...state.matchFeedback, [form.dataset.matchKey]: `not-relevant:${data.get("reason")}` };
     localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
+    recordMatchKey(form.dataset.matchKey, "dismissed", data.get("reason"));
     closeModal();
     notify("Thanks—this will improve future ranking");
   }
@@ -3256,6 +3270,7 @@ document.addEventListener("submit", async (event) => {
         note: data.get("note"),
         requestId: data.get("request") || null,
       });
+      recordMatchKey(`profile:${form.dataset.profile}`, "proposed");
       closeModal();
       await loadNetwork();
       notify("Collaboration invitation sent");
@@ -3273,6 +3288,7 @@ document.addEventListener("submit", async (event) => {
           form.dataset.request || null,
           form.dataset.kind || "message",
         );
+        recordMatchKey(`profile:${form.dataset.profile}`, "contacted");
         await loadNetwork();
       }
       closeModal();

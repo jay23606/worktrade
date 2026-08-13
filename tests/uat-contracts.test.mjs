@@ -304,3 +304,14 @@ test("formal exchange reuses an existing conversation", async () => {
   assert.match(sql, /invitation_kind='exchange'/);
   assert.match(sql, /insert into public\.introduction_messages/);
 });
+
+test("matching combines related skills, practical fit, and private outcomes", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813090000_outcome_aware_matching.sql", root), "utf8");
+  assert.match(sql, /skill_family/);
+  assert.match(sql, /availability_overlap/);
+  assert.match(sql, /resource_fit/);
+  assert.match(sql, /match_events/);
+  assert.match(sql, /event_kind when'useful'then 3 when'dismissed'then-12/);
+  assert.match(sql, /Worked together successfully/);
+  assert.match(app, /recordMatchKey/);
+});

@@ -73,6 +73,13 @@ export async function setFollow(profileId, follow) {
   if (error) throw error;
 }
 
+export async function recordMatchEvent({ profileId = null, requestId = null, event, reason = null }) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { error } = await client.rpc("record_match_event", { profile_value: profileId, request_value: requestId, event_value: event, reason_value: reason });
+  if (error) throw error;
+}
+
 export async function getNetworkInbox() {
   const client = await getBackend();
   assertBackend(client);
