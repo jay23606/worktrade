@@ -24,7 +24,7 @@ The wider public network remains available for discovery, but community context 
 
 | Area                       | Status                | Notes                                                                                            |
 | -------------------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
-| Accounts and profiles      | Connected             | Email-link authentication plus resumable three-step setup, first-goal routing, profile completeness, location privacy, availability, offers, needs, exchange preferences, and resources |
+| Accounts and profiles      | Connected             | Email-link authentication plus resumable setup, profile completeness, private profile-photo storage, location privacy, availability, offers, needs, exchange preferences, and resources |
 | Private pilot operations   | Connected             | Hashed invites, server-enforced membership, contextual feedback, private follow-up, triage, and activation funnel |
 | Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
 | Proposal negotiation       | Connected             | Versioned counters, highlighted term changes, counterparty-only acceptance, declines, and readable history |
@@ -39,7 +39,7 @@ The wider public network remains available for discovery, but community context 
 | Active project workspace   | Connected             | Compact Overview, unified Activity, Exchange, and Files sections keep current work visible without an endless detail page |
 | Action inbox               | Connected             | Groups required actions, messages, and updates; routes into project context; supports read state, global delivery settings, and per-project routine-update muting |
 | First-use activation       | Connected             | Adaptive five-step checklist, profile-readiness guidance, reciprocal match setup, removable examples, and a guided first proposal grounded in actual account milestones |
-| Evidence and reputation    | Connected             | Private evidence, contextual reviews, verified completion stories, public portfolios             |
+| Evidence and reputation    | Connected             | Private evidence, contextual reviews, verified completion stories, and photo-backed portfolios tied to completed work |
 | Social network             | Connected             | Two-way match scores and explanations, follows, saves, feedback, invitations, activity, and strong-match notifications |
 | Local discovery            | Connected             | Nearby/remote modes, normalized skill aliases, explainable reciprocal ranking, availability and sort filters, coarse location bands, privacy controls, and saved alerts |
 | Introductions              | Connected             | Consent gate, private messaging, shared planning workspace, conversion to work                   |

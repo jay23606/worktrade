@@ -33,11 +33,18 @@ export async function discoverProfiles({
     remote_only: remote,
   });
   if (error) throw error;
-  return data.map((row) => ({
-    ...row.profile,
-    capabilities: row.capabilities,
-    portfolio: row.portfolio,
-    reviews: row.reviews,
+  return Promise.all(data.map(async (row) => {
+    const profile = { ...row.profile, capabilities: row.capabilities, portfolio: row.portfolio, reviews: row.reviews };
+    if (profile.avatar_path) {
+      const { data: signed } = await client.storage.from("profile-media").createSignedUrl(profile.avatar_path, 3600);
+      profile.avatar_url = signed?.signedUrl || "";
+    }
+    profile.portfolio = await Promise.all((profile.portfolio || []).map(async (entry) => {
+      if (!entry.asset_path) return entry;
+      const { data: signed } = await client.storage.from("profile-media").createSignedUrl(entry.asset_path, 3600);
+      return { ...entry, asset_url: signed?.signedUrl || "" };
+    }));
+    return profile;
   }));
 }
 

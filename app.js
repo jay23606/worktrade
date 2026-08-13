@@ -85,6 +85,10 @@ import {
   updateMyProfile,
   updateRequest,
   uploadRequestMedia,
+  uploadProfileAvatar,
+  removeProfileAvatar,
+  uploadPortfolioImage,
+  removePortfolioImage,
   uploadWorkEvidence,
   withdrawOffer,
 } from "./modules/backend.js";
@@ -632,6 +636,11 @@ function offerDashboard() {
   return `<section class="dashboard-group"><h2>Proposals I submitted</h2>${state.myOffers.map((o) => { const countered = o.status === "pending" && o.last_proposed_by && o.last_proposed_by !== state.profile.id; return `<article class="work-row"><span class="category">${countered ? "countered" : esc(o.status)}</span><div><h3>${esc(o.work_requests?.title || "Work request")}</h3><p>${esc(o.scope)} · ${esc(o.exchange_summary)}</p><small>Version ${o.version || 1}${countered ? " · your response needed" : ""}</small></div>${o.status === "pending" ? `<div class="dashboard-actions">${countered ? `<button data-accept="${o.id}">Accept counter</button><button data-counter-offer="${o.id}">Counter again</button><button data-decline-offer="${o.id}">Decline</button>` : `<button data-edit-offer="${o.id}">Revise</button><button data-withdraw-offer="${o.id}">Withdraw</button>`}</div>` : ""}</article>`; }).join("") || `<div class="empty">No submitted proposals.</div>`}</section>`;
 }
 
+function avatarMarkup(url, name, size = "") {
+  const initials = (name || "WT").split(/\s+/).map((x) => x[0]).join("").slice(0, 2);
+  return url ? `<span class="avatar ${size} photo"><img src="${esc(url)}" alt="${esc(name)} profile photo"></span>` : `<span class="avatar ${size}">${esc(initials)}</span>`;
+}
+
 function networkPersonCard(p) {
   const caps = p.capabilities || [];
   const offers = caps
@@ -644,13 +653,7 @@ function networkPersonCard(p) {
       (n) => x.toLowerCase().includes(n) || n.includes(x.toLowerCase()),
     ),
   );
-  return `<article class="person-card"><span class="avatar big">${esc(
-    (p.display_name || "WT")
-      .split(/\s+/)
-      .map((x) => x[0])
-      .join("")
-      .slice(0, 2),
-  )}</span><div><h3>${esc(p.display_name)}</h3><small>${esc(p.location_text || "Location not listed")}${p.remote_available ? " · Remote available" : ""}</small><p><b>Offers:</b> ${esc(offers.join(" · ") || "Not listed")}</p><p><b>Needs:</b> ${esc(needs.join(" · ") || "Not listed")}</p>${overlap.length ? `<p class="match-reason">Matches what you need: ${esc(overlap.join(", "))}</p>` : ""}<small>${p.completed_count || 0} completed · ${p.review_count || 0} reviews</small><div class="person-card-actions"><button class="text-btn" data-view-profile="${p.id}">View evidence</button>${state.session && p.id !== state.profile.id ? `<button class="text-btn" data-follow-person="${p.id}">${state.profile.following?.includes(p.id) ? "Following" : "Follow"}</button>` : ""}</div></div></article>`;
+  return `<article class="person-card">${avatarMarkup(p.avatar_url, p.display_name, "big")}<div><h3>${esc(p.display_name)}</h3><small>${esc(p.location_text || "Location not listed")}${p.remote_available ? " · Remote available" : ""}</small><p><b>Offers:</b> ${esc(offers.join(" · ") || "Not listed")}</p><p><b>Needs:</b> ${esc(needs.join(" · ") || "Not listed")}</p>${overlap.length ? `<p class="match-reason">Matches what you need: ${esc(overlap.join(", "))}</p>` : ""}<small>${p.completed_count || 0} completed · ${p.review_count || 0} reviews</small><div class="person-card-actions"><button class="text-btn" data-view-profile="${p.id}">View evidence</button>${state.session && p.id !== state.profile.id ? `<button class="text-btn" data-follow-person="${p.id}">${state.profile.following?.includes(p.id) ? "Following" : "Follow"}</button>` : ""}</div></div></article>`;
 }
 function activityCard(item) {
   return `<article class="activity-card"><span class="category">${esc(item.type === "portfolio" ? "Completed work" : "Open request")}</span><h3>${esc(item.title)}</h3><p>${esc(item.summary || "")}</p><small>${esc(item.actor_name || "WorkTrade member")} · ${new Date(item.created_at).toLocaleDateString()}</small></article>`;
@@ -1135,11 +1138,11 @@ function renderProfile() {
   const p = state.profile;
   const quality = profileQuality(p);
   return shell(
-    `<section class="profile-head"><span class="avatar giant">${p.initials}</span><div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div><div class="profile-actions"><button class="primary" data-action="onboarding">${p.onboardingComplete ? "Improve my matches" : "Finish match setup"}</button><button class="secondary profile-edit" data-action="edit-profile">Edit profile</button></div></section>
+    `<section class="profile-head">${avatarMarkup(p.avatarUrl, p.name, "giant")}<div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div><div class="profile-actions"><button class="primary" data-action="onboarding">${p.onboardingComplete ? "Improve my matches" : "Finish match setup"}</button><button class="secondary profile-edit" data-action="edit-profile">Edit profile</button></div></section>
     <section class="profile-quality"><div><span class="eyebrow">Profile readiness</span><h2>${quality.score}% ready for useful matches</h2><p>${quality.missing.length ? `Next improvement: ${esc(quality.missing[0])}.` : "Your profile gives collaborators enough context to start a grounded conversation."}</p></div><div class="quality-meter"><span style="width:${quality.score}%"></span></div>${quality.missing.length ? `<ul>${quality.missing.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : ""}</section>
     <div class="two-col"><section class="list-panel"><span class="eyebrow">I can offer</span><h2>Skills, goods, and access</h2><div class="editable-list">${p.offers.map((x, i) => `<span>${esc(x)}<button data-remove="offers:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="offers" class="inline-form"><input name="item" required placeholder="Add something you can offer"><button class="secondary">Add</button></form></section>
     <section class="list-panel warm"><span class="eyebrow">I need</span><h2>Things that could move you forward</h2><div class="editable-list">${p.needs.map((x, i) => `<span>${esc(x)}<button data-remove="needs:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="needs" class="inline-form"><input name="item" required placeholder="Add something you need"><button class="secondary">Add</button></form></section></div>
-    <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid"><div><b>Storefront deck restoration</b><span>Carpentry · Exterior finishing</span><p>Verified by Nia Brooks</p></div><div><b>Product launch photography</b><span>Photography · Art direction</span><p>Verified by Maya Chen</p></div></div>${backendConfigured ? `<div class="account-panel" id="account-panel"><p>Checking account…</p></div>` : `<div class="account-panel"><b>Device-local demonstration</b><p>Real accounts become available when this installation is connected to its own Supabase project.</p></div>`}<button class="danger-text" data-action="reset">Reset demo data</button></section>`,
+    <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid">${(p.portfolio || []).map((entry) => `<div>${entry.asset_url ? `<img class="portfolio-photo" src="${esc(entry.asset_url)}" alt="Work example: ${esc(entry.title)}">` : ""}<b>${esc(entry.title)}</b><p>${esc(entry.summary)}</p>${state.remote ? `<form data-form="portfolio-photo" data-entry="${entry.id}" data-path="${esc(entry.asset_path || "")}"><label class="photo-picker">${entry.asset_path ? "Replace photo" : "Add photo"}<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label><button class="secondary compact">Upload</button>${entry.asset_path ? `<button type="button" class="text-btn" data-remove-portfolio-photo="${entry.id}" data-path="${esc(entry.asset_path)}">Remove</button>` : ""}</form>` : ""}</div>`).join("") || `<div><b>No completed-work portfolio yet</b><p>After a project is completed, publish it to your portfolio and add a photo here.</p></div>`}</div>${backendConfigured ? `<div class="account-panel" id="account-panel"><p>Checking account…</p></div>` : `<div class="account-panel"><b>Device-local demonstration</b><p>Real accounts become available when this installation is connected to its own Supabase project.</p></div>`}<button class="danger-text" data-action="reset">Reset demo data</button></section>`,
     "Profile and capabilities",
   );
 }
@@ -1452,6 +1455,10 @@ function profileModal() {
   openModal(
     `<span class="eyebrow">Work profile</span><h2>Show how you can participate.</h2><form data-form="profile" class="form-grid"><label class="wide">Display name<input name="display_name" required minlength="2" maxlength="80" value="${esc(profile.name)}"></label><label>General location<input name="location_text" maxlength="120" value="${esc(profile.location)}"></label><label>Work radius (km)<input name="work_radius_km" type="number" min="0" max="1000" value="${profile.workRadius || ""}"></label><label class="wide">Short biography<textarea name="bio" maxlength="500">${esc(profile.bio)}</textarea></label><label class="wide">Availability<input name="availability_text" value="${esc(profile.availability || "")}"></label><label class="wide">Tools, workspace, vehicles, and equipment<textarea name="resources_text">${esc(profile.resources || "")}</textarea></label><label>Visibility<select name="profile_visibility"><option value="public">Public</option><option value="members">Members</option><option value="private">Private</option></select></label><label><input type="checkbox" name="remote_available" ${profile.remoteAvailable ? "checked" : ""}> Available for remote work</label><button class="primary wide">Save profile</button></form>`,
   );
+  const photoField = document.createElement("div");
+  photoField.className = "wide profile-photo-field";
+  photoField.innerHTML = `${avatarMarkup(profile.avatarUrl, profile.name, "giant")}<label>Profile photo<span class="field-help">JPG, PNG, or WebP. Large images are resized before upload.</span><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp"></label>${profile.avatarPath ? `<button type="button" class="text-btn" data-remove-avatar>Remove current photo</button>` : ""}`;
+  modalRoot.querySelector('form[data-form="profile"]')?.prepend(photoField);
   const locationPrivacy = document.createElement("label");
   locationPrivacy.innerHTML = `Location visibility<span class="field-help">Controls who can see the general area above; your exact address is never collected.</span><select name="location_visibility"><option value="region">Show general region</option><option value="members">Signed-in members only</option><option value="private">Keep private</option></select>`;
   modalRoot.querySelector('[name="location_text"]')?.closest("label")?.after(locationPrivacy);
@@ -1494,6 +1501,13 @@ function welcomeSetupModal() {
   if (goal) modalRoot.querySelector(`[name="first_goal"][value="${goal}"]`)?.click();
   const visibility = modalRoot.querySelector('[name="location_visibility"]');
   if (visibility) visibility.value = draft.location_visibility || profile.locationVisibility || "region";
+  const onboardingPhoto = modalRoot.querySelector('input[type="file"][disabled]');
+  if (onboardingPhoto) {
+    onboardingPhoto.disabled = false;
+    onboardingPhoto.name = "avatar";
+    const help = onboardingPhoto.closest("label")?.querySelector(".field-help");
+    if (help) help.textContent = "Optional profile photo. Large images are resized before upload.";
+  }
 }
 
 function saveOnboardingDraft(form) {
@@ -1535,6 +1549,15 @@ function downloadExport(data) {
 }
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-remove-avatar]")) {
+    removeProfileAvatar(state.profile.avatarPath).then(loadRemoteWorkspace).then(() => { closeModal(); notify("Profile photo removed"); }).catch((error) => notify(error.message));
+    return;
+  }
+  const removePortfolio = event.target.closest("[data-remove-portfolio-photo]");
+  if (removePortfolio) {
+    removePortfolioImage(removePortfolio.dataset.removePortfolioPhoto, removePortfolio.dataset.path).then(loadRemoteWorkspace).then(() => notify("Portfolio photo removed")).catch((error) => notify(error.message));
+    return;
+  }
   const onboardingForm = event.target.closest('form[data-form="onboarding"]');
   if (onboardingForm && event.target.closest("[data-onboarding-next]")) {
     const step = Number(onboardingForm.dataset.step || 1);
@@ -2842,13 +2865,26 @@ document.addEventListener("submit", async (event) => {
           resources_text: profile.resources,
           profile_visibility: profile.visibility,
         });
+      const avatar = form.elements.avatar?.files?.[0];
+      if (state.remote && avatar) await uploadProfileAvatar(avatar, state.profile.avatarPath);
       state.profile = profile;
+      if (state.remote && avatar) await loadRemoteWorkspace();
       if (!state.remote) persist();
       closeModal();
       notify("Profile saved");
     } catch (error) {
       notify(error.message);
     }
+  }
+  if (form.dataset.form === "portfolio-photo") {
+    try {
+      const photo = form.elements.photo.files[0];
+      if (!photo) return notify("Choose a photo", "warning");
+      const oldPath = form.dataset.path;
+      await uploadPortfolioImage(form.dataset.entry, photo, oldPath);
+      await loadRemoteWorkspace();
+      notify("Portfolio photo added", "success");
+    } catch (error) { notify(error.message); }
   }
   if (form.dataset.form === "onboarding") {
     const splitList = (value) => value.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
@@ -2887,7 +2923,10 @@ document.addEventListener("submit", async (event) => {
           profile_visibility: profile.visibility,
         });
       if (state.remote) await recordOnboardingState(profile.firstGoal, "complete");
+      const avatar = form.elements.avatar?.files?.[0];
+      if (state.remote && avatar) await uploadProfileAvatar(avatar, state.profile.avatarPath);
       state.profile = profile;
+      if (state.remote && avatar) await loadRemoteWorkspace();
       if (!state.remote) persist();
       localStorage.removeItem(ONBOARDING_DRAFT_KEY);
       closeModal();
@@ -3592,6 +3631,9 @@ async function loadRemoteWorkspace() {
       locationVisibility: profile.location_visibility || "region",
       resources: profile.resources_text || "",
       visibility: profile.profile_visibility,
+      avatarPath: profile.avatar_path || null,
+      avatarUrl: profile.avatar_url || "",
+      portfolio: profile.portfolio_entries || [],
       preferredExchangeModes: profile.preferred_exchange_modes || ["cash", "barter", "hybrid"],
       firstGoal: profile.first_goal || null,
       onboardingComplete: !!profile.onboarding_completed_at,
