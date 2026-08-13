@@ -10,6 +10,7 @@ const password = `Wt-${crypto.randomUUID()}-Aa9!`;
 const users = [
   { email: `worktrade-owner-${run}@example.com`, name: "Integration Owner" },
   { email: `worktrade-provider-${run}@example.com`, name: "Integration Provider" },
+  { email: `worktrade-decline-${run}@example.com`, name: "Integration Decliner" },
 ];
 const created = [];
 const uploaded = [];
@@ -58,9 +59,15 @@ async function cleanup() {
 try {
   const owner = await createUser(users[0]);
   const provider = await createUser(users[1]);
+  const decliner = await createUser(users[2]);
 
   await rpc(owner.token, "set_my_profile", { payload: { display_name: owner.name, location_text: "Richmond, VA", bio: "Owner test account", needs: ["Carpentry"], offers: ["Photography"] } });
   await rpc(provider.token, "set_my_profile", { payload: { display_name: provider.name, location_text: "Richmond, VA", location_visibility: "private", bio: "Provider test account", needs: ["Photography"], offers: ["Carpentry"] } });
+  await rpc(decliner.token, "set_my_profile", { payload: { display_name: decliner.name, bio: "Decline-path test account", needs: ["Gardening"], offers: ["Painting"] } });
+  const declinedId = await rpc(owner.token, "send_contact_request", { target_profile_id: decliner.id, message_body: "Would you like to discuss a small painting project?", target_request_id: null, contact_kind: "message" });
+  await rpc(decliner.token, "respond_collaboration_invitation", { target_invitation_id: declinedId, response: "declined" });
+  const declinedInbox = await rpc(owner.token, "get_network_inbox", {});
+  assert.equal(declinedInbox.invitations.find((item) => item.id === declinedId).status, "declined");
   const discovery = await rpc(owner.token, "discover_profiles", { search_text: provider.name, exchange_filter: null, remote_only: false });
   const discoveredProvider = discovery.find((row) => row.profile.id === provider.id).profile;
   assert.equal(discoveredProvider.location_text, null);
