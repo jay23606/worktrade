@@ -122,6 +122,7 @@ import {
 
 const STORAGE_KEY = "worktrade:v1";
 const MATCH_FEEDBACK_KEY = "worktrade:match-feedback:v1";
+const PROJECT_NOTIFICATION_KEY = "worktrade:project-notifications:v1";
 const saved = (() => {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -144,8 +145,9 @@ const store = createStore({
   profile: initial.profile,
   requests: initial.requests,
   myOffers: [],
-  notifications: [],
+  notifications: initial.notifications || [],
   notificationPreferences: null,
+  projectNotificationSettings: (() => { try { return JSON.parse(localStorage.getItem(PROJECT_NOTIFICATION_KEY)) || {}; } catch { return {}; } })(),
   networkProfiles: [],
   networkActivity: [],
   networkQuery: "",
@@ -1238,9 +1240,39 @@ function editRequestModal(request) {
 
 function notificationsModal() {
   const unread = state.notifications.filter((item) => !item.read_at);
+  const groups = { action: [], message: [], update: [] };
+  state.notifications.forEach((item) => {
+    const group = notificationGroup(item);
+    if (group === "update" && item.request_id && state.projectNotificationSettings[item.request_id] === "muted") return;
+    groups[group].push(item);
+  });
   openModal(
-    `<span class="eyebrow">Notifications</span><div class="section-title"><h2>What changed</h2>${unread.length ? `<button class="text-btn" data-action="read-all">Mark all read</button>` : ""}</div><div class="notification-list">${state.notifications.map((item) => `<button data-notification="${item.id}" data-request="${item.request_id || ""}" class="${item.read_at ? "" : "unread"}"><span>${esc(item.kind)}</span><b>${esc(item.title)}</b><p>${esc(item.body)}</p><small>${new Date(item.created_at).toLocaleString()}</small></button>`).join("") || `<p>No notifications yet.</p>`}</div>`,
+    `<span class="eyebrow">Inbox</span><div class="section-title inbox-title"><div><h2>Work that changed</h2><p>${unread.length ? `${unread.length} unread` : "You’re caught up"}</p></div>${unread.length ? `<button class="text-btn" data-action="read-all">Mark all read</button>` : ""}</div><div class="inbox-groups">${notificationGroupSection("Needs your action", groups.action, "Confirmations, proposals, and reviews that cannot move without you.")}${notificationGroupSection("Messages", groups.message, "Project conversations from other participants.")}${notificationGroupSection("Updates", groups.update, "Status changes and useful context; no response is required.")}</div><button class="text-btn" data-action="notification-preferences">Notification preferences</button>`,
   );
+}
+
+function notificationGroup(item) {
+  if (item.kind === "message" || /message/i.test(item.title)) return "message";
+  if (/new trade proposal|approval requested|needs? (your )?review|proposed|invitation|membership request|renewed consent|work issue reported/i.test(item.title)) return "action";
+  return "update";
+}
+
+function notificationRoute(item) {
+  if (item.request_id) return { view: "detail", section: item.kind === "message" ? "activity" : /change|issue/i.test(item.title) ? "overview" : /cost|contribution|exchange/i.test(item.title) ? "exchange" : "overview" };
+  if (item.kind === "network") return { view: "network" };
+  if (item.kind === "safety") return { view: "profile" };
+  return { view: "workspace" };
+}
+
+function notificationGroupSection(title, items, emptyText) {
+  return `<section class="inbox-group"><div class="inbox-group-head"><h3>${title}</h3><span>${items.length}</span></div>${items.length ? `<div class="notification-list">${items.map(notificationItem).join("")}</div>` : `<div class="empty compact"><b>Nothing here</b><p>${emptyText}</p></div>`}</section>`;
+}
+
+function notificationItem(item) {
+  const route = notificationRoute(item);
+  const waiting = notificationGroup(item) === "action" ? "Waiting on you" : "For your awareness";
+  const muted = item.request_id && state.projectNotificationSettings[item.request_id] === "muted";
+  return `<article class="notification-item ${item.read_at ? "" : "unread"}"><button data-notification="${item.id}" data-request="${item.request_id || ""}" data-route="${route.view}" data-section="${route.section || ""}"><span>${esc(waiting)}</span><b>${esc(item.title)}</b><p>${esc(item.body)}</p><small>${new Date(item.created_at).toLocaleString()}</small></button>${item.request_id ? `<button class="notification-mute" data-project-notifications="${item.request_id}:${muted ? "normal" : "muted"}">${muted ? "Unmute project" : "Mute project"}</button>` : ""}</article>`;
 }
 
 function preferencesModal() {
@@ -1459,10 +1491,9 @@ document.addEventListener("click", (event) => {
   if (action === "notifications") notificationsModal();
   if (action === "notification-preferences") preferencesModal();
   if (action === "read-all")
-    markNotificationsRead()
-      .then(loadNotifications)
-      .then(notificationsModal)
-      .catch((error) => notify(error.message));
+    state.remote
+      ? markNotificationsRead().then(loadNotifications).then(notificationsModal).catch((error) => notify(error.message))
+      : (() => { state.notifications = state.notifications.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })); notificationsModal(); })();
   if (action === "export-data")
     exportMyData()
       .then(downloadExport)
@@ -1739,14 +1770,22 @@ document.addEventListener("click", (event) => {
   }
   const notification = event.target.closest("[data-notification]");
   if (notification) {
-    markNotificationsRead([notification.dataset.notification]).then(
-      loadNotifications,
-    );
+    if (state.remote) markNotificationsRead([notification.dataset.notification]).then(loadNotifications);
+    else state.notifications = state.notifications.map((item) => item.id === notification.dataset.notification ? { ...item, read_at: item.read_at || new Date().toISOString() } : item);
     closeModal();
     if (notification.dataset.request) {
       state.selectedId = notification.dataset.request;
+      state.projectDetailTab = notification.dataset.section || "overview";
       state.view = "detail";
-    }
+    } else state.view = notification.dataset.route || "workspace";
+  }
+  const projectNotifications = event.target.closest("[data-project-notifications]");
+  if (projectNotifications) {
+    const [requestId, setting] = projectNotifications.dataset.projectNotifications.split(":");
+    state.projectNotificationSettings = { ...state.projectNotificationSettings, [requestId]: setting };
+    localStorage.setItem(PROJECT_NOTIFICATION_KEY, JSON.stringify(state.projectNotificationSettings));
+    notificationsModal();
+    notify(setting === "muted" ? "Project updates muted on this device; required actions remain in your inbox" : "Project updates unmuted");
   }
   const lifecycle = event.target.closest("[data-lifecycle]");
   if (lifecycle) {

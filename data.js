@@ -39,6 +39,11 @@ export const seedData = {
       messages: [{ id: "m2", authorId: "nia", author: "Nia Brooks", text: "The rear gate will remain unlocked Thursday morning.", date: "Aug 12" }], followers: ["me"], reports: [],
     },
   ],
+  notifications: [
+    { id: "demo-message", kind: "message", title: "New project message", body: "Nia shared updated site-access details.", request_id: "req-deck", created_at: "2026-08-12T14:20:00Z", read_at: null },
+    { id: "demo-action", kind: "agreement", title: "Work issue needs your review", body: "Review the weather dependency before affected work continues.", request_id: "req-deck", created_at: "2026-08-12T13:10:00Z", read_at: null },
+    { id: "demo-update", kind: "agreement", title: "Schedule accepted", body: "The shared work window is confirmed.", request_id: "req-deck", created_at: "2026-08-11T16:30:00Z", read_at: "2026-08-11T17:00:00Z" },
+  ],
 };
 
 export function cloneSeed() { return structuredClone(seedData); }

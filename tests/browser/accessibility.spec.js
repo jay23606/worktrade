@@ -149,6 +149,20 @@ test("workspace presents one guided next action and links to its project", async
   await expect(page.getByRole("heading", { name: "Conditions, progress, and results" })).toBeVisible();
 });
 
+test("inbox groups events and routes messages to project activity", async ({ page }) => {
+  await page.getByRole("button", { name: "Open notifications" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Needs your action" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Messages" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Updates" })).toBeVisible();
+  await dialog.getByText("New project message", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Restore and reseal storefront deck", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Updates, messages, and decisions" })).toBeVisible();
+  await page.getByRole("button", { name: "Open notifications" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Mute project" }).first().click();
+  await expect(page.getByText(/required actions remain in your inbox/)).toBeVisible();
+});
+
 test("local discovery exposes privacy-safe filters and saved alerts", async ({ page }) => {
   await page.getByRole("navigation", { name: "Primary" }).locator('[data-nav="network"]').click();
   const form = page.locator('form[data-form="network-search"]');
