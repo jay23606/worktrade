@@ -135,6 +135,23 @@ export async function saveNetworkSearch(name, query, exchange, remote) {
   return data;
 }
 
+export async function saveDiscoveryAlert(name, filters) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("save_network_search_v2", {
+    search_name: name,
+    search_query: filters.query || "",
+    exchange_value: filters.exchange || "",
+    discovery_value: filters.mode || "either",
+    radius_value: filters.radius || null,
+    availability_value: filters.availability || "",
+    sort_value: filters.sort || "fit",
+    alerts_value: filters.alerts !== false,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function updateIntroductionWorkspace(
   invitationId,
   version,

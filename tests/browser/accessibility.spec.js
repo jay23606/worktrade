@@ -128,6 +128,18 @@ test("workspace presents one guided next action and links to its project", async
   await expect(page.getByText(/Next action: Conditions/)).toBeVisible();
 });
 
+test("local discovery exposes privacy-safe filters and saved alerts", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Primary" }).locator('[data-nav="network"]').click();
+  const form = page.locator('form[data-form="network-search"]');
+  await expect(form.getByLabel("Where")).toBeVisible();
+  await form.getByLabel("Where").selectOption("nearby");
+  await form.getByLabel("Travel radius").selectOption("25");
+  await form.locator('select[name="availability"]').selectOption("weekend");
+  await form.locator('select[name="sort"]').selectOption("distance");
+  await form.getByRole("button", { name: "Find people" }).click();
+  await expect(page.getByText(/Exact addresses are never used or revealed/)).toBeVisible();
+});
+
 test("posting dialog is labeled, traps focus, and restores focus", async ({
   page,
 }) => {

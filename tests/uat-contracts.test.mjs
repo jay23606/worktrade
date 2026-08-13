@@ -97,6 +97,14 @@ test("private-project conversion requires both current confirmations", async () 
   assert.match(sql, /recipient_confirmed_version is distinct from w\.version/);
 });
 
+test("local discovery redacts profile location and stores privacy-safe alerts", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813013000_private_local_discovery.sql", root), "utf8");
+  assert.match(sql, /to_jsonb\(p\)-'deactivated_at'-'location_text'/);
+  assert.match(sql, /case when p\.location_visibility='region'/);
+  assert.match(sql, /location_band/);
+  assert.match(sql, /save_network_search_v2/);
+});
+
 test("moderation data is private and restrictions guard interaction writes", () => {
   assert.match(sql, /moderation_actions_immutable/);
   assert.match(sql, /staff authorization required/);

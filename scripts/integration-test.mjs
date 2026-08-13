@@ -56,7 +56,11 @@ try {
   const provider = await createUser(users[1]);
 
   await rpc(owner.token, "set_my_profile", { payload: { display_name: owner.name, location_text: "Richmond, VA", bio: "Owner test account", needs: ["Carpentry"], offers: ["Photography"] } });
-  await rpc(provider.token, "set_my_profile", { payload: { display_name: provider.name, location_text: "Richmond, VA", bio: "Provider test account", needs: ["Photography"], offers: ["Carpentry"] } });
+  await rpc(provider.token, "set_my_profile", { payload: { display_name: provider.name, location_text: "Richmond, VA", location_visibility: "private", bio: "Provider test account", needs: ["Photography"], offers: ["Carpentry"] } });
+  const discovery = await rpc(owner.token, "discover_profiles", { search_text: provider.name, exchange_filter: null, remote_only: false });
+  const discoveredProvider = discovery.find((row) => row.profile.id === provider.id).profile;
+  assert.equal(discoveredProvider.location_text, null);
+  assert.equal(discoveredProvider.location_band, "Location private");
 
   const invitationId = await rpc(owner.token, "send_collaboration_invitation", { target_profile_id: provider.id, need_value: "Carpentry for workshop storage", offer_value: "Product photography", note_value: "A reciprocal fit for both profiles", target_request_id: null });
   let inbox = await rpc(provider.token, "get_network_inbox", {});

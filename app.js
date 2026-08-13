@@ -71,6 +71,7 @@ import {
   getNetworkInbox,
   respondCollaborationInvitation,
   saveNetworkSearch,
+  saveDiscoveryAlert,
   sendCollaborationInvitation,
   sendIntroductionMessage,
   setSavedProfile,
@@ -126,6 +127,10 @@ const store = createStore({
   networkQuery: "",
   networkExchange: "",
   networkRemote: false,
+  networkMode: "either",
+  networkRadius: 40,
+  networkAvailability: "",
+  networkSort: "fit",
   networkFollowingOnly: false,
   networkInbox: {
     invitations: [],
@@ -540,7 +545,7 @@ function networkInbox(inbox) {
   }</div>`;
 }
 function renderNetwork() {
-  const profiles = state.networkProfiles || [];
+  const profiles = localDiscoveryProfiles(state.networkProfiles || []);
   const activity = state.networkActivity || [];
   const inbox = state.networkInbox || {
     invitations: [],
@@ -552,6 +557,36 @@ function renderNetwork() {
     `<section class="network-hero"><span class="eyebrow">Work network</span><h1>Find people through what they can do<br>and what they need next.</h1><p>Profiles are grounded in completed work, contextual reviews, and concrete offers—not follower counts.</p></section><form data-form="network-search" class="controls network-filters"><label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, names, or locations"></label><select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select><label><input type="checkbox" name="remote" ${state.networkRemote ? "checked" : ""}> Remote available</label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save search</button>` : ""}</form>${state.session ? `<section class="network-inbox"><div class="section-title"><div><span class="eyebrow">Introductions</span><h2>Your collaboration inbox</h2></div><span>${inbox.invitations.filter((x) => x.recipient_id === state.profile.id && x.status === "pending").length} awaiting you</span></div>${networkInbox(inbox)}</section>` : ""}<div class="two-col"><section><span class="eyebrow">Suggested collaborators</span><h2>${profiles.length} people with useful overlap</h2><div class="people-list">${profiles.map(networkPersonCard).join("") || '<div class="empty"><p>No matching public profiles yet.</p></div>'}</div></section><section><div class="feed-heading"><div><span class="eyebrow">Work activity</span><h2>Useful things moving forward</h2></div>${state.session ? `<label><input type="checkbox" data-following-feed ${state.networkFollowingOnly ? "checked" : ""}> Following only</label>` : ""}</div><div class="activity-list">${activity.map(activityCard).join("") || '<div class="empty"><p>No activity matches this feed.</p></div>'}</div></section></div>`,
     "Community network",
   );
+}
+
+function localDiscoveryProfiles(profiles) {
+  const availability = (state.networkAvailability || "").toLowerCase();
+  const filtered = profiles.filter((profile) => {
+    const nearby = profile.location_band === "Same general area";
+    if (state.networkMode === "nearby" && !nearby) return false;
+    if (state.networkMode === "remote" && !profile.remote_available) return false;
+    if (availability && !(profile.availability_text || "").toLowerCase().includes(availability)) return false;
+    return true;
+  });
+  return filtered.map((profile) => ({ ...profile, location_text: profile.location_band || profile.location_text })).sort((a, b) => {
+    if (state.networkSort === "distance") return (a.location_band === "Same general area" ? 0 : 1) - (b.location_band === "Same general area" ? 0 : 1);
+    if (state.networkSort === "availability") return Number(!!b.availability_text) - Number(!!a.availability_text);
+    if (state.networkSort === "newest") return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    return Number(b.match_score || 0) - Number(a.match_score || 0);
+  });
+}
+
+function hydrateLocalDiscovery() {
+  if (state.view !== "network") return;
+  const form = main.querySelector('form[data-form="network-search"]');
+  if (!form) return;
+  form.classList.add("local-discovery");
+  form.innerHTML = `<label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, or names"></label><label>Where<select name="mode"><option value="either">Nearby or remote</option><option value="nearby">Nearby only</option><option value="remote">Remote only</option></select></label><label>Travel radius<select name="radius"><option value="10">10 km</option><option value="25">25 km</option><option value="40">40 km</option><option value="80">80 km</option><option value="160">160 km</option></select></label><label>Availability<select name="availability"><option value="">Any time</option><option value="now">Available now</option><option value="week">This week</option><option value="weekend">Weekends</option><option value="evening">Evenings</option></select></label><label>Exchange<select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select></label><label>Sort<select name="sort"><option value="fit">Reciprocal fit</option><option value="distance">Distance band</option><option value="availability">Availability</option><option value="newest">Newest</option></select></label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save alert</button>` : ""}<p class="location-privacy">Distance is shown only as an approximate band. Exact addresses are never used or revealed.</p>`;
+  form.elements.mode.value = state.networkMode;
+  form.elements.radius.value = String(state.networkRadius);
+  form.elements.availability.value = state.networkAvailability;
+  form.elements.exchange.value = state.networkExchange;
+  form.elements.sort.value = state.networkSort;
 }
 
 function socialPersonCard(p) {
@@ -566,7 +601,7 @@ function socialPersonCard(p) {
 
 function hydrateNetworkSocial() {
   if (state.view !== "network") return;
-  const profiles = state.networkProfiles || [];
+  const profiles = localDiscoveryProfiles(state.networkProfiles || []);
   document
     .querySelectorAll(".people-list .person-card")
     .forEach((card, index) => {
@@ -714,7 +749,7 @@ function invitationModal(profile) {
 }
 function saveSearchModal() {
   openModal(
-    `<span class="eyebrow">Saved search</span><h2>Keep this network search.</h2><form data-form="save-network-search" class="form-grid"><label class="wide">Name<input name="name" required maxlength="80" placeholder="Nearby carpenters open to barter"></label><button class="primary wide">Save search</button></form>`,
+    `<span class="eyebrow">Discovery alert</span><h2>Keep this local search.</h2><form data-form="save-network-search" class="form-grid"><label class="wide">Name<input name="name" required maxlength="80" placeholder="Nearby carpenters open to barter"></label><label class="wide"><input type="checkbox" name="alerts" checked> Notify me when a strong new match appears</label><button class="primary wide">Save alert</button></form>`,
   );
 }
 
@@ -944,6 +979,7 @@ function render() {
   else if (state.view === "matches") main.innerHTML = renderFirstMatches();
   else main.innerHTML = renderDiscover();
   hydrateNetworkSocial();
+  hydrateLocalDiscovery();
   document.querySelector(".notification-button").toggleAttribute("data-connected-action", state.remote);
   main.querySelectorAll('form:not([data-form="network-search"]) button, [data-action="notifications"]').forEach((control) =>
     control.toggleAttribute("data-connected-action", state.remote),
@@ -1095,6 +1131,10 @@ function profileModal() {
   openModal(
     `<span class="eyebrow">Work profile</span><h2>Show how you can participate.</h2><form data-form="profile" class="form-grid"><label class="wide">Display name<input name="display_name" required minlength="2" maxlength="80" value="${esc(profile.name)}"></label><label>General location<input name="location_text" maxlength="120" value="${esc(profile.location)}"></label><label>Work radius (km)<input name="work_radius_km" type="number" min="0" max="1000" value="${profile.workRadius || ""}"></label><label class="wide">Short biography<textarea name="bio" maxlength="500">${esc(profile.bio)}</textarea></label><label class="wide">Availability<input name="availability_text" value="${esc(profile.availability || "")}"></label><label class="wide">Tools, workspace, vehicles, and equipment<textarea name="resources_text">${esc(profile.resources || "")}</textarea></label><label>Visibility<select name="profile_visibility"><option value="public">Public</option><option value="members">Members</option><option value="private">Private</option></select></label><label><input type="checkbox" name="remote_available" ${profile.remoteAvailable ? "checked" : ""}> Available for remote work</label><button class="primary wide">Save profile</button></form>`,
   );
+  const locationPrivacy = document.createElement("label");
+  locationPrivacy.innerHTML = `Location visibility<select name="location_visibility"><option value="region">Show general region</option><option value="members">Signed-in members only</option><option value="private">Keep private</option></select>`;
+  modalRoot.querySelector('[name="location_text"]')?.closest("label")?.after(locationPrivacy);
+  locationPrivacy.querySelector("select").value = profile.locationVisibility || "region";
   modalRoot.querySelector("[name=profile_visibility]").value =
     profile.visibility || "public";
 }
@@ -1106,6 +1146,7 @@ function onboardingModal() {
     <label class="wide">What do you need?<span class="field-help">Work, knowledge, goods, equipment, or help finishing something</span><textarea name="needs" required placeholder="Fence repair, welding lessons, reclaimed lumber">${esc((profile.needs || []).join(", "))}</textarea></label>
     <label>General location<input name="location_text" maxlength="120" value="${esc(profile.location || "")}" placeholder="Richmond, VA"></label>
     <label>Availability<input name="availability_text" maxlength="240" value="${esc(profile.availability || "")}" placeholder="Weekends; weekday evenings"></label>
+    <label>Location visibility<select name="location_visibility"><option value="region">Show general region</option><option value="members">Signed-in members only</option><option value="private">Keep private</option></select></label>
     <fieldset class="wide"><legend>Ways you are open to exchanging value</legend><label><input type="checkbox" name="exchange" value="barter" checked> Barter</label><label><input type="checkbox" name="exchange" value="cash" checked> Cash</label><label><input type="checkbox" name="exchange" value="hybrid" checked> Cash + barter</label></fieldset>
     <label>Profile visibility<select name="profile_visibility"><option value="public">Public profile</option><option value="members">Members only</option><option value="private">Private</option></select></label>
     <label><input type="checkbox" name="remote_available" ${profile.remoteAvailable ? "checked" : ""}> Include remote opportunities</label>
@@ -1705,6 +1746,10 @@ document.addEventListener("click", (event) => {
       state.networkQuery = search.query;
       state.networkExchange = search.exchange_filter || "";
       state.networkRemote = search.remote_only;
+      state.networkMode = search.discovery_mode || (search.remote_only ? "remote" : "either");
+      state.networkRadius = search.radius_km || 40;
+      state.networkAvailability = search.availability_filter || "";
+      state.networkSort = search.sort_order || "fit";
       loadNetwork();
     }
   }
@@ -2208,6 +2253,7 @@ document.addEventListener("submit", async (event) => {
       workRadius: Number(data.get("work_radius_km")) || null,
       remoteAvailable: data.has("remote_available"),
       availability: data.get("availability_text"),
+      locationVisibility: data.get("location_visibility") || "region",
       resources: data.get("resources_text"),
       visibility: data.get("profile_visibility"),
     };
@@ -2223,6 +2269,7 @@ document.addEventListener("submit", async (event) => {
           remote_available: profile.remoteAvailable,
           preferred_exchange_modes: ["cash", "barter", "hybrid"],
           availability_text: profile.availability,
+          location_visibility: profile.locationVisibility,
           resources_text: profile.resources,
           profile_visibility: profile.visibility,
         });
@@ -2244,6 +2291,7 @@ document.addEventListener("submit", async (event) => {
       needs: splitList(data.get("needs")),
       location: data.get("location_text"),
       availability: data.get("availability_text"),
+      locationVisibility: data.get("location_visibility") || "region",
       visibility: data.get("profile_visibility"),
       remoteAvailable: data.has("remote_available"),
       preferredExchangeModes: exchanges,
@@ -2261,6 +2309,7 @@ document.addEventListener("submit", async (event) => {
           remote_available: profile.remoteAvailable,
           preferred_exchange_modes: exchanges,
           availability_text: profile.availability,
+          location_visibility: profile.locationVisibility,
           resources_text: profile.resources,
           profile_visibility: profile.visibility,
         });
@@ -2467,7 +2516,11 @@ document.addEventListener("submit", async (event) => {
   if (form.dataset.form === "network-search") {
     state.networkQuery = data.get("query") || "";
     state.networkExchange = data.get("exchange") || "";
-    state.networkRemote = data.has("remote");
+    state.networkMode = data.get("mode") || "either";
+    state.networkRemote = state.networkMode === "remote";
+    state.networkRadius = Number(data.get("radius")) || 40;
+    state.networkAvailability = data.get("availability") || "";
+    state.networkSort = data.get("sort") || "fit";
     await loadNetwork();
   }
   if (form.dataset.form === "completion-story") {
@@ -2512,15 +2565,10 @@ document.addEventListener("submit", async (event) => {
   }
   if (form.dataset.form === "save-network-search") {
     try {
-      await saveNetworkSearch(
-        data.get("name"),
-        state.networkQuery || "",
-        state.networkExchange || "",
-        !!state.networkRemote,
-      );
+      await saveDiscoveryAlert(data.get("name"), { query: state.networkQuery, exchange: state.networkExchange, mode: state.networkMode, radius: state.networkRadius, availability: state.networkAvailability, sort: state.networkSort, alerts: data.has("alerts") });
       closeModal();
       await loadNetwork();
-      notify("Network search saved");
+      notify("Discovery alert saved");
     } catch (error) {
       notify(error.message);
     }
@@ -2876,6 +2924,7 @@ async function loadRemoteWorkspace() {
       workRadius: profile.work_radius_km,
       remoteAvailable: profile.remote_available,
       availability: profile.availability_text || "",
+      locationVisibility: profile.location_visibility || "region",
       resources: profile.resources_text || "",
       visibility: profile.profile_visibility,
       needs: capabilities
