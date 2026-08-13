@@ -101,6 +101,8 @@ import {
   sendCollaborationInvitation,
   sendContactRequest,
   sendIntroductionMessage,
+  sendMessageAttachment,
+  subscribeToMessages,
   setSavedProfile,
   updateIntroductionWorkspace,
   confirmIntroductionWorkspace,
@@ -128,6 +130,7 @@ import {
 const STORAGE_KEY = "worktrade:v1";
 const MATCH_FEEDBACK_KEY = "worktrade:match-feedback:v1";
 const PROJECT_NOTIFICATION_KEY = "worktrade:project-notifications:v1";
+const MESSAGE_DRAFT_KEY = "worktrade:message-drafts:v1";
 const EXAMPLES_KEY = "worktrade:examples-hidden:v1";
 const saved = (() => {
   try {
@@ -169,9 +172,12 @@ const store = createStore({
   messageQuery: "",
   showArchivedMessages: false,
   messageListOnly: true,
+  messagePageSizes: {},
+  messageDrafts: (() => { try { return JSON.parse(localStorage.getItem(MESSAGE_DRAFT_KEY)) || {}; } catch { return {}; } })(),
   networkInbox: {
     invitations: [],
     messages: [],
+    attachments: [],
     saved_profiles: [],
     saved_searches: [],
   },
@@ -193,6 +199,8 @@ document.querySelector('meta[name="theme-color"]').content =
   currentTheme === "dark" ? "#111914" : "#f4f0e6";
 let installPrompt = null;
 let waitingWorker = null;
+let messageSubscription = null;
+let realtimeRefreshTimer = null;
 let updateRequested = false;
 const installButton = document.querySelector("#install-app");
 const connectionBanner = document.querySelector("#connection-banner");
@@ -713,11 +721,14 @@ function conversationPanel(invitation, inbox) {
   const incoming = invitation.recipient_id === state.profile.id;
   const otherId = incoming ? invitation.sender_id : invitation.recipient_id;
   const other = incoming ? invitation.sender_name : invitation.recipient_name;
-  const messages = (inbox.messages || []).filter((item) => item.invitation_id === invitation.id);
+  const allMessages = (inbox.messages || []).filter((item) => item.invitation_id === invitation.id);
+  const pageSize = state.messagePageSizes[invitation.id] || 40;
+  const messages = allMessages.slice(-pageSize);
+  const attachments = inbox.attachments || [];
   const request = state.requests.find((item) => item.id === invitation.request_id);
   const pendingIncoming = incoming && invitation.status === "pending";
   const accepted = ["accepted", "converted"].includes(invitation.status);
-  return `<section class="conversation-panel" aria-label="Conversation with ${esc(other)}"><header><button class="text-btn messages-back" data-action="messages-back">← Inbox</button><button class="conversation-person" data-view-profile="${otherId}"><span class="avatar">${esc(other.split(/\s+/).map((part) => part[0]).join("").slice(0, 2))}</span><span><b>${esc(other)}</b><small>${invitation.member_state?.muted ? "Notifications muted" : "Private conversation"}</small></span></button><div class="conversation-tools"><button class="text-btn" data-conversation-manage="${invitation.member_state?.muted ? "unmute" : "mute"}:${invitation.id}">${invitation.member_state?.muted ? "Unmute" : "Mute"}</button><button class="text-btn" data-conversation-manage="archive:${invitation.id}">Archive</button></div></header>${request ? `<aside class="conversation-context"><span><small>Related work</small><b>${esc(request.title)}</b></span><button class="secondary compact" data-open="${request.id}">View work</button></aside>` : ""}<div class="message-thread">${invitation.note ? `<div class="message-bubble ${incoming ? "theirs" : "mine"}"><p>${esc(invitation.note)}</p><small>${esc(incoming ? invitation.sender_name : "You")} · ${conversationTime(invitation.created_at)}</small></div>` : ""}${messages.map((message) => `<div class="message-bubble ${message.author_id === state.profile.id ? "mine" : "theirs"}"><p>${esc(message.body)}</p><small>${message.author_id === state.profile.id ? "You" : esc(message.author_name)} · ${conversationTime(message.created_at)}</small></div>`).join("") || (!invitation.note ? `<p class="thread-empty">No messages yet.</p>` : "")}</div>${pendingIncoming ? `<div class="message-consent"><p><b>${esc(other)} wants to start a conversation.</b> Open it to reply. You can decline or mute without notifying them further.</p><button class="primary" data-invite-response="accepted:${invitation.id}">Open conversation</button><button class="text-btn" data-invite-response="declined:${invitation.id}">Decline</button></div>` : accepted ? `<form data-form="intro-message" data-invitation="${invitation.id}" class="message-composer"><label><span class="sr-only">Message ${esc(other)}</span><textarea name="body" required maxlength="1500" placeholder="Write a message"></textarea></label><button class="primary">Send</button></form><div class="conversation-next"><span><b>Ready to make it concrete?</b><small>Turn the discussion into clear work and exchange terms.</small></span><button class="secondary" data-message-offer="${invitation.id}">${request && request.ownerId !== state.profile.id ? "Create an offer" : "Plan an exchange"}</button></div>` : `<div class="message-consent"><p>${invitation.status === "pending" ? "Waiting for them to open the conversation." : `This conversation is ${esc(invitation.status)}.`}</p></div>`}<footer><button class="text-btn" data-network-manage="profile:report:${invitation.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${invitation.id}">Block</button></footer></section>`;
+  return `<section class="conversation-panel" aria-label="Conversation with ${esc(other)}"><header><button class="text-btn messages-back" data-action="messages-back">← Inbox</button><button class="conversation-person" data-view-profile="${otherId}"><span class="avatar">${esc(other.split(/\s+/).map((part) => part[0]).join("").slice(0, 2))}</span><span><b>${esc(other)}</b><small>${invitation.member_state?.muted ? "Notifications muted" : "Private conversation"}</small></span></button><div class="conversation-tools"><button class="text-btn" data-conversation-manage="${invitation.member_state?.muted ? "unmute" : "mute"}:${invitation.id}">${invitation.member_state?.muted ? "Unmute" : "Mute"}</button><button class="text-btn" data-conversation-manage="archive:${invitation.id}">Archive</button></div></header>${request ? `<aside class="conversation-context"><span><small>Related work</small><b>${esc(request.title)}</b></span><button class="secondary compact" data-open="${request.id}">View work</button></aside>` : ""}<div class="message-thread">${allMessages.length > messages.length ? `<button class="text-btn load-older" data-load-messages="${invitation.id}">Load ${Math.min(40, allMessages.length - messages.length)} older messages</button>` : ""}${invitation.note ? `<div class="message-bubble ${incoming ? "theirs" : "mine"}"><p>${esc(invitation.note)}</p><small>${esc(incoming ? invitation.sender_name : "You")} · ${conversationTime(invitation.created_at)}</small></div>` : ""}${messages.map((message) => { const files = attachments.filter((item) => item.message_id === message.id); const mine = message.author_id === state.profile.id; const receipt = mine ? (invitation.other_read_at && new Date(invitation.other_read_at) >= new Date(message.created_at) ? "Read" : "Delivered") : ""; return `<div class="message-bubble ${mine ? "mine" : "theirs"}"><p>${esc(message.body)}</p>${files.map((file) => file.mime_type.startsWith("image/") && file.url ? `<a class="message-image" href="${esc(file.url)}" target="_blank" rel="noopener"><img src="${esc(file.url)}" alt="${esc(file.file_name)}"><span>${esc(file.file_name)}</span></a>` : `<a class="message-file" href="${esc(file.url)}" target="_blank" rel="noopener"><span aria-hidden="true">📎</span><span><b>${esc(file.file_name)}</b><small>${Math.max(1, Math.round(file.byte_size / 1024))} KB</small></span></a>`).join("")}<small>${mine ? "You" : esc(message.author_name)} · ${conversationTime(message.created_at)}${receipt ? ` · ${receipt}` : ""}</small></div>`; }).join("") || (!invitation.note ? `<p class="thread-empty">No messages yet.</p>` : "")}</div>${pendingIncoming ? `<div class="message-consent"><p><b>${esc(other)} wants to start a conversation.</b> Open it to reply. You can decline or mute without notifying them further.</p><button class="primary" data-invite-response="accepted:${invitation.id}">Open conversation</button><button class="text-btn" data-invite-response="declined:${invitation.id}">Decline</button></div>` : accepted ? `<form data-form="intro-message" data-invitation="${invitation.id}" class="message-composer"><label><span class="sr-only">Message ${esc(other)}</span><textarea name="body" maxlength="1500" data-message-draft="${invitation.id}" placeholder="Write a message">${esc(state.messageDrafts[invitation.id] || "")}</textarea></label><label class="attachment-button" title="Attach a photo or document"><span aria-hidden="true">📎</span><span class="sr-only">Attach file</span><input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,.doc,.docx"></label><button class="primary">Send</button><small class="composer-help">Enter to send · Shift+Enter for a new line · 10 MB maximum</small></form><div class="conversation-next"><span><b>Ready to make it concrete?</b><small>Turn the discussion into clear work and exchange terms.</small></span><button class="secondary" data-message-offer="${invitation.id}">${request && request.ownerId !== state.profile.id ? "Create an offer" : "Plan an exchange"}</button></div>` : `<div class="message-consent"><p>${invitation.status === "pending" ? "Waiting for them to open the conversation." : `This conversation is ${esc(invitation.status)}.`}</p></div>`}<footer><button class="text-btn" data-network-manage="profile:report:${invitation.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${invitation.id}">Block</button></footer></section>`;
 }
 function renderNetwork() {
   const profiles = localDiscoveryProfiles(state.networkProfiles || []);
@@ -1417,6 +1428,7 @@ function preferencesModal() {
   openModal(
     `<span class="eyebrow">Notification preferences</span><h2>Choose what reaches you.</h2><p>Email routing is active in safe sink mode while the production sending domain is being authorized. Your preferences are already enforced.</p><form data-form="preferences" class="preference-form">${[
       ["in_app", "In-app notifications"],
+      ["browser_notifications", "Browser/PWA new-message alerts"],
       ["email_enabled", "Allow transactional email"],
       ["email_proposals", "Proposal emails"],
       ["email_messages", "Message emails"],
@@ -1427,7 +1439,7 @@ function preferencesModal() {
     ]
       .map(
         ([name, label]) =>
-          `<label><span>${label}</span><input type="checkbox" name="${name}" ${p[name] ? "checked" : ""}></label>`,
+          `<label><span>${label}</span><input type="checkbox" name="${name}" ${(name === "browser_notifications" ? ("Notification" in window && Notification.permission === "granted") : p[name]) ? "checked" : ""}></label>`,
       )
       .join("")}<button class="primary">Save preferences</button></form>`,
   );
@@ -1514,6 +1526,12 @@ document.addEventListener("click", (event) => {
     state.selectedConversationId = conversation.dataset.conversation;
     state.messageListOnly = false;
     if (state.remote) manageConversation(state.selectedConversationId, "read").then(loadNetwork).catch(() => {});
+    return;
+  }
+  const loadMessages = event.target.closest("[data-load-messages]");
+  if (loadMessages) {
+    const id = loadMessages.dataset.loadMessages;
+    state.messagePageSizes = { ...state.messagePageSizes, [id]: (state.messagePageSizes[id] || 40) + 40 };
     return;
   }
   const card = event.target.closest("[data-open]");
@@ -2329,8 +2347,24 @@ document.addEventListener("input", (event) => {
   if (event.target.id === "search") {
     state.query = event.target.value;
   }
+  if (event.target.matches("[data-message-draft]")) {
+    state.messageDrafts[event.target.dataset.messageDraft] = event.target.value;
+    localStorage.setItem(MESSAGE_DRAFT_KEY, JSON.stringify(state.messageDrafts));
+  }
 });
 document.addEventListener("change", (event) => {
+  if (event.target.matches('.message-composer input[type="file"]')) {
+    const file = event.target.files?.[0];
+    let preview = event.target.form?.querySelector("[data-attachment-preview]");
+    if (!preview && event.target.form) {
+      preview = document.createElement("span");
+      preview.className = "attachment-preview";
+      preview.dataset.attachmentPreview = "";
+      preview.setAttribute("aria-live", "polite");
+      event.target.form.append(preview);
+    }
+    if (preview) preview.textContent = file ? `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB ready to send` : "";
+  }
   if (event.target.matches("[data-following-feed]")) {
     state.networkFollowingOnly = event.target.checked;
     loadNetwork();
@@ -2344,6 +2378,10 @@ document.addEventListener("keydown", (event) => {
     card.click();
   }
   if (event.key === "Escape") closeModal();
+  if (event.target.matches("[data-message-draft]") && event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    event.target.form?.requestSubmit();
+  }
 });
 document.addEventListener("submit", async (event) => {
   const form = event.target;
@@ -2814,6 +2852,7 @@ document.addEventListener("submit", async (event) => {
   }
   if (form.dataset.form === "preferences") {
     try {
+      if (data.has("browser_notifications") && "Notification" in window && Notification.permission === "default") await Notification.requestPermission();
       state.notificationPreferences = await saveNotificationPreferences({
         in_app: data.has("in_app"),
         email_enabled: data.has("email_enabled"),
@@ -3085,7 +3124,14 @@ document.addEventListener("submit", async (event) => {
   }
   if (form.dataset.form === "intro-message") {
     try {
-      await sendIntroductionMessage(form.dataset.invitation, data.get("body"));
+      const file = form.elements.attachment?.files?.[0];
+      const body = String(data.get("body") || "").trim();
+      if (!body && !file) return notify("Write a message or attach a file.", "warning");
+      if (file && file.size > 10485760) return notify("Choose a file under 10 MB.", "warning");
+      if (file) await sendMessageAttachment(form.dataset.invitation, body, file);
+      else await sendIntroductionMessage(form.dataset.invitation, body);
+      delete state.messageDrafts[form.dataset.invitation];
+      localStorage.setItem(MESSAGE_DRAFT_KEY, JSON.stringify(state.messageDrafts));
       form.reset();
       await loadNetwork();
       if (state.remote) await manageConversation(form.dataset.invitation, "read");
@@ -3508,6 +3554,7 @@ async function loadNetwork() {
         : Promise.resolve({
             invitations: [],
             messages: [],
+            attachments: [],
             saved_profiles: [],
             saved_searches: [],
           }),
@@ -3598,6 +3645,15 @@ async function bootstrapBackend() {
     const session = await getSession();
     state.session = session;
     if (session) {
+      if (!messageSubscription) {
+        messageSubscription = await subscribeToMessages(() => {
+          clearTimeout(realtimeRefreshTimer);
+          realtimeRefreshTimer = setTimeout(async () => {
+            await loadNetwork();
+            if (document.visibilityState !== "visible" && "Notification" in window && Notification.permission === "granted") new Notification("New WorkTrade message", { body: "Open Messages to reply.", icon: "./assets/icon-192.png" });
+          }, 250);
+        });
+      }
       await loadRemoteWorkspace();
       state.notificationPreferences = await getNotificationPreferences();
       await loadNotifications();

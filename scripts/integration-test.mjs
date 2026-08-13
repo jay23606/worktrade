@@ -13,6 +13,7 @@ const users = [
 ];
 const created = [];
 const uploaded = [];
+const messageUploads = [];
 
 async function request(path, { key = publishable, token = key, method = "GET", body, headers = {} } = {}) {
   const response = await fetch(`${base}${path}`, {
@@ -46,6 +47,9 @@ async function cleanup() {
   for (const path of uploaded) {
     try { await fetch(`${base}/storage/v1/object/work-evidence/${path}`, { method: "DELETE", headers: { apikey: secret, Authorization: `Bearer ${secret}` } }); } catch {}
   }
+  for (const path of messageUploads) {
+    try { await fetch(`${base}/storage/v1/object/message-attachments/${path}`, { method: "DELETE", headers: { apikey: secret, Authorization: `Bearer ${secret}` } }); } catch {}
+  }
   for (const id of created) {
     try { await request(`/auth/v1/admin/users/${id}`, { key: secret, token: secret, method: "DELETE" }); } catch {}
   }
@@ -77,6 +81,14 @@ try {
   contactInbox = await rpc(provider.token, "get_network_inbox", {});
   assert.equal(Number(contactInbox.invitations.find((item) => item.id === contactId).unread_count), 0);
   assert.equal(contactInbox.invitations.find((item) => item.id === contactId).member_state.muted, true);
+  const attachmentPath = `${contactId}/${owner.id}/${crypto.randomUUID()}.txt`;
+  const attachmentBody = "Private WorkTrade attachment test";
+  const attachmentUploadResponse = await fetch(`${base}/storage/v1/object/message-attachments/${attachmentPath}`, { method: "POST", headers: { apikey: publishable, Authorization: `Bearer ${owner.token}`, "Content-Type": "text/plain", "x-upsert": "false" }, body: attachmentBody });
+  if (!attachmentUploadResponse.ok) throw new Error(`Attachment upload failed: ${await attachmentUploadResponse.text()}`);
+  messageUploads.push(attachmentPath);
+  const attachmentMessageId = await rpc(owner.token, "send_message_with_attachment", { target_invitation_id: contactId, message_body: "Here is the requested note.", attachment_path: attachmentPath, attachment_name: "worktrade-note.txt", attachment_type: "text/plain", attachment_size: Buffer.byteLength(attachmentBody) });
+  contactInbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.equal(contactInbox.attachments.some((item) => item.message_id === attachmentMessageId && item.file_name === "worktrade-note.txt"), true);
 
   const invitationId = await rpc(owner.token, "send_collaboration_invitation", { target_profile_id: provider.id, need_value: "Carpentry for workshop storage", offer_value: "Product photography", note_value: "A reciprocal fit for both profiles", target_request_id: null });
   let inbox = await rpc(provider.token, "get_network_inbox", {});

@@ -71,6 +71,10 @@ export async function getNetworkInbox() {
   assertBackend(client);
   const { data, error } = await client.rpc("get_network_inbox");
   if (error) throw error;
+  data.attachments = await Promise.all((data.attachments || []).map(async (item) => {
+    const { data: signed } = await client.storage.from("message-attachments").createSignedUrl(item.asset_path, 900);
+    return { ...item, url: signed?.signedUrl || "" };
+  }));
   return data;
 }
 
@@ -123,6 +127,38 @@ export async function sendIntroductionMessage(id, body) {
   });
   if (error) throw error;
   return data;
+}
+
+export async function sendMessageAttachment(id, body, file) {
+  const client = await getBackend();
+  assertBackend(client);
+  const session = await getSession();
+  if (!session) throw new Error("Sign in to attach a file");
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const path = `${id}/${session.user.id}/${crypto.randomUUID()}.${extension}`;
+  const { error: uploadError } = await client.storage.from("message-attachments").upload(path, file, { contentType: file.type, upsert: false });
+  if (uploadError) throw uploadError;
+  const { data, error } = await client.rpc("send_message_with_attachment", {
+    target_invitation_id: id,
+    message_body: body || "",
+    attachment_path: path,
+    attachment_name: file.name,
+    attachment_type: file.type || "application/octet-stream",
+    attachment_size: file.size,
+  });
+  if (error) {
+    await client.storage.from("message-attachments").remove([path]);
+    throw error;
+  }
+  return data;
+}
+
+export async function subscribeToMessages(onChange) {
+  const client = await getBackend();
+  assertBackend(client);
+  return client.channel("worktrade-messages")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "introduction_messages" }, onChange)
+    .subscribe();
 }
 
 export async function manageConversation(id, action) {

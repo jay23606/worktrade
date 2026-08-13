@@ -257,3 +257,18 @@ test("dedicated conversations keep read, archive, and mute state private per mem
   const client = await readFile(new URL("modules/backend/network.js", root), "utf8");
   assert.match(client, /export async function manageConversation/);
 });
+
+test("message attachments and delivery state stay participant-private", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813053000_message_delivery_attachments.sql", root), "utf8");
+  assert.match(sql, /message-attachments/);
+  assert.match(sql, /conversation participants read attachments/);
+  assert.match(sql, /auth\.uid\(\) in\(i\.sender_id,i\.recipient_id\)/);
+  assert.match(sql, /other_read_at/);
+  assert.match(sql, /supabase_realtime/);
+  const client = await readFile(new URL("modules/backend/network.js", root), "utf8");
+  assert.match(client, /sendMessageAttachment/);
+  assert.match(client, /createSignedUrl/);
+  assert.match(client, /subscribeToMessages/);
+  assert.match(app, /MESSAGE_DRAFT_KEY/);
+  assert.match(app, /Shift\+Enter/);
+});
