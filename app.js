@@ -364,7 +364,14 @@ function projectActivity(request) {
     ...((request.agreement?.history || []).map((item) => ({ type: "Agreement", author: "WorkTrade", text: `${item.from_status || "Created"} → ${item.to_status}${item.note ? ` · ${item.note}` : ""}`, date: item.created_at }))),
     ...(request.evidence || []).map((item) => ({ type: "Evidence", author: "Participant", text: `${item.skill}: ${item.description}`, date: item.created_at || item.verified_at })),
   ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  return `<div class="project-panel" data-project-panel="activity"><section><div class="section-title"><div><span class="eyebrow">Project activity</span><h2>Updates, messages, and decisions</h2></div></div><div class="activity-feed">${entries.map((item) => `<article class="${item.mine ? "mine" : ""}"><span class="activity-type">${esc(item.type)}</span><div><b>${esc(item.author || "Participant")}</b><p>${esc(item.text)}</p><small>${item.date ? esc(new Date(item.date).toString() === "Invalid Date" ? item.date : new Date(item.date).toLocaleString()) : ""}</small></div></article>`).join("") || `<div class="empty compact"><b>No activity yet</b><p>Updates, messages, evidence, and agreement decisions will appear here.</p></div>`}</div><div class="activity-composers"><form data-form="update" class="inline-form"><input name="text" required placeholder="Share a progress update"><button class="secondary">Post update</button></form><form data-form="message" class="inline-form"><input name="text" required maxlength="1000" placeholder="Message the other participant"><button class="secondary">Send message</button></form></div></section></div>`;
+  return `<div class="project-panel" data-project-panel="activity"><section><div class="section-title"><div><span class="eyebrow">Project activity</span><h2>Updates, messages, and decisions</h2></div></div><div class="activity-feed">${entries.map((item) => `<article class="${item.mine ? "mine" : ""}"><span class="activity-type">${esc(item.type)}</span><div><b>${esc(item.author || "Participant")}</b><p>${esc(item.text)}</p><small>${esc(activityDate(item.date))}</small></div></article>`).join("") || `<div class="empty compact"><b>No activity yet</b><p>Updates, messages, evidence, and agreement decisions will appear here.</p></div>`}</div><div class="activity-composers"><form data-form="update" class="inline-form"><input name="text" required placeholder="Share a progress update"><button class="secondary">Post update</button></form><form data-form="message" class="inline-form"><input name="text" required maxlength="1000" placeholder="Message the other participant"><button class="secondary">Send message</button></form></div></section></div>`;
+}
+
+function activityDate(value) {
+  if (!value) return "";
+  if (typeof value === "string" && !/\b\d{4}\b/.test(value)) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
 }
 
 function offerCard(offer, isOwner, requestId) {

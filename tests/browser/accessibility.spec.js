@@ -141,6 +141,8 @@ test("workspace presents one guided next action and links to its project", async
   await sections.getByRole("button", { name: "Activity" }).click();
   await expect(page.getByRole("heading", { name: "Updates, messages, and decisions" })).toBeVisible();
   await expect(page.getByPlaceholder("Message the other participant")).toBeVisible();
+  await expect(page.locator(".activity-feed")).toContainText("Aug 12");
+  await expect(page.locator(".activity-feed")).not.toContainText("2001");
   await sections.getByRole("button", { name: "Exchange" }).click();
   await expect(page.getByRole("heading", { name: "What each side is contributing" })).toBeVisible();
   await sections.getByRole("button", { name: "Files" }).click();
