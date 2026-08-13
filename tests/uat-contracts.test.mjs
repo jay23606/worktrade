@@ -91,6 +91,12 @@ test("private introductions require acceptance and honor blocking", () => {
   assert.match(sql, /daily invitation limit reached/);
 });
 
+test("private-project conversion requires both current confirmations", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813005000_introduction_confirmation_guard.sql", root), "utf8");
+  assert.match(sql, /sender_confirmed_version is distinct from w\.version/);
+  assert.match(sql, /recipient_confirmed_version is distinct from w\.version/);
+});
+
 test("moderation data is private and restrictions guard interaction writes", () => {
   assert.match(sql, /moderation_actions_immutable/);
   assert.match(sql, /staff authorization required/);
