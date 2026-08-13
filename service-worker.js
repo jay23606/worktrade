@@ -1,10 +1,10 @@
 const CACHE_PREFIX = "worktrade-";
-const CACHE = `${CACHE_PREFIX}v20260813project-router`;
+const CACHE = `${CACHE_PREFIX}v20260813social-router`;
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20260813projects",
-  "./app.js?v=20260813project-router",
+  "./app.js?v=20260813social-router",
   "./config.js",
   "./data.js",
   "./manifest.webmanifest",
@@ -37,6 +37,8 @@ const APP_SHELL = [
   "./features/notifications.js",
   "./features/core-click-handler.js",
   "./features/project-click-handler.js",
+  "./features/social-click-handler.js",
+  "./features/community-click-handler.js",
   "./features/project-coordination-dialogs.js",
   "./features/workspace.js",
   "./shell/pwa.js",

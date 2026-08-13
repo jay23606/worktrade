@@ -114,6 +114,8 @@ features/project-coordination-dialogs.js  scheduling, preparation, and change-or
 features/notifications.js           inbox grouping, routing, and notification preferences
 features/core-click-handler.js      navigation, selection, and onboarding click routing
 features/project-click-handler.js   proposals, agreements, milestones, and completion routing
+features/social-click-handler.js    profiles, matches, introductions, and conversation routing
+features/community-click-handler.js circles, membership, resources, and reciprocal-chain routing
 shell/                         PWA installation, updates, and connectivity lifecycle
 modules/backend.js             stable backend export facade
 modules/backend/               account, request, agreement, network, circle, chain, trust domains

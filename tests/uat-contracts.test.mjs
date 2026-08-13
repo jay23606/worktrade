@@ -8,6 +8,7 @@ const messagesFeature = await readFile(new URL("features/messages.js", root), "u
 const networkFeature = await readFile(new URL("features/network.js", root), "utf8");
 const projectsFeature = await readFile(new URL("features/projects.js", root), "utf8");
 const coreClickHandler = await readFile(new URL("features/core-click-handler.js", root), "utf8");
+const socialClickHandler = await readFile(new URL("features/social-click-handler.js", root), "utf8");
 const backendFiles = [
   "backend.js",
   "backend/core.js",
@@ -332,7 +333,7 @@ test("project owners receive actionable collaborator recommendations", async () 
 
 test("exchange planning opens from an existing conversation without profile discovery", () => {
   assert.doesNotMatch(app, /Open their profile to begin exchange planning/);
-  assert.match(app, /profile \|\| \{ id: otherId, display_name:/);
+  assert.match(socialClickHandler, /profile \|\| \{ id: otherId, display_name:/);
   assert.match(messagesFeature, /Open exchange plan/);
 });
 
@@ -341,5 +342,5 @@ test("conversation profiles load independently of discovery results", async () =
   assert.match(sql, /get_conversation_profile/);
   assert.match(sql, /collaboration_invitations/);
   assert.match(sql, /location_visibility='region'/);
-  assert.match(app, /getConversationProfile\(viewProfile\.dataset\.viewProfile\)/);
+  assert.match(socialClickHandler, /getConversationProfile\(viewProfile\.dataset\.viewProfile\)/);
 });
