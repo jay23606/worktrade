@@ -22,6 +22,7 @@ import { createManagementClickHandler } from "./features/management-click-handle
 import { createCoordinationClickHandler } from "./features/coordination-click-handler.js";
 import { createCoordinationSubmitHandler } from "./features/coordination-submit-handler.js";
 import { createNetworkSubmitHandler } from "./features/network-submit-handler.js";
+import { createCommunitySubmitHandler } from "./features/community-submit-handler.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -378,6 +379,7 @@ const handleManagementClick = createManagementClickHandler({ getState: () => sta
 const handleCoordinationClick = createCoordinationClickHandler({ getState: () => state, respondScheduleWindow, loadRemoteWorkspace, closeModal, notify, scheduleCoordinationModal, manageLedgerItem, agreementLedgerModal, ledgerStatusModal, changeOrderModal, respondChangeOrder, changeOrderHubModal, manageWorkIssue });
 const handleCoordinationSubmit = createCoordinationSubmitHandler({ getState: () => state, notify, closeModal, loadRemoteWorkspace, setAgreementSchedule, proposeScheduleWindow, saveMyAvailability, saveLedgerItem, manageLedgerItem, uploadLedgerReceipt, reportWorkIssue, proposeChangeOrder, uploadWorkIssueEvidence, agreementLedgerModal, changeOrderHubModal });
 const handleNetworkSubmit = createNetworkSubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, publishCompletion, sendCollaborationInvitation, recordMatchKey, recordMatchEvent, sendContactRequest, sendMessageAttachment, sendIntroductionMessage, manageConversation, saveDiscoveryAlert, updateIntroductionWorkspace, messageDraftKey: MESSAGE_DRAFT_KEY });
+const handleCommunitySubmit = createCommunitySubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, createCircle, saveCircleResource, inviteCircleMember, createCircleRequest, updateCircleSettings, reviseTradeChain, createTradeChain, manageTradeChain });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -1443,157 +1445,7 @@ document.addEventListener("submit", async (event) => {
     }
   }
   if (await handleNetworkSubmit(form, data)) return;
-  if (form.dataset.form === "create-circle") {
-    try {
-      const id = await createCircle({
-        name: data.get("name"),
-        description: data.get("description"),
-        visibility: data.get("visibility"),
-        rules: data.get("rules"),
-      });
-      closeModal();
-      state.selectedCircleId = id;
-      await loadNetwork();
-      notify("Trusted circle created");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "circle-resource") {
-    try {
-      await saveCircleResource(form.dataset.circle, null, {
-        kind: data.get("kind"),
-        name: data.get("name"),
-        description: data.get("description"),
-        availability: data.get("availability"),
-      });
-      closeModal();
-      await loadNetwork();
-      notify("Resource shared with circle");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "circle-invite") {
-    try {
-      await inviteCircleMember(form.dataset.circle, data.get("profile"));
-      closeModal();
-      await loadNetwork();
-      notify("Circle invitation sent");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "circle-post") {
-    try {
-      await createCircleRequest(form.dataset.circle, {
-        title: data.get("title"),
-        description: data.get("description"),
-        kind: data.get("kind"),
-        location: data.get("location"),
-        urgency: data.get("urgency"),
-        cash_budget_cents: "",
-        publish: true,
-        skills: String(data.get("skills") || "")
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
-        exchange_modes: ["barter", "hybrid"],
-        exchange_summary: data.get("exchange_summary"),
-        constraints: data.get("constraints"),
-      });
-      closeModal();
-      await loadNetwork();
-      notify("Private circle work posted");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "circle-settings") {
-    try {
-      await updateCircleSettings(form.dataset.circle, {
-        description: data.get("description"),
-        visibility: data.get("visibility"),
-        rules: data.get("rules"),
-      });
-      closeModal();
-      await loadNetwork();
-      notify("Circle settings updated");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "chain-builder") {
-    try {
-      const count = Number(data.get("link_count"));
-      const links = Array.from({ length: count }, (_, index) => ({
-        from_profile_id: data.get(`from_${index}`),
-        to_profile_id: data.get(`to_${index}`),
-        value_description: data.get(`value_${index}`),
-        position: index,
-        due_at: data.get(`due_${index}`)
-          ? new Date(`${data.get(`due_${index}`)}T12:00:00`).toISOString()
-          : "",
-        conditions: data.get(`conditions_${index}`),
-      }));
-      const payload = {
-        title: data.get("title"),
-        description: data.get("description"),
-        execution_mode: data.get("execution_mode"),
-        links,
-      };
-      if (form.dataset.chain)
-        await reviseTradeChain(
-          form.dataset.chain,
-          Number(form.dataset.version),
-          payload,
-        );
-      else
-        await createTradeChain(form.dataset.circle, {
-          title: payload.title,
-          description: payload.description,
-          executionMode: payload.execution_mode,
-          links,
-        });
-      closeModal();
-      await loadNetwork();
-      notify(
-        form.dataset.chain
-          ? "Chain revised; confirmations reset"
-          : "Trade chain proposed",
-      );
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "chain-message") {
-    try {
-      await manageTradeChain(form.dataset.chain, "message", {
-        body: data.get("body"),
-      });
-      form.reset();
-      await loadNetwork();
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "chain-hold") {
-    try {
-      await manageTradeChain(form.dataset.chain, "hold", {
-        link_id: form.dataset.link,
-        kind: data.get("kind"),
-        detail: data.get("detail"),
-        review_at: data.get("review_at")
-          ? new Date(`${data.get("review_at")}T12:00:00`).toISOString()
-          : "",
-      });
-      closeModal();
-      await loadNetwork();
-      notify("Chain dependency recorded");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
+  if (await handleCommunitySubmit(form, data)) return;
   } finally {
     if (form.isConnected) {
       delete form.dataset.submitting;
