@@ -63,6 +63,16 @@ try {
   assert.equal(discoveredProvider.location_text, null);
   assert.equal(discoveredProvider.location_band, "Location private");
 
+  const contactId = await rpc(owner.token, "send_contact_request", { target_profile_id: provider.id, message_body: "Could I ask you a quick question about your carpentry availability?", target_request_id: null, contact_kind: "message" });
+  let contactInbox = await rpc(provider.token, "get_network_inbox", {});
+  const contact = contactInbox.invitations.find((item) => item.id === contactId);
+  assert.equal(contact.invitation_kind, "message");
+  assert.match(contact.note, /quick question/);
+  await rpc(provider.token, "respond_collaboration_invitation", { target_invitation_id: contactId, response: "accepted" });
+  await rpc(owner.token, "send_introduction_message", { target_invitation_id: contactId, message_body: "Thanks for opening the conversation." });
+  contactInbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.equal(contactInbox.messages.some((item) => item.invitation_id === contactId), true);
+
   const invitationId = await rpc(owner.token, "send_collaboration_invitation", { target_profile_id: provider.id, need_value: "Carpentry for workshop storage", offer_value: "Product photography", note_value: "A reciprocal fit for both profiles", target_request_id: null });
   let inbox = await rpc(provider.token, "get_network_inbox", {});
   assert.equal(inbox.invitations.some((item) => item.id === invitationId && item.status === "pending"), true);

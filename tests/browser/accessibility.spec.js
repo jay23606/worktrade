@@ -231,7 +231,7 @@ test("first-use activation explains the path to a credible exchange", async ({ p
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByText("These are removable examples.")).toBeVisible();
   await page.getByRole("heading", { name: "Build a backyard greenhouse" }).click();
-  await page.getByRole("button", { name: "Propose a trade" }).click();
+  await page.getByRole("button", { name: "Offer to help" }).click();
   const dialog = page.getByRole("dialog");
   const context = dialog.getByRole("complementary", { name: "Work and exchange you are proposing for" });
   await expect(context.getByRole("heading", { name: "Build a backyard greenhouse" })).toBeVisible();
@@ -239,7 +239,18 @@ test("first-use activation explains the path to a credible exchange", async ({ p
   await expect(context.getByText(/Exchange options/)).toBeVisible();
   await expect(dialog.getByText("1 · Value", { exact: true })).toBeVisible();
   await expect(dialog.getByText("2 · Scope", { exact: true })).toBeVisible();
-  await expect(dialog.getByText(/Mutual confirmation protects both people/)).toBeVisible();
+  await expect(dialog.getByText(/creates proposed terms/)).toBeVisible();
+});
+
+test("a member can ask a simple question without filling out exchange terms", async ({ page }) => {
+  await page.getByRole("button", { name: "Discover" }).click();
+  await page.getByRole("heading", { name: "Build a backyard greenhouse" }).click();
+  await page.getByRole("button", { name: "Ask a question" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: /Ask .* about Build a backyard greenhouse/ })).toBeVisible();
+  await expect(dialog.getByLabel("Message")).toBeVisible();
+  await expect(dialog.getByText(/discuss scope and exchange terms afterward/)).toBeVisible();
+  await expect(dialog.getByLabel("What can you offer?")).toHaveCount(0);
 });
 
 test("local discovery exposes privacy-safe filters and saved alerts", async ({ page }) => {

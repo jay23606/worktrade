@@ -99,6 +99,7 @@ import {
   saveNetworkSearch,
   saveDiscoveryAlert,
   sendCollaborationInvitation,
+  sendContactRequest,
   sendIntroductionMessage,
   setSavedProfile,
   updateIntroductionWorkspace,
@@ -336,7 +337,7 @@ function renderDetail(request) {
       ${workspace}
     </article>
     <aside class="detail-side"><div class="person"><span class="avatar big">${request.initials}</span><div><small>Posted by</small><h3>${esc(request.owner)}</h3><p>${esc(request.location)}</p></div></div>
-      ${request.agreement ? agreementCard(request) : isOwner ? `<div class="side-note"><b>Waiting for proposals</b><p>Compare scope and both sides of the exchange before selecting one.</p>${request.offers.length > 1 ? `<button class="secondary full" data-action="compare-offers">Compare proposals</button>` : ""}</div>` : `<button class="primary full" data-action="offer" data-id="${request.id}">Propose a trade</button>`}
+      ${request.agreement ? agreementCard(request) : isOwner ? `<div class="side-note"><b>Waiting for responses</b><p>Questions and offers will appear here. Compare the whole exchange before selecting formal terms.</p>${request.offers.length > 1 ? `<button class="secondary full" data-action="compare-offers">Compare offers</button>` : ""}</div>` : `<div class="contact-actions"><button class="primary full" data-action="offer" data-id="${request.id}">Offer to help</button><button class="secondary full" data-contact-person="${request.ownerId}" data-contact-request="${request.id}" data-contact-kind="question">Ask a question</button></div>`}
       <div class="side-note"><b>Choose your own exchange</b><p>Cash, goods, services, labor, access, or a combination. WorkTrade does not assign artificial credits.</p></div>
       <div class="safety-actions"><button class="text-btn" data-action="follow">${(request.followers || []).includes("me") ? "Following" : "Follow project"}</button><button class="text-btn" data-action="report">Report concern</button><button class="text-btn" data-action="block" data-person="${request.ownerId}">Block user</button></div>
       ${request.offers.length ? `<section class="proposals"><span class="eyebrow">Proposals</span>${request.offers.map((o) => offerCard(o, isOwner, request.id)).join("")}</section>` : ""}
@@ -568,6 +569,12 @@ function requestJourneyAction(request) {
 function invitationJourneyAction(invitation) {
   const incoming = invitation.recipient_id === state.profile.id;
   const other = incoming ? invitation.sender_name : invitation.recipient_name;
+  if (invitation.invitation_kind && invitation.invitation_kind !== "exchange") {
+    if (invitation.status === "pending") return incoming
+      ? { rank: 0, title: `${invitation.invitation_kind === "question" ? "Question" : "Message"} from ${other}`, detail: invitation.note || "They would like to start a conversation.", label: "Review message", invitationId: invitation.id }
+      : { rank: 7, waiting: true, title: `Message sent to ${other}`, detail: "They decide whether to open the conversation.", label: "View message", invitationId: invitation.id };
+    return null;
+  }
   if (invitation.status === "pending") return incoming
     ? { rank: 0, title: `Respond to ${other}`, detail: `${invitation.need_text} in exchange for ${invitation.offer_text}`, label: "Review invitation", invitationId: invitation.id }
     : { rank: 7, waiting: true, title: `Waiting for ${other}`, detail: "They decide whether to open a private planning conversation.", label: "View invitation", invitationId: invitation.id };
@@ -651,24 +658,17 @@ function publicProfileModal(p) {
 }
 
 function networkInbox(inbox) {
-  return `<div class="inbox-list">${
-    (inbox.invitations || [])
-      .map((i) => {
-        const incoming = i.recipient_id === state.profile.id;
-        const messages = (inbox.messages || []).filter(
-          (m) => m.invitation_id === i.id,
-        );
-        const workspace = i.workspace;
-        const bothConfirmed =
-          workspace &&
-          workspace.sender_confirmed_version === workspace.version &&
-          workspace.recipient_confirmed_version === workspace.version;
-        const accepted = i.status === "accepted";
-        return `<article><div><span class="category">${esc(i.status)}</span> <b>${esc(incoming ? i.sender_name : i.recipient_name)}</b><small>${incoming ? " invited you" : " was invited by you"}</small></div><p><b>Need:</b> ${esc(i.need_text)} <b>Offer:</b> ${esc(i.offer_text)}</p>${i.note ? `<p>${esc(i.note)}</p>` : ""}${incoming && i.status === "pending" ? `<button class="secondary" data-invite-response="accepted:${i.id}">Accept</button> <button class="text-btn" data-invite-response="declined:${i.id}">Decline</button> <button class="text-btn" data-invite-response="muted:${i.id}">Mute</button>` : ""}${accepted ? `<div class="workspace-summary"><b>${workspace?.scope ? esc(workspace.scope) : "Planning workspace not started"}</b><small>${workspace ? `Terms v${workspace.version}${bothConfirmed ? " · confirmed by both" : " · confirmation pending"}` : "Define scope, exchange, and availability together"}</small><button class="secondary" data-workspace="${i.id}">Open planning workspace</button>${bothConfirmed ? `<button class="primary" data-convert-intro="${i.id}">Create private work draft</button>` : ""}</div><div class="intro-thread">${messages.map((m) => `<p><b>${esc(m.author_name)}:</b> ${esc(m.body)}</p>`).join("")}<form data-form="intro-message" data-invitation="${i.id}" class="inline-form"><input name="body" required maxlength="1500" placeholder="Discuss the possible collaboration"><button class="secondary">Send</button></form></div>` : ""}<div class="conversation-safety">${["declined", "muted", "accepted"].includes(i.status) ? `<button class="text-btn" data-network-manage="invitation:archive:${i.id}">Archive</button>` : ""}<button class="text-btn" data-network-manage="profile:report:${i.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${i.id}">Block</button></div></article>`;
-      })
-      .join("") ||
-    '<div class="empty"><p>No invitations yet. Invite someone whose work fits yours.</p></div>'
-  }</div>`;
+  return `<div class="inbox-list">${(inbox.invitations || []).map((i) => {
+    const incoming = i.recipient_id === state.profile.id;
+    const messages = (inbox.messages || []).filter((m) => m.invitation_id === i.id);
+    const workspace = i.workspace;
+    const bothConfirmed = workspace && workspace.sender_confirmed_version === workspace.version && workspace.recipient_confirmed_version === workspace.version;
+    const accepted = i.status === "accepted";
+    const kind = i.invitation_kind || "exchange";
+    const isExchange = kind === "exchange";
+    const kindLabel = kind === "question" ? "question" : kind === "message" ? "message request" : "exchange invitation";
+    return `<article><div><span class="category">${esc(i.status)}</span> <b>${esc(incoming ? i.sender_name : i.recipient_name)}</b><small>${incoming ? ` sent you a ${kindLabel}` : ` received your ${kindLabel}`}</small></div>${isExchange ? `<p><b>Need:</b> ${esc(i.need_text)} <b>Offer:</b> ${esc(i.offer_text)}</p>` : ""}${i.note ? `<p class="message-request-note">${esc(i.note)}</p>` : ""}${incoming && i.status === "pending" ? `<button class="secondary" data-invite-response="accepted:${i.id}">${isExchange ? "Accept" : "Open conversation"}</button> <button class="text-btn" data-invite-response="declined:${i.id}">Decline</button> <button class="text-btn" data-invite-response="muted:${i.id}">Mute</button>` : ""}${accepted && isExchange ? `<div class="workspace-summary"><b>${workspace?.scope ? esc(workspace.scope) : "Planning workspace not started"}</b><small>${workspace ? `Terms v${workspace.version}${bothConfirmed ? " · confirmed by both" : " · confirmation pending"}` : "Define scope, exchange, and availability together"}</small><button class="secondary" data-workspace="${i.id}">Open planning workspace</button>${bothConfirmed ? `<button class="primary" data-convert-intro="${i.id}">Create private work draft</button>` : ""}</div>` : ""}${accepted ? `<div class="intro-thread">${messages.map((m) => `<p><b>${esc(m.author_name)}:</b> ${esc(m.body)}</p>`).join("")}<form data-form="intro-message" data-invitation="${i.id}" class="inline-form"><input name="body" required maxlength="1500" placeholder="Write a message"><button class="secondary">Send</button></form></div>` : ""}<div class="conversation-safety">${["declined", "muted", "accepted"].includes(i.status) ? `<button class="text-btn" data-network-manage="invitation:archive:${i.id}">Archive</button>` : ""}<button class="text-btn" data-network-manage="profile:report:${i.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${i.id}">Block</button></div></article>`;
+  }).join("") || '<div class="empty"><p>No conversations yet. Message someone whose work fits yours.</p></div>'}</div>`;
 }
 function renderNetwork() {
   const profiles = localDiscoveryProfiles(state.networkProfiles || []);
@@ -720,7 +720,7 @@ function hydrateLocalDiscovery() {
 function socialPersonCard(p) {
   if (!state.session || p.id === state.profile.id) return networkPersonCard(p);
   const saved = (state.networkInbox?.saved_profiles || []).includes(p.id);
-  const actions = `<div class="social-actions"><button class="text-btn" data-invite-person="${p.id}">Propose exchange</button><button class="text-btn" data-save-person="${p.id}">${saved ? "Saved" : "Save"}</button></div>`;
+  const actions = `<div class="social-actions"><button class="primary compact" data-contact-person="${p.id}">Message</button><button class="secondary compact" data-save-person="${p.id}">${saved ? "Saved" : "Save"}</button></div>`;
   return networkPersonCard(p).replace(
     "</div></article>",
     `${actions}</div></article>`,
@@ -740,7 +740,7 @@ function hydrateNetworkSocial() {
       const saved = (state.networkInbox?.saved_profiles || []).includes(
         profile.id,
       );
-      actions.innerHTML = `<button class="text-btn" data-invite-person="${profile.id}">Propose exchange</button><button class="text-btn" data-save-person="${profile.id}">${saved ? "Saved" : "Save"}</button>`;
+      actions.innerHTML = `<button class="primary compact" data-contact-person="${profile.id}">Message</button><button class="secondary compact" data-save-person="${profile.id}">${saved ? "Saved" : "Save"}</button>`;
       card.querySelector("div")?.append(actions);
       const theirNeeds = (profile.capabilities || [])
         .filter((x) => x.direction === "need")
@@ -878,6 +878,10 @@ function invitationModal(profile) {
         "",
       )}</select></label><button class="primary wide">Send invitation</button></form>`,
   );
+}
+function contactRequestModal(profileId, displayName, request = null, kind = "message") {
+  const question = kind === "question";
+  openModal(`<span class="eyebrow">${question ? "Question about work" : "Message request"}</span><h2>${request ? `Ask ${esc(displayName)} about ${esc(request.title)}.` : `Message ${esc(displayName)}.`}</h2><p>Start with a short, useful message. They choose whether to open the conversation. You can discuss scope and exchange terms afterward.</p><form data-form="contact-request" data-profile="${profileId}" data-request="${request?.id || ""}" data-kind="${question ? "question" : "message"}" class="form-grid"><label class="wide">Message<textarea name="message" required minlength="2" maxlength="1000" placeholder="${request ? "Is this still available? Would weekday evenings work?" : "Introduce yourself or ask a practical question."}"></textarea></label><button class="primary wide">Send message request</button></form>`);
 }
 function saveSearchModal() {
   openModal(
@@ -1148,7 +1152,7 @@ function renderFirstMatches() {
   const strong = people.filter((match) => match.score >= 50).length;
   return shell(`<section class="match-welcome"><span class="eyebrow">Personalized matches</span><h1>Useful overlap, explained.</h1><p>WorkTrade scores both directions of an exchange, then adds general location, remote availability, exchange preferences, and proven work. A high score is a starting point—not a judgment.</p><div class="match-summary"><b>${strong}</b><span>strong reciprocal match${strong === 1 ? "" : "es"}</span><button class="secondary" data-action="onboarding">Adjust matching profile</button></div></section>
     <div class="first-match-grid"><section><div class="section-title"><div><span class="eyebrow">Work you may be able to help with</span><h2>${work.length} starting points</h2></div></div><div class="request-grid first-match-list">${work.map(({ request, overlap, score }) => `<div class="match-shell"><div class="match-explanation"><b>${Math.min(100, score * 12)}% work fit</b><span>${overlap.length ? `Your ${esc(overlap.join(", "))} may help` : score ? "Near your general location" : "A chance to explore something different"}</span></div>${requestCard(request)}${feedbackControls(`request:${request.id}`)}</div>`).join("") || `<div class="empty"><p>No visible work matches. Adjust your profile or restore hidden matches below.</p></div>`}</div></section>
-    <section><div class="section-title"><div><span class="eyebrow">Reciprocal people matches</span><h2>${people.length} potential collaborators</h2></div></div><div class="people-list match-people">${people.map(({ person, helpsMe, helpThem, locationFit, exchangeFit, score }) => `<article class="person-card match-person"><span class="avatar big">${esc((person.display_name || "WT").split(/\s+/).map((x) => x[0]).join("").slice(0, 2))}</span><div><div class="match-score-row"><h3>${esc(person.display_name)}</h3><b>${score}%</b></div><p class="match-direction"><strong>They may help you:</strong> ${esc(helpsMe.join(", ") || "No direct need overlap yet")}</p><p class="match-direction"><strong>You may help them:</strong> ${esc(helpThem.join(", ") || "No direct offer overlap yet")}</p><small>${[locationFit ? "nearby" : "location flexible", exchangeFit ? "exchange fit" : "different exchange preferences", `${person.completed_count || 0} completed`].join(" · ")}</small><div class="social-actions"><button class="text-btn" data-view-profile="${person.id}">View evidence</button>${state.session ? `<button class="primary compact" data-invite-person="${person.id}">Propose exchange</button><button class="secondary compact" data-save-person="${person.id}">${(state.networkInbox?.saved_profiles || []).includes(person.id) ? "Saved" : "Save"}</button>` : `<button class="primary compact" data-action="sign-in">Sign in to connect</button>`}</div>${feedbackControls(`profile:${person.id}`)}</div></article>`).join("") || `<div class="empty"><p>Connected collaborator suggestions will appear here. Your work matches are ready now.</p><button class="secondary" data-nav="network">Explore the network</button></div>`}</div></section></div>${Object.values(state.matchFeedback).includes("dismissed") ? `<button class="text-btn restore-matches" data-action="restore-matches">Restore hidden matches</button>` : ""}`, "Personalized starting points");
+    <section><div class="section-title"><div><span class="eyebrow">Reciprocal people matches</span><h2>${people.length} potential collaborators</h2></div></div><div class="people-list match-people">${people.map(({ person, helpsMe, helpThem, locationFit, exchangeFit, score }) => `<article class="person-card match-person"><span class="avatar big">${esc((person.display_name || "WT").split(/\s+/).map((x) => x[0]).join("").slice(0, 2))}</span><div><div class="match-score-row"><h3>${esc(person.display_name)}</h3><b>${score}%</b></div><p class="match-direction"><strong>They may help you:</strong> ${esc(helpsMe.join(", ") || "No direct need overlap yet")}</p><p class="match-direction"><strong>You may help them:</strong> ${esc(helpThem.join(", ") || "No direct offer overlap yet")}</p><small>${[locationFit ? "nearby" : "location flexible", exchangeFit ? "exchange fit" : "different exchange preferences", `${person.completed_count || 0} completed`].join(" · ")}</small><div class="social-actions"><button class="text-btn" data-view-profile="${person.id}">View evidence</button>${state.session ? `<button class="primary compact" data-contact-person="${person.id}">Message</button><button class="secondary compact" data-save-person="${person.id}">${(state.networkInbox?.saved_profiles || []).includes(person.id) ? "Saved" : "Save"}</button>` : `<button class="primary compact" data-action="sign-in">Sign in to connect</button>`}</div>${feedbackControls(`profile:${person.id}`)}</div></article>`).join("") || `<div class="empty"><p>Connected collaborator suggestions will appear here. Your work matches are ready now.</p><button class="secondary" data-nav="network">Explore the network</button></div>`}</div></section></div>${Object.values(state.matchFeedback).includes("dismissed") ? `<button class="text-btn restore-matches" data-action="restore-matches">Restore hidden matches</button>` : ""}`, "Personalized starting points");
 }
 
 let renderedLocation = null;
@@ -1215,11 +1219,11 @@ function offerModal(id) {
   const availableValue = request.offersInReturn?.length
     ? request.offersInReturn.join(" · ")
     : "Open to a fair proposal";
-  openModal(`<span class="eyebrow">Guided proposal · four clear parts</span><h2>Make the exchange clear.</h2><p>The requester can accept these terms as an agreement, so name uncertainties now. Mutual confirmation protects both people if anything changes later.</p><aside class="proposal-context" aria-label="Work and exchange you are proposing for"><span class="eyebrow">You are proposing for</span><h3>${esc(request.title)}</h3><p>${esc(request.description)}</p><dl><div><dt>They are offering</dt><dd>${esc(availableValue)}</dd></div><div><dt>Exchange options</dt><dd>${request.exchange.map(modeLabel).join(" · ")}${request.cashBudget ? ` · up to ${money(request.cashBudget)}` : ""}</dd></div><div><dt>Posted by</dt><dd>${esc(request.owner)} · ${esc(request.location)}</dd></div></dl></aside><form data-form="offer" data-id="${id}" class="form-grid">
+  openModal(`<span class="eyebrow">Formal offer · four clear parts</span><h2>Offer to help.</h2><p>This creates proposed terms the requester can accept as an agreement. If you only need clarification, use Ask a question instead.</p><aside class="proposal-context" aria-label="Work and exchange you are proposing for"><span class="eyebrow">You are offering help with</span><h3>${esc(request.title)}</h3><p>${esc(request.description)}</p><dl><div><dt>They are offering</dt><dd>${esc(availableValue)}</dd></div><div><dt>Exchange options</dt><dd>${request.exchange.map(modeLabel).join(" · ")}${request.cashBudget ? ` · up to ${money(request.cashBudget)}` : ""}</dd></div><div><dt>Posted by</dt><dd>${esc(request.owner)} · ${esc(request.location)}</dd></div></dl></aside><form data-form="offer" data-id="${id}" class="form-grid">
     <div class="wide proposal-step"><b>1 · Value</b><span>Choose how value moves between both people.</span></div>
     <label>Exchange<select name="mode"><option value="hybrid">Cash + barter</option><option value="barter">Barter</option><option value="cash">Cash</option></select></label><label>Cash component<input name="cash" type="number" min="0" placeholder="0"></label>
     <div class="wide proposal-step"><b>2 · Scope</b><span>State the result you will deliver and what is outside this proposal.</span></div>
-    <label class="wide">What will you provide?<textarea name="gives" required placeholder="Scope and deliverables"></textarea></label><label class="wide">What is excluded?<textarea name="exclusions" placeholder="Permits, electrical work, finish materials…"></textarea></label><label class="wide">What would you receive?<input name="wants" required placeholder="$400 plus bookkeeping help"></label><label>Expected duration<input name="duration" required placeholder="Two weekends"></label><label>Offer expires<input name="expires_at" type="date"></label><label>Provider supplies<input name="provider_supplies" placeholder="Tools, labor, fasteners"></label><label>Requester supplies<input name="requester_supplies" placeholder="Site access, lumber, power"></label><label class="wide">Proposed milestones, one per line<textarea name="milestones" placeholder="Confirm measurements\nBuild components\nInstall and review"></textarea></label><label class="wide">Questions before committing<textarea name="questions" placeholder="Is weekend access available?"></textarea></label><button class="primary wide">Send proposal</button></form>`);
+    <label class="wide">What will you provide?<textarea name="gives" required placeholder="Scope and deliverables"></textarea></label><label class="wide">What is excluded?<textarea name="exclusions" placeholder="Permits, electrical work, finish materials…"></textarea></label><label class="wide">What would you receive?<input name="wants" required placeholder="$400 plus bookkeeping help"></label><label>Expected duration<input name="duration" required placeholder="Two weekends"></label><label>Offer expires<input name="expires_at" type="date"></label><label>Provider supplies<input name="provider_supplies" placeholder="Tools, labor, fasteners"></label><label>Requester supplies<input name="requester_supplies" placeholder="Site access, lumber, power"></label><label class="wide">Proposed milestones, one per line<textarea name="milestones" placeholder="Confirm measurements\nBuild components\nInstall and review"></textarea></label><label class="wide">Questions before committing<textarea name="questions" placeholder="Is weekend access available?"></textarea></label><button class="primary wide">Send offer</button></form>`);
 }
 
 function amendmentModal(request) {
@@ -1957,7 +1961,7 @@ document.addEventListener("click", (event) => {
           .querySelector(".modal")
           .insertAdjacentHTML(
             "beforeend",
-            `<div class="social-actions"><button class="primary" data-invite-person="${profile.id}">Propose an exchange</button><button class="secondary" data-save-person="${profile.id}">${(state.networkInbox?.saved_profiles || []).includes(profile.id) ? "Saved" : "Save person"}</button></div>`,
+            `<div class="social-actions"><button class="primary" data-contact-person="${profile.id}">Message</button><button class="secondary" data-save-person="${profile.id}">${(state.networkInbox?.saved_profiles || []).includes(profile.id) ? "Saved" : "Save person"}</button></div>`,
           );
     }
   }
@@ -1986,6 +1990,13 @@ document.addEventListener("click", (event) => {
       (x) => x.id === invitePerson.dataset.invitePerson,
     );
     if (profile) invitationModal(profile);
+  }
+  const contactPerson = event.target.closest("[data-contact-person]");
+  if (contactPerson) {
+    const profileId = contactPerson.dataset.contactPerson;
+    const request = state.requests.find((item) => item.id === contactPerson.dataset.contactRequest) || null;
+    const profile = (state.networkProfiles || []).find((item) => item.id === profileId);
+    contactRequestModal(profileId, profile?.display_name || request?.owner || "this member", request, contactPerson.dataset.contactKind || "message");
   }
   const journeyInvitation = event.target.closest("[data-journey-invitation]");
   if (journeyInvitation) {
@@ -2968,6 +2979,24 @@ document.addEventListener("submit", async (event) => {
       closeModal();
       await loadNetwork();
       notify("Collaboration invitation sent");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  if (form.dataset.form === "contact-request") {
+    try {
+      if (state.remote) {
+        await sendContactRequest(
+          form.dataset.profile,
+          data.get("message"),
+          form.dataset.request || null,
+          form.dataset.kind || "message",
+        );
+        await loadNetwork();
+      }
+      closeModal();
+      state.view = "network";
+      notify("Message request sent", "success");
     } catch (error) {
       notify(error.message);
     }

@@ -91,6 +91,19 @@ export async function sendCollaborationInvitation(
   return data;
 }
 
+export async function sendContactRequest(profileId, message, requestId = null, kind = "message") {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("send_contact_request", {
+    target_profile_id: profileId,
+    message_body: message,
+    target_request_id: requestId || null,
+    contact_kind: kind,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function respondCollaborationInvitation(id, response) {
   const client = await getBackend();
   assertBackend(client);

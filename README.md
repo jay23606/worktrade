@@ -29,6 +29,7 @@ The wider public network remains available for discovery, but community context 
 | Public work requests       | Connected             | Drafts, photos, constraints, lifecycle history, cash/barter/hybrid proposals                     |
 | Proposal negotiation       | Connected             | Versioned counters, highlighted term changes, counterparty-only acceptance, declines, and readable history |
 | Negotiation inbox          | Connected             | Waiting-on-you/them queues, direct request routing, expiration warnings, changed-term summaries, and proposal email delivery |
+| Conversation-first contact | Connected             | Message people or ask about a request without drafting trade terms; recipients opt in before private conversation begins |
 | Agreements                 | Connected             | Mutual confirmation, amendments, scheduling, milestones, holds, obligations, completion approval |
 | Private scheduling         | Connected             | Recurring availability, mutual time proposals, counteroffers, participant-only arrival details, weather flags, and calendar export |
 | Preparation ledger         | Connected             | Materials, tools, rentals, permits, delivery, cash/barter contributions, readiness, actual costs, shared approvals, and private receipt evidence |
@@ -60,7 +61,7 @@ The wider public network remains available for discovery, but community context 
 ### Profile → introduction → work
 
 1. Explainable matching shows how one member's offers and needs overlap another's.
-2. A collaboration invitation states both sides of a possible exchange.
+2. A member can start with a message or question; formal offers state both sides of a possible exchange only when people are ready.
 3. The recipient accepts, declines, or mutes it. Messaging opens only after acceptance.
 4. Both people negotiate scope, responsibilities, materials, exclusions, exchange, and availability in a versioned workspace.
 5. Both confirm the same version before it becomes a private work draft.
@@ -164,7 +165,7 @@ The hosted integration tests create temporary users, exercise invitation accepta
 
 Do not place the secret key in GitHub Pages configuration or public CI logs. See [docs/UAT_REPORT.md](docs/UAT_REPORT.md) for automated coverage and the remaining manual checks.
 
-Browser UAT runs 84 checks across desktop, tablet, phone, compact desktop, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, filter collision, accessible names, target sizes, primary navigation, invite-only onboarding, community positioning, dark-mode feedback contrast, first-use activation, guided proposals, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
+Browser UAT runs 88 checks across desktop, tablet, phone, compact desktop, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, filter collision, accessible names, target sizes, primary navigation, invite-only onboarding, community positioning, dark-mode feedback contrast, first-use activation, simple question-first contact, formal offers, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
 
 ## Deployment
 
