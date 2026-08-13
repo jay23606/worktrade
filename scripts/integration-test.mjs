@@ -144,8 +144,9 @@ try {
   const duplicateId=await rpc(owner.token,"request_lifecycle_action",{target_request_id:draftId,expected_version:draft.version,requested_action:"duplicate"});const duplicate=(await request(`/rest/v1/work_requests?id=eq.${duplicateId}&select=*`,{token:owner.token}))[0];assert.equal(duplicate.stage,"draft");
 
   const requestId = await rpc(owner.token, "create_work_request", { payload: { title: "Build integration-test shelving", description: "Build and install two sturdy workshop shelves.", kind: "build", location: "Richmond, VA", urgency: "This month", cash_budget_cents: 30000, visibility: "public", skills: ["Carpentry"] } });
+  await rpc(decliner.token, "set_my_profile", { payload: { display_name: decliner.name, location_text: "Richmond, VA", bio: "Decline-path test account", needs: ["Gardening"], offers: ["Carpentry"] } });
   const projectMatches = await rpc(owner.token, "recommend_profiles_for_request", { target_request_id: requestId });
-  const projectProvider = projectMatches.find((item) => item.id === provider.id);
+  const projectProvider = projectMatches.find((item) => item.id === decliner.id);
   assert.ok(projectProvider?.score >= 30);
   assert.ok(projectProvider.reasons.includes("Matches required skills"));
   assert.ok(await rpc(owner.token, "notify_project_matches", { target_request_id: requestId }) >= 1);
