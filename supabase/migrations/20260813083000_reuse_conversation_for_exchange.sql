@@ -20,7 +20,7 @@ begin
  return item.id;
 end$$;
 
-create or replace function public.send_collaboration_invitation(target_profile_id uuid,need_value text,offer_value text,note_value text,target_request_id uuid default null) returns uuid language plpgsql security definer set search_path=public as $$
+create or replace function public.send_collaboration_invitation(target_profile_id uuid,need_value text,offer_value text,note_value text default null,target_request_id uuid default null) returns uuid language plpgsql security definer set search_path=public as $$
 declare item public.collaboration_invitations;
 begin
  if auth.uid() is null or target_profile_id=auth.uid()then raise exception 'valid recipient required';end if;
