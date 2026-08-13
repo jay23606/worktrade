@@ -241,3 +241,15 @@ test("negotiation activity reaches the inbox and transactional outbox", async ()
   const dispatcher = await readFile(new URL("supabase/functions/email-dispatch/index.ts", root), "utf8");
   assert.match(dispatcher, /queue_offer_expiration_warnings/);
 });
+
+test("dedicated conversations keep read, archive, and mute state private per member", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813043000_message_inbox.sql", root), "utf8");
+  assert.match(sql, /conversation_member_state/);
+  assert.match(sql, /profile_id=auth\.uid\(\)/);
+  assert.match(sql, /requested_action='read'/);
+  assert.match(sql, /requested_action='archive'/);
+  assert.match(sql, /requested_action='mute'/);
+  assert.match(sql, /unread_count/);
+  const client = await readFile(new URL("modules/backend/network.js", root), "utf8");
+  assert.match(client, /export async function manageConversation/);
+});

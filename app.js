@@ -106,6 +106,7 @@ import {
   confirmIntroductionWorkspace,
   convertIntroductionToRequest,
   manageNetworkItem,
+  manageConversation,
   getCircleHub,
   createCircle,
   requestCircleMembership,
@@ -164,6 +165,10 @@ const store = createStore({
   networkAvailability: "",
   networkSort: "fit",
   networkFollowingOnly: false,
+  selectedConversationId: null,
+  messageQuery: "",
+  showArchivedMessages: false,
+  messageListOnly: true,
   networkInbox: {
     invitations: [],
     messages: [],
@@ -670,6 +675,50 @@ function networkInbox(inbox) {
     return `<article><div><span class="category">${esc(i.status)}</span> <b>${esc(incoming ? i.sender_name : i.recipient_name)}</b><small>${incoming ? ` sent you a ${kindLabel}` : ` received your ${kindLabel}`}</small></div>${isExchange ? `<p><b>Need:</b> ${esc(i.need_text)} <b>Offer:</b> ${esc(i.offer_text)}</p>` : ""}${i.note ? `<p class="message-request-note">${esc(i.note)}</p>` : ""}${incoming && i.status === "pending" ? `<button class="secondary" data-invite-response="accepted:${i.id}">${isExchange ? "Accept" : "Open conversation"}</button> <button class="text-btn" data-invite-response="declined:${i.id}">Decline</button> <button class="text-btn" data-invite-response="muted:${i.id}">Mute</button>` : ""}${accepted && isExchange ? `<div class="workspace-summary"><b>${workspace?.scope ? esc(workspace.scope) : "Planning workspace not started"}</b><small>${workspace ? `Terms v${workspace.version}${bothConfirmed ? " · confirmed by both" : " · confirmation pending"}` : "Define scope, exchange, and availability together"}</small><button class="secondary" data-workspace="${i.id}">Open planning workspace</button>${bothConfirmed ? `<button class="primary" data-convert-intro="${i.id}">Create private work draft</button>` : ""}</div>` : ""}${accepted ? `<div class="intro-thread">${messages.map((m) => `<p><b>${esc(m.author_name)}:</b> ${esc(m.body)}</p>`).join("")}<form data-form="intro-message" data-invitation="${i.id}" class="inline-form"><input name="body" required maxlength="1500" placeholder="Write a message"><button class="secondary">Send</button></form></div>` : ""}<div class="conversation-safety">${["declined", "muted", "accepted"].includes(i.status) ? `<button class="text-btn" data-network-manage="invitation:archive:${i.id}">Archive</button>` : ""}<button class="text-btn" data-network-manage="profile:report:${i.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${i.id}">Block</button></div></article>`;
   }).join("") || '<div class="empty"><p>No conversations yet. Message someone whose work fits yours.</p></div>'}</div>`;
 }
+
+function conversationTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  const today = new Date();
+  return date.toDateString() === today.toDateString()
+    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function renderMessages() {
+  if (!state.session) return shell(`<section class="messages-welcome"><span class="eyebrow">Private conversations</span><h1>Talk first. Trade when it makes sense.</h1><p>Sign in to see message requests and conversations.</p><button class="primary" data-action="sign-in">Sign in</button></section>`, "Messages");
+  const inbox = state.networkInbox || { invitations: [], messages: [] };
+  const query = (state.messageQuery || "").trim().toLowerCase();
+  const conversations = (inbox.invitations || []).filter((item) => {
+    const archived = !!item.member_state?.archived_at;
+    if (archived !== !!state.showArchivedMessages) return false;
+    const other = item.sender_id === state.profile.id ? item.recipient_name : item.sender_name;
+    const request = state.requests.find((entry) => entry.id === item.request_id);
+    return !query || `${other} ${item.note || ""} ${request?.title || ""}`.toLowerCase().includes(query);
+  });
+  const selected = state.messageListOnly && window.matchMedia("(max-width: 760px)").matches ? null : conversations.find((item) => item.id === state.selectedConversationId) || conversations[0] || null;
+  if (selected && selected.id !== state.selectedConversationId) queueMicrotask(() => { state.selectedConversationId = selected.id; });
+  const list = conversations.map((item) => {
+    const other = item.sender_id === state.profile.id ? item.recipient_name : item.sender_name;
+    const messages = (inbox.messages || []).filter((message) => message.invitation_id === item.id);
+    const latest = messages.at(-1);
+    const preview = latest?.body || item.note || (item.status === "pending" ? "Waiting for a response" : "Conversation opened");
+    const unread = Number(item.unread_count || 0);
+    return `<button class="conversation-row ${selected?.id === item.id ? "active" : ""} ${unread ? "unread" : ""}" data-conversation="${item.id}"><span class="avatar">${esc(other.split(/\s+/).map((part) => part[0]).join("").slice(0, 2))}</span><span><b>${esc(other)}</b><small>${esc(preview)}</small></span><span class="conversation-meta"><time>${conversationTime(latest?.created_at || item.created_at)}</time>${unread ? `<i>${unread}</i>` : ""}</span></button>`;
+  }).join("");
+  return shell(`<section class="messages-page"><div class="messages-title"><div><span class="eyebrow">Private conversations</span><h1>Messages</h1></div><button class="secondary" data-nav="network">Find people</button></div><div class="messages-layout ${selected ? "has-selection" : ""}"><aside class="conversation-list" aria-label="Conversations"><form data-form="message-search" class="message-search"><input name="query" aria-label="Search conversations" value="${esc(state.messageQuery || "")}" placeholder="Search conversations"><button class="secondary">Search</button></form><button class="text-btn archive-toggle" data-action="toggle-message-archive">${state.showArchivedMessages ? "Back to inbox" : "Archived"}</button>${list || `<div class="empty"><p>${state.showArchivedMessages ? "No archived conversations." : "No conversations yet."}</p><button class="secondary" data-nav="network">Find someone to message</button></div>`}</aside>${selected ? conversationPanel(selected, inbox) : `<section class="conversation-empty"><span aria-hidden="true">✉</span><h2>Choose a conversation</h2><p>Messages, questions, and formal exchange planning stay connected without becoming the same thing.</p></section>`}</div></section>`, "Messages");
+}
+
+function conversationPanel(invitation, inbox) {
+  const incoming = invitation.recipient_id === state.profile.id;
+  const otherId = incoming ? invitation.sender_id : invitation.recipient_id;
+  const other = incoming ? invitation.sender_name : invitation.recipient_name;
+  const messages = (inbox.messages || []).filter((item) => item.invitation_id === invitation.id);
+  const request = state.requests.find((item) => item.id === invitation.request_id);
+  const pendingIncoming = incoming && invitation.status === "pending";
+  const accepted = ["accepted", "converted"].includes(invitation.status);
+  return `<section class="conversation-panel" aria-label="Conversation with ${esc(other)}"><header><button class="text-btn messages-back" data-action="messages-back">← Inbox</button><button class="conversation-person" data-view-profile="${otherId}"><span class="avatar">${esc(other.split(/\s+/).map((part) => part[0]).join("").slice(0, 2))}</span><span><b>${esc(other)}</b><small>${invitation.member_state?.muted ? "Notifications muted" : "Private conversation"}</small></span></button><div class="conversation-tools"><button class="text-btn" data-conversation-manage="${invitation.member_state?.muted ? "unmute" : "mute"}:${invitation.id}">${invitation.member_state?.muted ? "Unmute" : "Mute"}</button><button class="text-btn" data-conversation-manage="archive:${invitation.id}">Archive</button></div></header>${request ? `<aside class="conversation-context"><span><small>Related work</small><b>${esc(request.title)}</b></span><button class="secondary compact" data-open="${request.id}">View work</button></aside>` : ""}<div class="message-thread">${invitation.note ? `<div class="message-bubble ${incoming ? "theirs" : "mine"}"><p>${esc(invitation.note)}</p><small>${esc(incoming ? invitation.sender_name : "You")} · ${conversationTime(invitation.created_at)}</small></div>` : ""}${messages.map((message) => `<div class="message-bubble ${message.author_id === state.profile.id ? "mine" : "theirs"}"><p>${esc(message.body)}</p><small>${message.author_id === state.profile.id ? "You" : esc(message.author_name)} · ${conversationTime(message.created_at)}</small></div>`).join("") || (!invitation.note ? `<p class="thread-empty">No messages yet.</p>` : "")}</div>${pendingIncoming ? `<div class="message-consent"><p><b>${esc(other)} wants to start a conversation.</b> Open it to reply. You can decline or mute without notifying them further.</p><button class="primary" data-invite-response="accepted:${invitation.id}">Open conversation</button><button class="text-btn" data-invite-response="declined:${invitation.id}">Decline</button></div>` : accepted ? `<form data-form="intro-message" data-invitation="${invitation.id}" class="message-composer"><label><span class="sr-only">Message ${esc(other)}</span><textarea name="body" required maxlength="1500" placeholder="Write a message"></textarea></label><button class="primary">Send</button></form><div class="conversation-next"><span><b>Ready to make it concrete?</b><small>Turn the discussion into clear work and exchange terms.</small></span><button class="secondary" data-message-offer="${invitation.id}">${request && request.ownerId !== state.profile.id ? "Create an offer" : "Plan an exchange"}</button></div>` : `<div class="message-consent"><p>${invitation.status === "pending" ? "Waiting for them to open the conversation." : `This conversation is ${esc(invitation.status)}.`}</p></div>`}<footer><button class="text-btn" data-network-manage="profile:report:${invitation.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${invitation.id}">Block</button></footer></section>`;
+}
 function renderNetwork() {
   const profiles = localDiscoveryProfiles(state.networkProfiles || []);
   const activity = state.networkActivity || [];
@@ -680,7 +729,7 @@ function renderNetwork() {
     saved_searches: [],
   };
   return shell(
-    `<section class="network-hero"><span class="eyebrow">Trusted local work communities</span><h1>Useful work starts with people<br>who share a place.</h1><p>Bring a neighborhood, maker space, nonprofit, trade school, or small-business community together around practical needs, useful skills, and fair exchange.</p><div class="community-factors"><span>Nearby & transport</span><span>Time & availability</span><span>Tools & equipment</span><span>Workspace & site access</span></div></section><form data-form="network-search" class="controls network-filters"><label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, names, or locations"></label><select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select><label><input type="checkbox" name="remote" ${state.networkRemote ? "checked" : ""}> Remote available</label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save search</button>` : ""}</form>${state.session ? `<section class="network-inbox"><div class="section-title"><div><span class="eyebrow">Introductions</span><h2>Your collaboration inbox</h2></div><span>${inbox.invitations.filter((x) => x.recipient_id === state.profile.id && x.status === "pending").length} awaiting you</span></div>${networkInbox(inbox)}</section>` : ""}<div class="two-col"><section><span class="eyebrow">Suggested collaborators</span><h2>${profiles.length} people with useful overlap</h2><div class="people-list">${profiles.map(networkPersonCard).join("") || '<div class="empty"><p>No matching public profiles yet.</p></div>'}</div></section><section><div class="feed-heading"><div><span class="eyebrow">Work activity</span><h2>Useful things moving forward</h2></div>${state.session ? `<label><input type="checkbox" data-following-feed ${state.networkFollowingOnly ? "checked" : ""}> Following only</label>` : ""}</div><div class="activity-list">${activity.map(activityCard).join("") || '<div class="empty"><p>No activity matches this feed.</p></div>'}</div></section></div>`,
+    `<section class="network-hero"><span class="eyebrow">Trusted local work communities</span><h1>Useful work starts with people<br>who share a place.</h1><p>Bring a neighborhood, maker space, nonprofit, trade school, or small-business community together around practical needs, useful skills, and fair exchange.</p><div class="community-factors"><span>Nearby & transport</span><span>Time & availability</span><span>Tools & equipment</span><span>Workspace & site access</span></div></section><form data-form="network-search" class="controls network-filters"><label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, names, or locations"></label><select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select><label><input type="checkbox" name="remote" ${state.networkRemote ? "checked" : ""}> Remote available</label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save search</button>` : ""}</form>${state.session && inbox.invitations.length ? `<aside class="messages-shortcut"><span><b>${inbox.invitations.length} conversation${inbox.invitations.length === 1 ? "" : "s"}</b><small>Questions and messages now live in one focused inbox.</small></span><button class="primary" data-nav="messages">Open Messages</button></aside>` : ""}<div class="two-col"><section><span class="eyebrow">Suggested collaborators</span><h2>${profiles.length} people with useful overlap</h2><div class="people-list">${profiles.map(networkPersonCard).join("") || '<div class="empty"><p>No matching public profiles yet.</p></div>'}</div></section><section><div class="feed-heading"><div><span class="eyebrow">Work activity</span><h2>Useful things moving forward</h2></div>${state.session ? `<label><input type="checkbox" data-following-feed ${state.networkFollowingOnly ? "checked" : ""}> Following only</label>` : ""}</div><div class="activity-list">${activity.map(activityCard).join("") || '<div class="empty"><p>No activity matches this feed.</p></div>'}</div></section></div>`,
     "Community network",
   );
 }
@@ -771,7 +820,7 @@ function hydrateNetworkSocial() {
   const saved = state.networkInbox?.saved_searches || [];
   if (saved.length)
     document
-      .querySelector(".network-inbox")
+      .querySelector(".two-col")
       ?.insertAdjacentHTML(
         "afterbegin",
         `<div class="saved-searches"><span>Saved searches</span>${saved.map((search) => `<button class="chip" data-saved-search="${search.id}">${esc(search.name)}</button><button class="saved-search-delete" data-network-manage="search:delete:${search.id}" aria-label="Delete ${esc(search.name)}">×</button>`).join("")}</div>`,
@@ -787,7 +836,7 @@ function hydrateNetworkSocial() {
       (circle) => circle.id === state.selectedCircleId,
     );
     document
-      .querySelector(".network-inbox")
+      .querySelector(".two-col")
       ?.insertAdjacentHTML(
         "beforebegin",
         `<section class="circles-hub"><div class="section-title"><div><span class="eyebrow">Your trusted communities</span><h2>Coordinate useful work with people connected by place.</h2><p>Private by default, grounded in community history, and built for real needs—not popularity.</p></div><button class="primary" data-action="create-circle">Create community</button></div><div class="circle-grid">${hub.circles.map((circle) => `<article class="circle"><span class="category">${esc(circle.visibility)}</span><h3>${esc(circle.name)}</h3><p>${esc(circle.description || "")}</p><small>${circle.member_count} members · ${circle.request_count} open needs</small><button class="secondary" data-open-circle="${circle.id}">${circle.membership?.status === "active" ? "Open community" : circle.membership?.status === "requested" ? "Requested" : circle.membership?.status === "invited" ? "Review invitation" : "Request access"}</button></article>`).join("") || '<div class="empty"><h3>Start with people you already know.</h3><p>Create an invite-only community for your block, shop, school, organization, or shared workspace.</p><button class="primary" data-action="create-circle">Create the first community</button></div>'}</div>${selected ? circleDetail(selected, hub) : ""}</section>`,
@@ -1170,6 +1219,7 @@ function render() {
       state.requests.find((r) => r.id === state.selectedId),
     );
   else if (state.view === "workspace") main.innerHTML = renderWorkspace();
+  else if (state.view === "messages") main.innerHTML = renderMessages();
   else if (state.view === "network") main.innerHTML = renderNetwork();
   else if (state.view === "profile") main.innerHTML = renderProfile();
   else if (state.view === "matches") main.innerHTML = renderFirstMatches();
@@ -1346,6 +1396,7 @@ function notificationGroup(item) {
 }
 
 function notificationRoute(item) {
+  if (/new introduction message|new message request|new question about your work/i.test(item.title)) return { view: "messages" };
   if (item.request_id) return { view: "detail", section: item.kind === "message" ? "activity" : /change|issue/i.test(item.title) ? "overview" : /cost|contribution|exchange/i.test(item.title) ? "exchange" : "overview" };
   if (item.kind === "network") return { view: "network" };
   if (item.kind === "safety") return { view: "profile" };
@@ -1458,6 +1509,13 @@ document.addEventListener("click", (event) => {
     state.view = nav.dataset.nav;
     state.selectedId = null;
     state.projectDetailTab = "overview";
+    return;
+  }
+  const conversation = event.target.closest("[data-conversation]");
+  if (conversation) {
+    state.selectedConversationId = conversation.dataset.conversation;
+    state.messageListOnly = false;
+    if (state.remote) manageConversation(state.selectedConversationId, "read").then(loadNetwork).catch(() => {});
     return;
   }
   const card = event.target.closest("[data-open]");
@@ -1588,6 +1646,8 @@ document.addEventListener("click", (event) => {
       state.requests.find((item) => item.id === state.selectedId),
     );
   if (action === "notifications") notificationsModal();
+  if (action === "toggle-message-archive") state.showArchivedMessages = !state.showArchivedMessages;
+  if (action === "messages-back") state.messageListOnly = true;
   if (action === "notification-preferences") preferencesModal();
   if (action === "read-all")
     state.remote
@@ -2027,6 +2087,29 @@ document.addEventListener("click", (event) => {
       .then(loadNotifications)
       .then(() => notify(`Invitation ${response}`))
       .catch((error) => notify(error.message));
+  }
+  const conversationManage = event.target.closest("[data-conversation-manage]");
+  if (conversationManage) {
+    const [actionName, id] = conversationManage.dataset.conversationManage.split(":");
+    manageConversation(id, actionName)
+      .then(loadNetwork)
+      .then(() => {
+        if (actionName === "archive") state.selectedConversationId = null;
+        notify(actionName === "archive" ? "Conversation archived" : `Conversation ${actionName}d`, "success");
+      })
+      .catch((error) => notify(error.message));
+  }
+  const messageOffer = event.target.closest("[data-message-offer]");
+  if (messageOffer) {
+    const invitation = state.networkInbox.invitations.find((item) => item.id === messageOffer.dataset.messageOffer);
+    const request = state.requests.find((item) => item.id === invitation?.request_id);
+    if (request && request.ownerId !== state.profile.id) offerModal(request.id);
+    else {
+      const otherId = invitation.sender_id === state.profile.id ? invitation.recipient_id : invitation.sender_id;
+      const profile = state.networkProfiles.find((item) => item.id === otherId);
+      if (profile) invitationModal(profile);
+      else notify("Open their profile to begin exchange planning.", "warning");
+    }
   }
   const workspaceButton = event.target.closest("[data-workspace]");
   if (workspaceButton) {
@@ -2952,6 +3035,9 @@ document.addEventListener("submit", async (event) => {
     state.networkSort = data.get("sort") || "fit";
     await loadNetwork();
   }
+  if (form.dataset.form === "message-search") {
+    state.messageQuery = data.get("query") || "";
+  }
   if (form.dataset.form === "completion-story") {
     try {
       await publishCompletion(
@@ -3006,6 +3092,7 @@ document.addEventListener("submit", async (event) => {
       await sendIntroductionMessage(form.dataset.invitation, data.get("body"));
       form.reset();
       await loadNetwork();
+      if (state.remote) await manageConversation(form.dataset.invitation, "read");
     } catch (error) {
       notify(error.message);
     }
@@ -3454,6 +3541,12 @@ async function loadNetwork() {
             .map((x) => x.id),
         };
     });
+    const unreadMessages = (inbox.invitations || []).reduce((total, item) => total + Number(item.unread_count || 0) + (item.recipient_id === state.profile.id && item.status === "pending" ? 1 : 0), 0);
+    const messageCount = document.querySelector("#message-count");
+    if (messageCount) {
+      messageCount.textContent = unreadMessages ? String(unreadMessages) : "";
+      messageCount.hidden = !unreadMessages;
+    }
     announceStrongMatches(profiles || []);
   } catch (error) {
     notify(`Network unavailable: ${error.message}`);

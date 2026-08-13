@@ -125,6 +125,16 @@ export async function sendIntroductionMessage(id, body) {
   return data;
 }
 
+export async function manageConversation(id, action) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { error } = await client.rpc("manage_conversation", {
+    target_invitation_id: id,
+    requested_action: action,
+  });
+  if (error) throw error;
+}
+
 export async function setSavedProfile(profileId, save) {
   const client = await getBackend();
   assertBackend(client);

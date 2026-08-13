@@ -253,6 +253,13 @@ test("a member can ask a simple question without filling out exchange terms", as
   await expect(dialog.getByLabel("What can you offer?")).toHaveCount(0);
 });
 
+test("messages has a dedicated, conversation-first destination", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /Messages/ }).click();
+  await expect(page.getByRole("heading", { name: "Talk first. Trade when it makes sense." })).toBeVisible();
+  await expect(page.getByText("Sign in to see message requests and conversations.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+});
+
 test("local discovery exposes privacy-safe filters and saved alerts", async ({ page }) => {
   await page.getByRole("navigation", { name: "Primary" }).locator('[data-nav="network"]').click();
   const form = page.locator('form[data-form="network-search"]');

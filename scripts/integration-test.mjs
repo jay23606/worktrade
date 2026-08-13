@@ -72,6 +72,12 @@ try {
   await rpc(owner.token, "send_introduction_message", { target_invitation_id: contactId, message_body: "Thanks for opening the conversation." });
   contactInbox = await rpc(provider.token, "get_network_inbox", {});
   assert.equal(contactInbox.messages.some((item) => item.invitation_id === contactId), true);
+  assert.equal(Number(contactInbox.invitations.find((item) => item.id === contactId).unread_count), 1);
+  await rpc(provider.token, "manage_conversation", { target_invitation_id: contactId, requested_action: "read" });
+  await rpc(provider.token, "manage_conversation", { target_invitation_id: contactId, requested_action: "mute" });
+  contactInbox = await rpc(provider.token, "get_network_inbox", {});
+  assert.equal(Number(contactInbox.invitations.find((item) => item.id === contactId).unread_count), 0);
+  assert.equal(contactInbox.invitations.find((item) => item.id === contactId).member_state.muted, true);
 
   const invitationId = await rpc(owner.token, "send_collaboration_invitation", { target_profile_id: provider.id, need_value: "Carpentry for workshop storage", offer_value: "Product photography", note_value: "A reciprocal fit for both profiles", target_request_id: null });
   let inbox = await rpc(provider.token, "get_network_inbox", {});
