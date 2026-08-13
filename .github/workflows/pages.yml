@@ -30,6 +30,7 @@ jobs:
           cp manifest.webmanifest service-worker.js .nojekyll dist/
           cp -r assets dist/
           cp -r modules dist/
+          cp -r features shell dist/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

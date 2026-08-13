@@ -2,6 +2,10 @@ import { createStore } from "./modules/store.js";
 import { cloneSeed } from "./data.js";
 import { createModalController, esc, money, modeLabel } from "./modules/ui.js";
 import { mapRemoteRequest } from "./modules/request-mapper.js";
+import { createMatchingFeature } from "./features/matching.js";
+import { createMessagesFeature } from "./features/messages.js";
+import { createNetworkFeature } from "./features/network.js";
+import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
   proposeAgreement,
@@ -208,75 +212,10 @@ document.querySelector(".theme-toggle").setAttribute(
 );
 document.querySelector('meta[name="theme-color"]').content =
   currentTheme === "dark" ? "#111914" : "#f4f0e6";
-let installPrompt = null;
-let waitingWorker = null;
 let messageSubscription = null;
 let realtimeRefreshTimer = null;
-let updateRequested = false;
-const installButton = document.querySelector("#install-app");
-const connectionBanner = document.querySelector("#connection-banner");
-const updateBanner = document.querySelector("#update-banner");
+let applyConnectivityState;
 
-function applyConnectivityState(announce = false) {
-  const offline = !navigator.onLine;
-  document.body.classList.toggle("is-offline", offline);
-  connectionBanner.hidden = !offline;
-  connectionBanner.querySelector("span").textContent = offline
-    ? "You’re offline. Browsing and device-local work remain available; connected changes are paused."
-    : "Back online.";
-  document.querySelectorAll("[data-connected-action]").forEach((control) => {
-    control.disabled = offline;
-    control.title = offline ? "Reconnect to use this feature" : "";
-  });
-  if (announce) notify(offline ? "WorkTrade is offline" : "Connection restored", offline ? "warning" : "success");
-}
-
-addEventListener("online", () => applyConnectivityState(true));
-addEventListener("offline", () => applyConnectivityState(true));
-document.querySelector("#retry-connection").addEventListener("click", () => applyConnectivityState(true));
-addEventListener("beforeinstallprompt", (event) => {
-  event.preventDefault();
-  installPrompt = event;
-  installButton.hidden = false;
-});
-installButton.addEventListener("click", async () => {
-  if (!installPrompt) return;
-  await installPrompt.prompt();
-  const choice = await installPrompt.userChoice;
-  installPrompt = null;
-  installButton.hidden = true;
-  if (choice.outcome === "accepted") notify("WorkTrade installed", "success");
-});
-addEventListener("appinstalled", () => {
-  installButton.hidden = true;
-  notify("WorkTrade installed", "success");
-});
-document.querySelector("#apply-update").addEventListener("click", () => {
-  updateRequested = true;
-  waitingWorker?.postMessage({ type: "SKIP_WAITING" });
-});
-if ("serviceWorker" in navigator) {
-  addEventListener("load", async () => {
-    const registration = await navigator.serviceWorker.register("./service-worker.js");
-    const showUpdate = (worker) => {
-      waitingWorker = worker;
-      updateBanner.hidden = false;
-    };
-    if (registration.waiting && navigator.serviceWorker.controller) showUpdate(registration.waiting);
-    registration.addEventListener("updatefound", () => {
-      const worker = registration.installing;
-      worker?.addEventListener("statechange", () => {
-        if (worker.state === "installed" && navigator.serviceWorker.controller) showUpdate(worker);
-      });
-    });
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (refreshing || !updateRequested) return;
-      refreshing = true;
-      location.reload();
-    });
-  });
-}
 const categories = [
   "All",
   "Build",
@@ -304,6 +243,7 @@ const notify = (message, tone = "neutral") => {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("show"), 3200);
 };
+({ applyConnectivityState } = initializePwa({ notify }));
 const updateRequests = (transform) => {
   state.requests = transform(structuredClone(state.requests));
   persist();
@@ -715,204 +655,10 @@ function networkInbox(inbox) {
   }).join("") || '<div class="empty"><p>No conversations yet. Message someone whose work fits yours.</p></div>'}</div>`;
 }
 
-function conversationTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  const today = new Date();
-  return date.toDateString() === today.toDateString()
-    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : date.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
-function renderMessages() {
-  if (!state.session) return shell(`<section class="messages-welcome"><span class="eyebrow">Private conversations</span><h1>Talk first. Trade when it makes sense.</h1><p>Sign in to see message requests and conversations.</p><button class="primary" data-action="sign-in">Sign in</button></section>`, "Messages");
-  const inbox = state.networkInbox || { invitations: [], messages: [] };
-  const query = (state.messageQuery || "").trim().toLowerCase();
-  const seenPeople = new Set();
-  const conversations = (inbox.invitations || []).filter((item) => {
-    const archived = !!item.member_state?.archived_at;
-    if (archived !== !!state.showArchivedMessages) return false;
-    const other = item.sender_id === state.profile.id ? item.recipient_name : item.sender_name;
-    const request = state.requests.find((entry) => entry.id === item.request_id);
-    const otherId = item.sender_id === state.profile.id ? item.recipient_id : item.sender_id;
-    if (seenPeople.has(otherId)) return false;
-    seenPeople.add(otherId);
-    return !query || `${other} ${item.note || ""} ${request?.title || ""}`.toLowerCase().includes(query);
-  });
-  const selected = state.messageListOnly && window.matchMedia("(max-width: 760px)").matches ? null : conversations.find((item) => item.id === state.selectedConversationId) || conversations[0] || null;
-  if (selected && selected.id !== state.selectedConversationId) queueMicrotask(() => { state.selectedConversationId = selected.id; });
-  const list = conversations.map((item) => {
-    const other = item.sender_id === state.profile.id ? item.recipient_name : item.sender_name;
-    const messages = (inbox.messages || []).filter((message) => message.invitation_id === item.id);
-    const latest = messages.at(-1);
-    const preview = latest?.body || item.note || (item.status === "pending" ? "Waiting for a response" : "Conversation opened");
-    const unread = Number(item.unread_count || 0);
-    return `<button class="conversation-row ${selected?.id === item.id ? "active" : ""} ${unread ? "unread" : ""}" data-conversation="${item.id}"><span class="avatar">${esc(other.split(/\s+/).map((part) => part[0]).join("").slice(0, 2))}</span><span><b>${esc(other)}</b><small>${esc(preview)}</small></span><span class="conversation-meta"><time>${conversationTime(latest?.created_at || item.created_at)}</time>${unread ? `<i>${unread}</i>` : ""}</span></button>`;
-  }).join("");
-  return shell(`<section class="messages-page"><div class="messages-title"><div><span class="eyebrow">Private conversations</span><h1>Messages</h1></div><button class="secondary" data-nav="network">Find people</button></div><div class="messages-layout ${selected ? "has-selection" : ""}"><aside class="conversation-list" aria-label="Conversations"><form data-form="message-search" class="message-search"><input name="query" aria-label="Search conversations" value="${esc(state.messageQuery || "")}" placeholder="Search conversations"><button class="secondary">Search</button></form><button class="text-btn archive-toggle" data-action="toggle-message-archive">${state.showArchivedMessages ? "Back to inbox" : "Archived"}</button>${list || `<div class="empty"><p>${state.showArchivedMessages ? "No archived conversations." : "No conversations yet."}</p><button class="secondary" data-nav="network">Find someone to message</button></div>`}</aside>${selected ? conversationPanel(selected, inbox) : `<section class="conversation-empty"><span aria-hidden="true">✉</span><h2>Choose a conversation</h2><p>Messages, questions, and formal exchange planning stay connected without becoming the same thing.</p></section>`}</div></section>`, "Messages");
-}
-
-function conversationPanel(invitation, inbox) {
-  const incoming = invitation.recipient_id === state.profile.id;
-  const otherId = incoming ? invitation.sender_id : invitation.recipient_id;
-  const other = incoming ? invitation.sender_name : invitation.recipient_name;
-  const allMessages = (inbox.messages || []).filter((item) => item.invitation_id === invitation.id);
-  const pageSize = state.messagePageSizes[invitation.id] || 40;
-  const messages = allMessages.slice(-pageSize);
-  const attachments = inbox.attachments || [];
-  const request = state.requests.find((item) => item.id === invitation.request_id);
-  const pendingIncoming = incoming && invitation.status === "pending";
-  const accepted = ["accepted", "converted"].includes(invitation.status);
-  return `<section class="conversation-panel" aria-label="Conversation with ${esc(other)}"><header><button class="text-btn messages-back" data-action="messages-back">← Inbox</button><button class="conversation-person" data-view-profile="${otherId}"><span class="avatar">${esc(other.split(/\s+/).map((part) => part[0]).join("").slice(0, 2))}</span><span><b>${esc(other)}</b><small>${invitation.member_state?.muted ? "Notifications muted" : "Private conversation"}</small></span></button><div class="conversation-tools"><button class="text-btn" data-conversation-manage="${invitation.member_state?.muted ? "unmute" : "mute"}:${invitation.id}">${invitation.member_state?.muted ? "Unmute" : "Mute"}</button><button class="text-btn" data-conversation-manage="archive:${invitation.id}">Archive</button></div></header>${request ? `<aside class="conversation-context"><span><small>Related work</small><b>${esc(request.title)}</b></span><button class="secondary compact" data-open="${request.id}">View work</button></aside>` : ""}<div class="message-thread">${allMessages.length > messages.length ? `<button class="text-btn load-older" data-load-messages="${invitation.id}">Load ${Math.min(40, allMessages.length - messages.length)} older messages</button>` : ""}${invitation.note ? `<div class="message-bubble ${incoming ? "theirs" : "mine"}"><p>${esc(invitation.note)}</p><small>${esc(incoming ? invitation.sender_name : "You")} · ${conversationTime(invitation.created_at)}</small></div>` : ""}${messages.map((message) => { const files = attachments.filter((item) => item.message_id === message.id); const mine = message.author_id === state.profile.id; const receipt = mine ? (invitation.other_read_at && new Date(invitation.other_read_at) >= new Date(message.created_at) ? "Read" : "Delivered") : ""; return `<div class="message-bubble ${mine ? "mine" : "theirs"}"><p>${esc(message.body)}</p>${files.map((file) => file.mime_type.startsWith("image/") && file.url ? `<a class="message-image" href="${esc(file.url)}" target="_blank" rel="noopener"><img src="${esc(file.url)}" alt="${esc(file.file_name)}"><span>${esc(file.file_name)}</span></a>` : `<a class="message-file" href="${esc(file.url)}" target="_blank" rel="noopener"><span aria-hidden="true">📎</span><span><b>${esc(file.file_name)}</b><small>${Math.max(1, Math.round(file.byte_size / 1024))} KB</small></span></a>`).join("")}<small>${mine ? "You" : esc(message.author_name)} · ${conversationTime(message.created_at)}${receipt ? ` · ${receipt}` : ""}</small></div>`; }).join("") || (!invitation.note ? `<p class="thread-empty">No messages yet.</p>` : "")}</div>${pendingIncoming ? `<div class="message-consent"><p><b>${esc(other)} wants to start a conversation.</b> Open it to reply. You can decline or mute without notifying them further.</p><button class="primary" data-invite-response="accepted:${invitation.id}">Open conversation</button><button class="text-btn" data-invite-response="declined:${invitation.id}">Decline</button></div>` : accepted ? `<form data-form="intro-message" data-invitation="${invitation.id}" class="message-composer"><label><span class="sr-only">Message ${esc(other)}</span><textarea name="body" maxlength="1500" data-message-draft="${invitation.id}" placeholder="Write a message">${esc(state.messageDrafts[invitation.id] || "")}</textarea></label><label class="attachment-button" title="Attach a photo or document"><span aria-hidden="true">📎</span><span class="sr-only">Attach file</span><input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,.doc,.docx"></label><button class="primary">Send</button><small class="composer-help">Enter to send · Shift+Enter for a new line · 10 MB maximum</small></form><div class="conversation-next"><span><b>Ready to make it concrete?</b><small>Turn the discussion into clear work and exchange terms.</small></span>${invitation.invitation_kind === "exchange" ? `<button class="secondary" data-workspace="${invitation.id}">Open exchange plan</button>` : `<button class="secondary" data-message-offer="${invitation.id}">${request && request.ownerId !== state.profile.id ? "Create an offer" : "Plan an exchange"}</button>`}</div>` : `<div class="message-consent"><p>${invitation.status === "pending" ? "Waiting for them to open the conversation." : `This conversation is ${esc(invitation.status)}.`}</p></div>`}<footer><button class="text-btn" data-network-manage="profile:report:${invitation.id}">Report</button><button class="danger-text" data-network-manage="profile:block:${invitation.id}">Block</button></footer></section>`;
-}
-function renderNetwork() {
-  const profiles = localDiscoveryProfiles(state.networkProfiles || []);
-  const activity = state.networkActivity || [];
-  const inbox = state.networkInbox || {
-    invitations: [],
-    messages: [],
-    saved_profiles: [],
-    saved_searches: [],
-  };
-  return shell(
-    `<section class="network-hero"><span class="eyebrow">Trusted local work communities</span><h1>Useful work starts with people<br>who share a place.</h1><p>Bring a neighborhood, maker space, nonprofit, trade school, or small-business community together around practical needs, useful skills, and fair exchange.</p><div class="community-factors"><span>Nearby & transport</span><span>Time & availability</span><span>Tools & equipment</span><span>Workspace & site access</span></div></section><form data-form="network-search" class="controls network-filters"><label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, names, or locations"></label><select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select><label><input type="checkbox" name="remote" ${state.networkRemote ? "checked" : ""}> Remote available</label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save search</button>` : ""}</form>${state.session && inbox.invitations.length ? `<aside class="messages-shortcut"><span><b>${inbox.invitations.length} conversation${inbox.invitations.length === 1 ? "" : "s"}</b><small>Questions and messages now live in one focused inbox.</small></span><button class="primary" data-nav="messages">Open Messages</button></aside>` : ""}<div class="two-col"><section><span class="eyebrow">Suggested collaborators</span><h2>${profiles.length} people with useful overlap</h2><div class="people-list">${profiles.map(networkPersonCard).join("") || '<div class="empty"><p>No matching public profiles yet.</p></div>'}</div></section><section><div class="feed-heading"><div><span class="eyebrow">Work activity</span><h2>Useful things moving forward</h2></div>${state.session ? `<label><input type="checkbox" data-following-feed ${state.networkFollowingOnly ? "checked" : ""}> Following only</label>` : ""}</div><div class="activity-list">${activity.map(activityCard).join("") || '<div class="empty"><p>No activity matches this feed.</p></div>'}</div></section></div>`,
-    "Community network",
-  );
-}
-
-function localDiscoveryProfiles(profiles) {
-  const availability = (state.networkAvailability || "").toLowerCase();
-  const filtered = profiles.filter((profile) => {
-    const nearby = profile.location_band === "Same general area";
-    if (state.networkMode === "nearby" && !nearby) return false;
-    if (state.networkMode === "remote" && !profile.remote_available) return false;
-    if (availability && !(profile.availability_text || "").toLowerCase().includes(availability)) return false;
-    return true;
-  });
-  return filtered.map((profile) => ({ ...profile, location_text: profile.location_band || profile.location_text })).sort((a, b) => {
-    if (state.networkSort === "distance") return (a.location_band === "Same general area" ? 0 : 1) - (b.location_band === "Same general area" ? 0 : 1);
-    if (state.networkSort === "availability") return Number(!!b.availability_text) - Number(!!a.availability_text);
-    if (state.networkSort === "newest") return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-    return Number(b.match_score || 0) - Number(a.match_score || 0);
-  });
-}
-
-function hydrateLocalDiscovery() {
-  if (state.view !== "network") return;
-  const form = main.querySelector('form[data-form="network-search"]');
-  if (!form) return;
-  form.classList.add("local-discovery");
-  const discoveryShortcuts = ["Carpentry", "Auto repair", "Electrical", "Landscaping", "Web design", "Photography"];
-  form.innerHTML = `<label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, or names"></label><label>Where<select name="mode"><option value="either">Nearby or remote</option><option value="nearby">Nearby only</option><option value="remote">Remote only</option></select></label><label>Travel radius<select name="radius"><option value="10">10 km</option><option value="25">25 km</option><option value="40">40 km</option><option value="80">80 km</option><option value="160">160 km</option></select></label><label>Availability<select name="availability"><option value="">Any time</option><option value="now">Available now</option><option value="week">This week</option><option value="weekend">Weekends</option><option value="evening">Evenings</option></select></label><label>Exchange<select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select></label><label>Sort<select name="sort"><option value="fit">Reciprocal fit</option><option value="distance">Distance band</option><option value="availability">Availability</option><option value="newest">Newest</option></select></label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save alert</button>` : ""}<p class="location-privacy">Distance is shown only as an approximate band. Exact addresses are never used or revealed.</p>`;
-  form.elements.mode.value = state.networkMode;
-  form.innerHTML = `<label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Try carpenter, mechanic, web design…"></label><label>Where<select name="mode"><option value="either">Nearby or remote</option><option value="nearby">Same general area</option><option value="remote">Remote only</option></select></label><label>Availability<select name="availability"><option value="">Any time</option><option value="now">Available now</option><option value="week">This week</option><option value="weekend">Weekends</option><option value="evening">Evenings</option></select></label><label>Exchange<select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select></label><label>Sort<select name="sort"><option value="fit">Reciprocal fit</option><option value="distance">Area match</option><option value="availability">Availability</option><option value="newest">Newest</option></select></label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save alert</button>` : ""}<div class="skill-shortcuts" aria-label="Popular skill searches">${discoveryShortcuts.map((x) => `<button type="button" class="chip" data-skill-search="${x}">${x}</button>`).join("")}</div><p class="location-privacy">Nearby means the same member-provided general area. WorkTrade does not collect coordinates or reveal exact addresses.</p>`;
-  form.elements.mode.value = state.networkMode;
-  form.elements.availability.value = state.networkAvailability;
-  form.elements.exchange.value = state.networkExchange;
-  form.elements.sort.value = state.networkSort;
-}
-
-function socialPersonCard(p) {
-  if (!state.session || p.id === state.profile.id) return networkPersonCard(p);
-  const saved = (state.networkInbox?.saved_profiles || []).includes(p.id);
-  const actions = `<div class="social-actions"><button class="primary compact" data-contact-person="${p.id}">Message</button><button class="secondary compact" data-save-person="${p.id}">${saved ? "Saved" : "Save"}</button></div>`;
-  return networkPersonCard(p).replace(
-    "</div></article>",
-    `${actions}</div></article>`,
-  );
-}
-
-function hydrateNetworkSocial() {
-  if (state.view !== "network") return;
-  const profiles = localDiscoveryProfiles(state.networkProfiles || []);
-  document
-    .querySelectorAll(".people-list .person-card")
-    .forEach((card, index) => {
-      const profile = profiles[index];
-      if (!profile || !state.session || profile.id === state.profile.id) return;
-      const actions = document.createElement("div");
-      actions.className = "social-actions";
-      const saved = (state.networkInbox?.saved_profiles || []).includes(
-        profile.id,
-      );
-      actions.innerHTML = `<button class="primary compact" data-contact-person="${profile.id}">Message</button><button class="secondary compact" data-save-person="${profile.id}">${saved ? "Saved" : "Save"}</button>`;
-      card.querySelector("div")?.append(actions);
-      const theirNeeds = (profile.capabilities || [])
-        .filter((x) => x.direction === "need")
-        .map((x) => x.label);
-      const myOffers = (state.profile.offers || []).map((x) => x.toLowerCase());
-      const reciprocal = theirNeeds.filter((need) =>
-        myOffers.some(
-          (offer) =>
-            need.toLowerCase().includes(offer) ||
-            offer.includes(need.toLowerCase()),
-        ),
-      );
-      if (reciprocal.length)
-        card
-          .querySelector("div")
-          ?.insertAdjacentHTML(
-            "beforeend",
-            `<p class="match-reason">You can help with ${esc(reciprocal.join(", "))}.</p>`,
-          );
-      if (profile.match_score > 0)
-        card
-          .querySelector("h3")
-          ?.insertAdjacentHTML(
-            "afterend",
-            `<small class="match-score">Match ${profile.match_score} · ${esc((profile.match_reasons || ["Profile information overlaps your preferences"]).join(" · "))}</small>`,
-          );
-    });
-  const saved = state.networkInbox?.saved_searches || [];
-  if (saved.length)
-    document
-      .querySelector(".two-col")
-      ?.insertAdjacentHTML(
-        "afterbegin",
-        `<div class="saved-searches"><span>Saved searches</span>${saved.map((search) => `<button class="chip" data-saved-search="${search.id}">${esc(search.name)}</button><button class="saved-search-delete" data-network-manage="search:delete:${search.id}" aria-label="Delete ${esc(search.name)}">×</button>`).join("")}</div>`,
-      );
-  if (state.session) {
-    const hub = state.circleHub || {
-      circles: [],
-      members: [],
-      resources: [],
-      requests: [],
-    };
-    const selected = hub.circles.find(
-      (circle) => circle.id === state.selectedCircleId,
-    );
-    document
-      .querySelector(".two-col")
-      ?.insertAdjacentHTML(
-        "beforebegin",
-        `<section class="circles-hub"><div class="section-title"><div><span class="eyebrow">Your trusted communities</span><h2>Coordinate useful work with people connected by place.</h2><p>Private by default, grounded in community history, and built for real needs—not popularity.</p></div><button class="primary" data-action="create-circle">Create community</button></div><div class="circle-grid">${hub.circles.map((circle) => `<article class="circle"><span class="category">${esc(circle.visibility)}</span><h3>${esc(circle.name)}</h3><p>${esc(circle.description || "")}</p><small>${circle.member_count} members · ${circle.request_count} open needs</small><button class="secondary" data-open-circle="${circle.id}">${circle.membership?.status === "active" ? "Open community" : circle.membership?.status === "requested" ? "Requested" : circle.membership?.status === "invited" ? "Review invitation" : "Request access"}</button></article>`).join("") || '<div class="empty"><h3>Start with people you already know.</h3><p>Create an invite-only community for your block, shop, school, organization, or shared workspace.</p><button class="primary" data-action="create-circle">Create the first community</button></div>'}</div>${selected ? circleDetail(selected, hub) : ""}</section>`,
-      );
-    if (["owner", "moderator"].includes(selected?.membership?.role))
-      document
-        .querySelector(".circle-detail .section-title>div:last-child")
-        ?.insertAdjacentHTML(
-          "beforeend",
-          `<button class="text-btn" data-circle-settings="${selected.id}">Edit rules</button>`,
-        );
-    if (selected?.membership?.status === "active")
-      document
-        .querySelector(".circle-detail")
-        ?.insertAdjacentHTML("beforeend", renderChainHub(selected));
-    document
-      .querySelectorAll(".chain-list .chain-card")
-      .forEach((card, index) => {
-        const chain = (state.chainHub.chains || [])[index];
-        if (
-          chain?.status === "active" &&
-          (chain.links || []).every((link) => !link.fulfilled_at)
-        )
-          card.insertAdjacentHTML(
-            "beforeend",
-            `<button class="secondary" data-chain-edit="${chain.id}">Renegotiate or replace participant</button>`,
-          );
-      });
-  }
-}
+const { conversationTime, renderMessages } = createMessagesFeature({ getState: () => state, shell, esc });
+const matchingFeature = createMatchingFeature({ getState: () => state, esc, notify, recordMatchEvent, requestCard, shell });
+const { announceStrongMatches, feedbackControls, recordMatchKey, renderFirstMatches, scorePersonForProfile, scoreRequestForProfile } = matchingFeature;
+const { hydrateLocalDiscovery, hydrateNetworkSocial, localDiscoveryProfiles, renderNetwork, socialPersonCard } = createNetworkFeature({ getState: () => state, shell, esc, networkPersonCard, activityCard, scorePersonForProfile });
 
 function renderChainHub(circle) {
   const hub = state.chainHub || { chains: [], suggestions: [] };
@@ -1187,73 +933,6 @@ function profileQuality(profile) {
     [(profile.preferredExchangeModes || []).length > 0, "Choose acceptable exchange types"],
   ];
   return { score: Math.round(checks.filter(([done]) => done).length / checks.length * 100), missing: checks.filter(([done]) => !done).map(([, text]) => text) };
-}
-
-function matchTerms(values = []) {
-  return values.flatMap((value) => value.toLowerCase().split(/[^a-z0-9]+/)).filter((value) => value.length > 2);
-}
-
-function overlaps(left, right) {
-  const rightTerms = matchTerms(right);
-  return [...new Set(left.filter((value) => rightTerms.some((other) => value.includes(other) || other.includes(value))))];
-}
-
-function scoreRequestForProfile(request) {
-  const offerTerms = matchTerms(state.profile.offers);
-  const requestText = `${request.title} ${request.description} ${request.skills.join(" ")}`.toLowerCase();
-  const overlap = offerTerms.filter((term) => requestText.includes(term));
-  const nearby = !state.profile.location || request.location.toLowerCase().includes(state.profile.location.split(",")[0].toLowerCase());
-  return { request, overlap: [...new Set(overlap)], score: overlap.length * 3 + (nearby ? 1 : 0) };
-}
-
-function scorePersonForProfile(person) {
-  const offered = (person.capabilities || []).filter((x) => x.direction === "offer").map((x) => x.label);
-  const needed = (person.capabilities || []).filter((x) => x.direction === "need").map((x) => x.label);
-  const helpsMe = overlaps(matchTerms(state.profile.needs), offered);
-  const helpThem = overlaps(matchTerms(state.profile.offers), needed);
-  const locationFit = !!state.profile.location && !!person.location_text && person.location_text.toLowerCase().includes(state.profile.location.split(",")[0].toLowerCase());
-  const exchangeFit = (state.profile.preferredExchangeModes || ["barter", "cash", "hybrid"]).some((mode) => (person.preferred_exchange_modes || []).includes(mode));
-  const proof = Math.min(2, Number(person.completed_count || 0));
-  const serverHelpsMe = person.matched_offers || [];
-  const serverHelpThem = person.matched_needs || [];
-  const score = person.match_score == null ? Math.min(100, helpsMe.length * 18 + helpThem.length * 18 + (locationFit ? 12 : 0) + (person.remote_available && state.profile.remoteAvailable ? 8 : 0) + (exchangeFit ? 8 : 0) + proof * 4) : Number(person.match_score);
-  return { person, helpsMe: serverHelpsMe.length ? serverHelpsMe : helpsMe, helpThem: serverHelpThem.length ? serverHelpThem : helpThem, locationFit, exchangeFit, score, reasons: person.match_reasons || [] };
-}
-
-function announceStrongMatches(profiles) {
-  if (!state.session) return;
-  const key = "worktrade:seen-strong-matches:v1";
-  let seen = [];
-  try { seen = JSON.parse(localStorage.getItem(key)) || []; } catch { seen = []; }
-  const fresh = profiles.map(scorePersonForProfile).filter((match) => match.score >= 50 && !seen.includes(match.person.id));
-  if (!fresh.length) return;
-  localStorage.setItem(key, JSON.stringify([...new Set([...seen, ...fresh.map((match) => match.person.id)])]));
-  const title = fresh.length === 1 ? `Strong match with ${fresh[0].person.display_name}` : `${fresh.length} new strong matches`;
-  state.notifications = [{ id: `match:${Date.now()}`, kind: "network", title, body: "Open Matches to see the two-way fit and propose an exchange.", created_at: new Date().toISOString(), read_at: null }, ...state.notifications];
-  const badge = document.querySelector("#unread-count");
-  if (badge) badge.textContent = String(state.notifications.filter((item) => !item.read_at).length);
-  notify(title, "success");
-}
-
-function feedbackControls(key) {
-  const current = state.matchFeedback[key];
-  return `<div class="match-feedback" aria-label="Rate this match"><button class="text-btn ${current === "useful" ? "selected" : ""}" data-match-feedback="${key}:useful">Useful</button><button class="text-btn ${current?.startsWith("not-relevant") ? "selected" : ""}" data-match-feedback="${key}:not-relevant">Not relevant</button><button class="text-btn" data-match-dismiss="${key}">Hide</button></div>`;
-}
-
-function recordMatchKey(key, event, reason = null) {
-  if (!state.remote || !state.session) return;
-  const [kind, id] = String(key).split(":");
-  recordMatchEvent({ profileId: kind === "profile" ? id : null, requestId: kind === "request" ? id : null, event, reason }).catch(() => {});
-}
-
-function renderFirstMatches() {
-  const hidden = (key) => state.matchFeedback[key] === "dismissed";
-  const work = state.requests.filter((request) => request.status === "open" && !hidden(`request:${request.id}`)).map(scoreRequestForProfile).sort((a, b) => b.score - a.score).slice(0, 4);
-  const people = state.networkProfiles.filter((person) => person.id !== state.profile.id && !hidden(`profile:${person.id}`)).map(scorePersonForProfile).sort((a, b) => b.score - a.score).slice(0, 6);
-  const strong = people.filter((match) => match.score >= 50).length;
-  return shell(`<section class="match-welcome"><span class="eyebrow">Personalized matches</span><h1>Useful overlap, explained.</h1><p>WorkTrade scores both directions of an exchange, then adds general location, remote availability, exchange preferences, and proven work. A high score is a starting point—not a judgment.</p><div class="match-summary"><b>${strong}</b><span>strong reciprocal match${strong === 1 ? "" : "es"}</span><button class="secondary" data-action="onboarding">Adjust matching profile</button></div></section>
-    <div class="first-match-grid"><section><div class="section-title"><div><span class="eyebrow">Work you may be able to help with</span><h2>${work.length} starting points</h2></div></div><div class="request-grid first-match-list">${work.map(({ request, overlap, score }) => `<div class="match-shell"><div class="match-explanation"><b>${Math.min(100, score * 12)}% work fit</b><span>${overlap.length ? `Your ${esc(overlap.join(", "))} may help` : score ? "Near your general location" : "A chance to explore something different"}</span></div>${requestCard(request)}${feedbackControls(`request:${request.id}`)}</div>`).join("") || `<div class="empty"><p>No visible work matches. Adjust your profile or restore hidden matches below.</p></div>`}</div></section>
-    <section><div class="section-title"><div><span class="eyebrow">Reciprocal people matches</span><h2>${people.length} potential collaborators</h2></div></div><div class="people-list match-people">${people.map(({ person, helpsMe, helpThem, locationFit, exchangeFit, score }) => `<article class="person-card match-person"><span class="avatar big">${esc((person.display_name || "WT").split(/\s+/).map((x) => x[0]).join("").slice(0, 2))}</span><div><div class="match-score-row"><h3>${esc(person.display_name)}</h3><b>${score}%</b></div><p class="match-direction"><strong>They may help you:</strong> ${esc(helpsMe.join(", ") || "No direct need overlap yet")}</p><p class="match-direction"><strong>You may help them:</strong> ${esc(helpThem.join(", ") || "No direct offer overlap yet")}</p><small>${[locationFit ? "nearby" : "location flexible", exchangeFit ? "exchange fit" : "different exchange preferences", `${person.completed_count || 0} completed`].join(" · ")}</small><div class="social-actions"><button class="text-btn" data-view-profile="${person.id}">View evidence</button>${state.session ? `<button class="primary compact" data-contact-person="${person.id}">Message</button><button class="secondary compact" data-save-person="${person.id}">${(state.networkInbox?.saved_profiles || []).includes(person.id) ? "Saved" : "Save"}</button>` : `<button class="primary compact" data-action="sign-in">Sign in to connect</button>`}</div>${feedbackControls(`profile:${person.id}`)}</div></article>`).join("") || `<div class="empty"><p>Connected collaborator suggestions will appear here. Your work matches are ready now.</p><button class="secondary" data-nav="network">Explore the network</button></div>`}</div></section></div>${Object.values(state.matchFeedback).includes("dismissed") ? `<button class="text-btn restore-matches" data-action="restore-matches">Restore hidden matches</button>` : ""}`, "Personalized starting points");
 }
 
 let renderedLocation = null;

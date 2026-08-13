@@ -4,6 +4,8 @@ import { readFile, readdir } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
 const app = await readFile(new URL("app.js", root), "utf8");
+const messagesFeature = await readFile(new URL("features/messages.js", root), "utf8");
+const networkFeature = await readFile(new URL("features/network.js", root), "utf8");
 const backendFiles = [
   "backend.js",
   "backend/core.js",
@@ -118,7 +120,7 @@ test("skill discovery normalizes aliases and explains reciprocal fit", () => {
   assert.match(sql,/canonical_skill/);
   assert.match(sql,/'match_reasons'/);
   assert.match(sql,/'matched_offers'/);
-  assert.match(app,/does not collect coordinates or reveal exact addresses/);
+  assert.match(networkFeature,/does not collect coordinates or reveal exact addresses/);
 });
 
 test("scheduling is private, reciprocal, and calendar-portable", () => {
@@ -277,7 +279,7 @@ test("message attachments and delivery state stay participant-private", async ()
   assert.match(client, /createSignedUrl/);
   assert.match(client, /subscribeToMessages/);
   assert.match(app, /MESSAGE_DRAFT_KEY/);
-  assert.match(app, /Shift\+Enter/);
+  assert.match(messagesFeature, /Shift\+Enter/);
 });
 
 test("conversation requests refresh in realtime and crossed requests open one thread", async () => {
@@ -295,7 +297,7 @@ test("each participant pair has only one live conversation", async () => {
   assert.match(sql, /update public\.introduction_messages set invitation_id=keeper/);
   assert.match(sql, /one_live_conversation_per_pair/);
   assert.match(sql, /status in\('pending','accepted','converted'\)/);
-  assert.match(app, /seenPeople\.has\(otherId\)/);
+  assert.match(messagesFeature, /seenPeople\.has\(otherId\)/);
 });
 
 test("formal exchange reuses an existing conversation", async () => {
@@ -329,7 +331,7 @@ test("project owners receive actionable collaborator recommendations", async () 
 test("exchange planning opens from an existing conversation without profile discovery", () => {
   assert.doesNotMatch(app, /Open their profile to begin exchange planning/);
   assert.match(app, /profile \|\| \{ id: otherId, display_name:/);
-  assert.match(app, /Open exchange plan/);
+  assert.match(messagesFeature, /Open exchange plan/);
 });
 
 test("conversation profiles load independently of discovery results", async () => {

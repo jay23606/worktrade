@@ -5,13 +5,13 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("the installable shell wires a scoped manifest and versioned service worker", async () => {
-  const [html, app, manifestSource, worker, deployment] = await Promise.all([
-    read("index.html"), read("app.js"), read("manifest.webmanifest"), read("service-worker.js"), read(".github/workflows/pages.yml"),
+  const [html, app, pwa, manifestSource, worker, deployment] = await Promise.all([
+    read("index.html"), read("app.js"), read("shell/pwa.js"), read("manifest.webmanifest"), read("service-worker.js"), read(".github/workflows/pages.yml"),
   ]);
   const manifest = JSON.parse(manifestSource);
   assert.match(html, /rel="manifest" href="manifest\.webmanifest"/);
   assert.match(html, /rel="apple-touch-icon"/);
-  assert.match(app, /serviceWorker\.register\("\.\/service-worker\.js"\)/);
+  assert.match(pwa, /serviceWorker\.register\("\.\/service-worker\.js"\)/);
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.id, "/worktrade/");
   assert.equal(manifest.start_url, "/worktrade/");
@@ -22,9 +22,9 @@ test("the installable shell wires a scoped manifest and versioned service worker
   assert.match(worker, /assets\/worktrade-hero\.webp/);
   assert.match(worker, /caches\.match\("\.\/index\.html"\)/);
   assert.match(worker, /SKIP_WAITING/);
-  assert.match(app, /beforeinstallprompt/);
-  assert.match(app, /navigator\.onLine/);
-  assert.match(app, /controllerchange/);
+  assert.match(pwa, /beforeinstallprompt/);
+  assert.match(pwa, /navigator\.onLine/);
+  assert.match(pwa, /controllerchange/);
   assert.match(deployment, /manifest\.webmanifest service-worker\.js/);
   assert.match(deployment, /cp -r assets dist\//);
 });

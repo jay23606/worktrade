@@ -101,12 +101,14 @@ flowchart LR
   GH["GitHub Pages"] --> Browser
 ```
 
-The client is plain HTML, CSS, and ES modules. `modules/backend.js` is a stable compatibility facade; implementations live in domain modules under `modules/backend/`. High-risk transitions are database functions or the agreement Edge Function rather than client-side table writes.
+The client is plain HTML, CSS, and ES modules. UI behavior is split into focused modules under `features/` and `shell/`; `app.js` composes those modules and owns the remaining interaction routing. `modules/backend.js` is a stable compatibility facade whose implementations live in domain modules under `modules/backend/`. High-risk transitions are database functions or the agreement Edge Function rather than client-side table writes.
 
 ## Repository map
 
 ```text
-app.js                         UI composition and interaction handlers
+app.js                         UI composition and interaction routing
+features/                      matching, messaging, and network UI modules
+shell/                         PWA installation, updates, and connectivity lifecycle
 modules/backend.js             stable backend export facade
 modules/backend/               account, request, agreement, network, circle, chain, trust domains
 modules/agreements.js          pure agreement and chain invariants

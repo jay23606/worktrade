@@ -1,10 +1,10 @@
 const CACHE_PREFIX = "worktrade-";
-const CACHE = `${CACHE_PREFIX}v20260813isolated`;
+const CACHE = `${CACHE_PREFIX}v20260813modules`;
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20260813projects",
-  "./app.js?v=20260813conversationprofile",
+  "./app.js?v=20260813modules",
   "./config.js",
   "./data.js",
   "./manifest.webmanifest",
@@ -25,7 +25,11 @@ const APP_SHELL = [
   "./modules/backend/circles.js",
   "./modules/backend/chains.js",
   "./modules/backend/agreements.js",
-  "./modules/backend/pilot.js"
+  "./modules/backend/pilot.js",
+  "./features/matching.js",
+  "./features/messages.js",
+  "./features/network.js",
+  "./shell/pwa.js",
 ];
 
 self.addEventListener("install", (event) => {
