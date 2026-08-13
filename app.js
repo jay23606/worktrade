@@ -100,6 +100,7 @@ import {
   recordMatchEvent,
   recommendProfilesForRequest,
   notifyProjectMatches,
+  getConversationProfile,
 } from "./modules/backend.js";
 import {
   getNetworkInbox,
@@ -2168,10 +2169,10 @@ document.addEventListener("click", (event) => {
   }
   const viewProfile = event.target.closest("[data-view-profile]");
   if (viewProfile) {
-    const profile = (state.networkProfiles || []).find(
+    const knownProfile = (state.networkProfiles || []).find(
       (x) => x.id === viewProfile.dataset.viewProfile,
     );
-    if (profile) {
+    const showProfile = (profile) => {
       publicProfileModal(profile);
       recordMatchKey(`profile:${profile.id}`, "viewed");
       if (state.session && profile.id !== state.profile.id)
@@ -2181,7 +2182,14 @@ document.addEventListener("click", (event) => {
             "beforeend",
             `<div class="social-actions"><button class="primary" data-contact-person="${profile.id}">Message</button><button class="secondary" data-save-person="${profile.id}">${(state.networkInbox?.saved_profiles || []).includes(profile.id) ? "Saved" : "Save person"}</button></div>`,
           );
-    }
+    };
+    if (knownProfile) showProfile(knownProfile);
+    else getConversationProfile(viewProfile.dataset.viewProfile)
+      .then((profile) => {
+        state.networkProfiles = [...state.networkProfiles, profile];
+        showProfile(profile);
+      })
+      .catch((error) => notify(error.message, "warning"));
   }
   const matchFeedback = event.target.closest("[data-match-feedback]");
   if (matchFeedback) {

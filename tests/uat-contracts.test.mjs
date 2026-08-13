@@ -331,3 +331,11 @@ test("exchange planning opens from an existing conversation without profile disc
   assert.match(app, /profile \|\| \{ id: otherId, display_name:/);
   assert.match(app, /Open exchange plan/);
 });
+
+test("conversation profiles load independently of discovery results", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813223000_conversation_profile_lookup.sql", root), "utf8");
+  assert.match(sql, /get_conversation_profile/);
+  assert.match(sql, /collaboration_invitations/);
+  assert.match(sql, /location_visibility='region'/);
+  assert.match(app, /getConversationProfile\(viewProfile\.dataset\.viewProfile\)/);
+});

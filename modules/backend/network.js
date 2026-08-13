@@ -88,6 +88,15 @@ export async function recommendProfilesForRequest(requestId) {
   return data || [];
 }
 
+export async function getConversationProfile(profileId) {
+  const client = await getBackend();
+  assertBackend(client);
+  const { data, error } = await client.rpc("get_conversation_profile", { target_profile_id: profileId });
+  if (error) throw error;
+  if (!data) throw new Error("This profile is unavailable");
+  return data;
+}
+
 export async function notifyProjectMatches(requestId) {
   const client = await getBackend();
   assertBackend(client);
