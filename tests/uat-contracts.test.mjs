@@ -7,6 +7,7 @@ const app = await readFile(new URL("app.js", root), "utf8");
 const messagesFeature = await readFile(new URL("features/messages.js", root), "utf8");
 const networkFeature = await readFile(new URL("features/network.js", root), "utf8");
 const projectsFeature = await readFile(new URL("features/projects.js", root), "utf8");
+const coreClickHandler = await readFile(new URL("features/core-click-handler.js", root), "utf8");
 const backendFiles = [
   "backend.js",
   "backend/core.js",
@@ -290,7 +291,7 @@ test("conversation requests refresh in realtime and crossed requests open one th
   assert.match(sql, /delete from public\.collaboration_invitations[\s\S]*remove_id/);
   const client = await readFile(new URL("modules/backend/network.js", root), "utf8");
   assert.match(client, /table: "collaboration_invitations"/);
-  assert.match(app, /state\.view === "messages" && state\.session\) loadNetwork\(\)/);
+  assert.match(coreClickHandler, /state\.view === "messages" && state\.session\) loadNetwork\(\)/);
 });
 
 test("each participant pair has only one live conversation", async () => {
