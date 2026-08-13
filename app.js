@@ -2306,6 +2306,8 @@ document.addEventListener("click", (event) => {
   }
   const circleMembership = event.target.closest("[data-circle-membership]");
   if (circleMembership) {
+    const rowButtons = circleMembership.closest(".circle-member, .circle-detail")?.querySelectorAll("[data-circle-membership]") || [];
+    rowButtons.forEach((button) => { button.disabled = true; });
     const [memberAction, circleId, profileId] =
       circleMembership.dataset.circleMembership.split(":");
     const operation =
@@ -2315,7 +2317,11 @@ document.addEventListener("click", (event) => {
     operation
       .then(loadNetwork)
       .then(() => notify("Circle membership updated"))
-      .catch((error) => notify(error.message));
+      .catch((error) => {
+        rowButtons.forEach((button) => { button.disabled = false; });
+        notify(error.message);
+      });
+    return;
   }
   const circleRole = event.target.closest("[data-circle-role]");
   if (circleRole) {

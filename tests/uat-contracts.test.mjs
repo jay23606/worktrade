@@ -73,6 +73,13 @@ test("circle membership authorization avoids recursive RLS", () => {
   );
 });
 
+test("circle membership approval is safe to retry", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813070000_idempotent_circle_membership.sql", root), "utf8");
+  assert.match(sql, /member_action='approve'[\s\S]*target\.status in\('requested','active'\)/);
+  assert.match(sql, /mine\.status='active'[\s\S]*mine\.role in\('owner','moderator'\)/);
+  assert.match(sql, /status='requested'/);
+});
+
 test("trade chains require closed loops and unanimous versioned consent", () => {
   assert.match(sql, /chain requires at least three unique reciprocal links/);
   assert.match(sql, /links must form one closed loop/);
