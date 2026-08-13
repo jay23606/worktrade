@@ -21,6 +21,7 @@ import { createProfileClickHandler } from "./features/profile-click-handler.js";
 import { createManagementClickHandler } from "./features/management-click-handler.js";
 import { createCoordinationClickHandler } from "./features/coordination-click-handler.js";
 import { createCoordinationSubmitHandler } from "./features/coordination-submit-handler.js";
+import { createNetworkSubmitHandler } from "./features/network-submit-handler.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -376,6 +377,7 @@ const handleProfileClick = createProfileClickHandler({ getState: () => state, up
 const handleManagementClick = createManagementClickHandler({ getState: () => state, closeRequest, loadRemoteWorkspace, notify, markNotificationsRead, loadNotifications, closeModal, projectNotificationKey: PROJECT_NOTIFICATION_KEY, notificationsModal, requestLifecycleAction, reviseOfferModal, withdrawOffer, manageMilestone, manageRequestMedia });
 const handleCoordinationClick = createCoordinationClickHandler({ getState: () => state, respondScheduleWindow, loadRemoteWorkspace, closeModal, notify, scheduleCoordinationModal, manageLedgerItem, agreementLedgerModal, ledgerStatusModal, changeOrderModal, respondChangeOrder, changeOrderHubModal, manageWorkIssue });
 const handleCoordinationSubmit = createCoordinationSubmitHandler({ getState: () => state, notify, closeModal, loadRemoteWorkspace, setAgreementSchedule, proposeScheduleWindow, saveMyAvailability, saveLedgerItem, manageLedgerItem, uploadLedgerReceipt, reportWorkIssue, proposeChangeOrder, uploadWorkIssueEvidence, agreementLedgerModal, changeOrderHubModal });
+const handleNetworkSubmit = createNetworkSubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, publishCompletion, sendCollaborationInvitation, recordMatchKey, recordMatchEvent, sendContactRequest, sendMessageAttachment, sendIntroductionMessage, manageConversation, saveDiscoveryAlert, updateIntroductionWorkspace, messageDraftKey: MESSAGE_DRAFT_KEY });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -1440,135 +1442,7 @@ document.addEventListener("submit", async (event) => {
       notify(error.message);
     }
   }
-  if (form.dataset.form === "network-search") {
-    state.networkQuery = data.get("query") || "";
-    state.networkExchange = data.get("exchange") || "";
-    state.networkMode = data.get("mode") || "either";
-    state.networkRemote = state.networkMode === "remote";
-    state.networkRadius = 40;
-    state.networkAvailability = data.get("availability") || "";
-    state.networkSort = data.get("sort") || "fit";
-    await loadNetwork();
-  }
-  if (form.dataset.form === "message-search") {
-    state.messageQuery = data.get("query") || "";
-  }
-  if (form.dataset.form === "completion-story") {
-    try {
-      await publishCompletion(
-        form.dataset.agreement,
-        data.get("summary"),
-        data.get("exchange"),
-        data.get("title"),
-        data.get("visibility"),
-      );
-      closeModal();
-      await loadNetwork();
-      notify("Verified completion story published");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "collaboration-invite") {
-    try {
-      await sendCollaborationInvitation(form.dataset.profile, {
-        need: data.get("need"),
-        offer: data.get("offer"),
-        note: data.get("note"),
-        requestId: data.get("request") || null,
-      });
-      recordMatchKey(`profile:${form.dataset.profile}`, "proposed");
-      if (data.get("request")) recordMatchEvent({ profileId: form.dataset.profile, requestId: data.get("request"), event: "proposed" }).catch(() => {});
-      closeModal();
-      await loadNetwork();
-      notify("Collaboration invitation sent");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "contact-request") {
-    try {
-      let conversationId = null;
-      if (state.remote) {
-        conversationId = await sendContactRequest(
-          form.dataset.profile,
-          data.get("message"),
-          form.dataset.request || null,
-          form.dataset.kind || "message",
-        );
-        recordMatchKey(`profile:${form.dataset.profile}`, "contacted");
-        if (form.dataset.request) recordMatchEvent({ profileId: form.dataset.profile, requestId: form.dataset.request, event: "contacted" }).catch(() => {});
-        await loadNetwork();
-      }
-      closeModal();
-      state.selectedConversationId = conversationId;
-      state.messageListOnly = false;
-      state.view = "messages";
-      notify("Message request sent — it’s now in Messages", "success");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "intro-message") {
-    try {
-      const file = form.elements.attachment?.files?.[0];
-      const body = String(data.get("body") || "").trim();
-      if (!body && !file) return notify("Write a message or attach a file.", "warning");
-      if (file && file.size > 10485760) return notify("Choose a file under 10 MB.", "warning");
-      if (file) await sendMessageAttachment(form.dataset.invitation, body, file);
-      else await sendIntroductionMessage(form.dataset.invitation, body);
-      delete state.messageDrafts[form.dataset.invitation];
-      localStorage.setItem(MESSAGE_DRAFT_KEY, JSON.stringify(state.messageDrafts));
-      form.reset();
-      await loadNetwork();
-      if (state.remote) await manageConversation(form.dataset.invitation, "read");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "save-network-search") {
-    try {
-      await saveDiscoveryAlert(data.get("name"), { query: state.networkQuery, exchange: state.networkExchange, mode: state.networkMode, radius: state.networkRadius, availability: state.networkAvailability, sort: state.networkSort, alerts: data.has("alerts") });
-      closeModal();
-      await loadNetwork();
-      notify("Discovery alert saved");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "intro-workspace") {
-    try {
-      const invitation = state.networkInbox.invitations.find(
-        (item) => item.id === form.dataset.invitation,
-      );
-      const otherId =
-        invitation.sender_id === state.profile.id
-          ? invitation.recipient_id
-          : invitation.sender_id;
-      await updateIntroductionWorkspace(
-        form.dataset.invitation,
-        Number(form.dataset.version),
-        {
-          scope: data.get("scope"),
-          responsibilities: {
-            [state.profile.id]: data.get("mine"),
-            [otherId]: data.get("theirs"),
-            other: data.get("theirs"),
-          },
-          materials: data.get("materials"),
-          exclusions: data.get("exclusions"),
-          exchange_terms: data.get("exchange_terms"),
-          proposed_windows: data.get("proposed_windows"),
-          timezone: data.get("timezone"),
-        },
-      );
-      closeModal();
-      await loadNetwork();
-      notify("Shared planning terms updated");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
+  if (await handleNetworkSubmit(form, data)) return;
   if (form.dataset.form === "create-circle") {
     try {
       const id = await createCircle({
