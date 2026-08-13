@@ -30,7 +30,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Private scheduling         | Connected             | Recurring availability, mutual time proposals, counteroffers, participant-only arrival details, weather flags, and calendar export |
 | Preparation ledger         | Connected             | Materials, tools, rentals, permits, delivery, cash/barter contributions, readiness, actual costs, shared approvals, and private receipt evidence |
 | Active-work change orders  | Connected             | Documented issues, private evidence, isolated impact, baseline diffs, cash/time/barter deltas, mutual approval, and dispute escalation |
-| Guided next actions        | Connected             | Prioritized participant-specific actions from invitation through completion, with explicit waiting states |
+| Guided project path        | Connected             | Agreement → Schedule → Prepare → Work → Changes → Complete, with one contextual action and explicit ready, blocked, waiting, and available states |
 | Evidence and reputation    | Connected             | Private evidence, contextual reviews, verified completion stories, public portfolios             |
 | Social network             | Connected             | Two-way match scores and explanations, follows, saves, feedback, invitations, activity, and strong-match notifications |
 | Local discovery            | Connected             | Nearby/remote modes, normalized skill aliases, explainable reciprocal ranking, availability and sort filters, coarse location bands, privacy controls, and saved alerts |
@@ -48,7 +48,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 1. A member publishes work with the desired outcome, constraints, skills, location privacy, and acceptable exchange modes.
 2. Another member proposes scope, exclusions, responsibilities, milestones, timing, and value exchanged.
 3. The requester selects a proposal; both people independently confirm the same terms.
-4. Participants mutually accept a private work window, coordinate participant-only arrival details, message, resolve dependencies, complete milestones, and approve each side of the exchange.
+4. The project path guides both people through scheduling, preparation and costs, dependencies, milestones, and documented change orders without losing the agreed baseline.
 5. Completion requires counterparty approval. Evidence, contextual reviews, and an optional portfolio story remain tied to the agreement.
 
 ### Profile → introduction → work

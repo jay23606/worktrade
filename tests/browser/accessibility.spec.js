@@ -132,7 +132,10 @@ test("workspace presents one guided next action and links to its project", async
   await expect(guide.getByRole("heading", { name: /Resolve dependency/ })).toBeVisible();
   await guide.getByRole("button", { name: "Open dependency" }).click();
   await expect(page.getByRole("heading", { name: "Restore and reseal storefront deck", exact: true })).toBeVisible();
-  await expect(page.locator(".journey-panel").getByText(/Weather:/)).toBeVisible();
+  const path = page.locator(".project-path");
+  await expect(path.getByText(/Weather:/)).toBeVisible();
+  await expect(path.getByText("Agreement", { exact: true })).toBeVisible();
+  await expect(path.getByText("Complete", { exact: true })).toBeVisible();
   await expect(page.getByText(/Next action: Conditions/)).toBeVisible();
 });
 

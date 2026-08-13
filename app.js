@@ -314,10 +314,9 @@ function requestCard(request) {
 
 function renderDetail(request) {
   const isOwner = request.ownerId === "me";
-  const guidedAction = requestJourneyAction(request);
   return shell(
     `<button class="back" data-nav="discover">← Back to requests</button>
-    ${guidedAction ? journeyPanel([guidedAction]) : ""}
+    ${request.agreement ? projectPath(request) : ""}
     <div class="detail-grid"><article class="detail-main">
       <div class="card-top"><span class="category">${esc(request.category)}</span><span>${esc(request.status)}</span></div>
       ${isOwner && state.remote && request.status === "open" ? `<div class="owner-actions"><button class="secondary" data-action="edit-request">Edit request</button><button class="text-btn" data-request-action="close">Close</button><button class="text-btn" data-request-action="archive">Archive</button><button class="danger-text" data-request-action="cancel">Cancel</button></div>` : ""}
@@ -395,7 +394,34 @@ function agreementControls(agreement, confirmed) {
           agreement.completion_requested_by !== state.profile.id
         ? `<button class="secondary full" data-completion="approve">Approve completion</button><button class="secondary full" data-completion="return">Return to active work</button>`
         : "";
-  return `${next ? `<button class="secondary full" data-agreement="${next[0]}">${next[1]}</button>` : ""}${completion}${!["completed", "cancelled", "disputed"].includes(agreement.status) ? `<button class="text-btn full" data-action="schedule">Set schedule</button><button class="text-btn full" data-action="ledger">Materials & costs</button>${["scheduled","active","review"].includes(agreement.status)?`<button class="text-btn full" data-action="change-orders">Issues & change orders</button>`:""}<button class="text-btn full" data-action="amend">Propose amendment</button><div class="agreement-links"><button data-agreement="disputed">Raise concern</button><button data-agreement="cancelled">Cancel</button></div>` : ""}`;
+  return `${next ? `<button class="secondary full" data-agreement="${next[0]}">${next[1]}</button>` : ""}${completion}${!["completed", "cancelled", "disputed"].includes(agreement.status) ? `<details class="project-tools"><summary>More project tools</summary><button class="text-btn full" data-action="schedule">Schedule</button><button class="text-btn full" data-action="ledger">Preparation & costs</button>${["scheduled","active","review"].includes(agreement.status)?`<button class="text-btn full" data-action="change-orders">Changes & issues</button>`:""}<button class="text-btn full" data-action="amend">Amend agreement</button><div class="agreement-links"><button data-agreement="disputed">Raise concern</button><button data-agreement="cancelled">Cancel project</button></div></details>` : ""}`;
+}
+
+function projectPath(request) {
+  const agreement = request.agreement;
+  const status = agreement.status;
+  const confirmed = (agreement.confirmations || []).includes(state.profile.id);
+  const items = request.milestones || [];
+  const finished = items.filter((item) => item.done || item.completed_at).length;
+  const blocked = Boolean(request.hold);
+  const steps = [
+    { name: "Agreement", state: status === "proposed" ? (confirmed ? "waiting" : "current") : "complete", note: status === "proposed" ? (confirmed ? "Waiting for the other participant" : "Review and confirm the same terms") : `Confirmed · version ${agreement.version || 1}` },
+    { name: "Schedule", state: status === "agreed" ? "current" : status === "proposed" ? "upcoming" : "complete", note: status === "agreed" ? "Choose a shared work window" : agreement.proposed_start_at ? new Date(agreement.proposed_start_at).toLocaleString() : status === "proposed" ? "Available after agreement" : "Work window set" },
+    { name: "Prepare", state: blocked ? "blocked" : status === "scheduled" ? "current" : ["active", "review", "completed"].includes(status) ? "complete" : "upcoming", note: blocked ? `Blocked — ${request.hold.type}: ${request.hold.detail}` : ["active", "review", "completed"].includes(status) ? "Ready for work" : "Confirm access, supplies, conditions, and costs" },
+    { name: "Work", state: status === "active" ? "current" : ["review", "completed"].includes(status) ? "complete" : "upcoming", note: items.length ? `${finished} of ${items.length} milestones complete` : status === "active" ? "Work is in progress" : "Track the agreed result" },
+    { name: "Changes", state: ["active", "review"].includes(status) ? "available" : status === "completed" ? "complete" : "upcoming", note: ["active", "review"].includes(status) ? "Record surprises before scope or value changes" : status === "completed" ? "No unresolved changes" : "Available during work" },
+    { name: "Complete", state: status === "completed" ? "complete" : status === "review" ? "current" : "upcoming", note: status === "review" ? "Result is awaiting approval" : status === "completed" ? "Approved by both participants" : "Review the result and exchanged value" },
+  ];
+  let action = "";
+  if (status === "proposed") action = confirmed ? `<button class="secondary" disabled>Waiting for confirmation</button>` : `<button class="primary" data-agreement="confirm">Confirm agreement</button>`;
+  else if (status === "agreed") action = `<button class="primary" data-action="schedule">Set the schedule</button>`;
+  else if (blocked) action = `<button class="primary" data-action="resolve-hold">Resolve dependency</button>`;
+  else if (status === "scheduled") action = `<button class="primary" data-action="ledger">Check preparation</button>`;
+  else if (status === "active" && finished < items.length) action = `<button class="primary" data-focus-milestones>Continue the next milestone</button>`;
+  else if (status === "active") action = `<button class="primary" data-completion="request">Request completion review</button>`;
+  else if (status === "review" && agreement.completion_requested_by !== state.profile.id) action = `<button class="primary" data-completion="approve">Approve completion</button>`;
+  else if (status === "review") action = `<button class="secondary" disabled>Waiting for completion approval</button>`;
+  return `<section class="project-path" aria-labelledby="project-path-title"><div class="project-path-head"><div><span class="eyebrow">Project path</span><h2 id="project-path-title">One clear step at a time</h2></div>${action}</div><ol>${steps.map((step) => `<li class="${step.state}"><span class="path-mark" aria-hidden="true">${step.state === "complete" ? "✓" : ""}</span><div><b>${step.name}</b><small>${esc(step.note)}</small></div><span class="path-state">${step.state === "available" ? "available" : step.state}</span></li>`).join("")}</ol></section>`;
 }
 
 function holdCard(hold) {
@@ -1265,6 +1291,10 @@ function downloadExport(data) {
 }
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-focus-milestones]")) {
+    document.querySelector(".milestones")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
   const nav = event.target.closest("[data-nav]");
   if (nav) {
     state.view = nav.dataset.nav;
