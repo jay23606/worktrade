@@ -128,6 +128,11 @@ test("agreement preparation ledger tracks readiness and mutual cost approval",()
   for(const operation of["getAgreementLedger","saveLedgerItem","manageLedgerItem","uploadLedgerReceipt"])assert.match(backend,new RegExp(operation));
 });
 
+test("active work issues preserve baseline and require change-order consent",()=>{
+  assert.match(sql,/create table public\.work_issues/);assert.match(sql,/create table public\.change_orders/);assert.match(sql,/unaffected_work_can_continue/);assert.match(sql,/counterparty response required/);assert.match(sql,/Accepted change order/);assert.match(sql,/status='disputed'/);
+  for(const operation of["getChangeOrderHub","reportWorkIssue","proposeChangeOrder","respondChangeOrder","manageWorkIssue","uploadWorkIssueEvidence"])assert.match(backend,new RegExp(operation));
+});
+
 test("moderation data is private and restrictions guard interaction writes", () => {
   assert.match(sql, /moderation_actions_immutable/);
   assert.match(sql, /staff authorization required/);

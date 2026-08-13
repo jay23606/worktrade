@@ -57,6 +57,12 @@ import {
   saveLedgerItem,
   manageLedgerItem,
   uploadLedgerReceipt,
+  getChangeOrderHub,
+  reportWorkIssue,
+  proposeChangeOrder,
+  respondChangeOrder,
+  manageWorkIssue,
+  uploadWorkIssueEvidence,
   signInWithEmail,
   signOut,
   submitOffer,
@@ -389,7 +395,7 @@ function agreementControls(agreement, confirmed) {
           agreement.completion_requested_by !== state.profile.id
         ? `<button class="secondary full" data-completion="approve">Approve completion</button><button class="secondary full" data-completion="return">Return to active work</button>`
         : "";
-  return `${next ? `<button class="secondary full" data-agreement="${next[0]}">${next[1]}</button>` : ""}${completion}${!["completed", "cancelled", "disputed"].includes(agreement.status) ? `<button class="text-btn full" data-action="schedule">Set schedule</button><button class="text-btn full" data-action="ledger">Materials & costs</button><button class="text-btn full" data-action="amend">Propose amendment</button><div class="agreement-links"><button data-agreement="disputed">Raise concern</button><button data-agreement="cancelled">Cancel</button></div>` : ""}`;
+  return `${next ? `<button class="secondary full" data-agreement="${next[0]}">${next[1]}</button>` : ""}${completion}${!["completed", "cancelled", "disputed"].includes(agreement.status) ? `<button class="text-btn full" data-action="schedule">Set schedule</button><button class="text-btn full" data-action="ledger">Materials & costs</button>${["scheduled","active","review"].includes(agreement.status)?`<button class="text-btn full" data-action="change-orders">Issues & change orders</button>`:""}<button class="text-btn full" data-action="amend">Propose amendment</button><div class="agreement-links"><button data-agreement="disputed">Raise concern</button><button data-agreement="cancelled">Cancel</button></div>` : ""}`;
 }
 
 function holdCard(hold) {
@@ -1124,6 +1130,9 @@ async function agreementLedgerModal(request){
 }
 function ledgerStatusModal(id){openModal(`<span class="eyebrow">Preparation update</span><h2>Record what changed.</h2><form data-form="ledger-status" data-item="${id}" class="form-grid"><label>Status<select name="status"><option value="available">Available</option><option value="needed">Needed</option><option value="ordered">Ordered</option><option value="ready">Ready</option><option value="used">Used</option><option value="cancelled">Cancelled</option></select></label><label>Actual quantity<input name="quantity_actual" type="number" min="0" step="0.001"></label><label>Actual cash cost<input name="actual_cost" type="number" min="0" step="0.01"></label><button class="primary wide">Save update</button></form>`);}
 
+async function changeOrderHubModal(request){try{const hub=await getChangeOrderHub(request.agreement.id);openModal(`<span class="eyebrow">Active-work changes</span><h2>Issues & change orders</h2><div class="baseline-card"><b>Accepted baseline · v${hub.baseline.version}</b><p>${esc(hub.baseline.scope)}</p><small>${esc(hub.baseline.exchange?.summary||"")}</small></div><section class="issue-list">${hub.issues.map(i=>{const order=i.orders.find(o=>o.status==="proposed");return `<article><span class="category">${esc(i.category.replaceAll("_"," "))} · ${esc(i.status)}</span><h3>${esc(i.title)}</h3><p>${esc(i.detail)}</p><small>${i.unaffected_work_can_continue?"Unaffected work may continue":"Pause affected work"}</small>${order?`<div class="change-diff"><b>Proposed difference from baseline</b><p>${esc(order.scope_delta)}</p><dl><dt>Time</dt><dd>${order.time_delta_minutes} minutes</dd><dt>Cash</dt><dd>${money(order.cash_delta_cents/100)}</dd><dt>Barter</dt><dd>${esc(order.barter_delta||"No change")}</dd><dt>Schedule</dt><dd>${esc(order.schedule_delta||"No change")}</dd></dl>${order.proposed_by!==state.profile.id?`<button class="primary" data-change-response="accept:${order.id}">Accept change</button><button class="text-btn" data-change-response="decline:${order.id}">Decline</button>`:"<small>Waiting for counterparty.</small>"}</div>`:`${!["resolved","closed","escalated"].includes(i.status)?`<button class="secondary" data-propose-change="${i.id}">Propose resolution</button><button class="text-btn" data-issue-action="close:${i.id}">Resolve without change</button><button class="danger-text" data-issue-action="escalate:${i.id}">Escalate to dispute</button>`:""}`}<form data-form="issue-evidence" data-agreement="${request.agreement.id}" data-issue="${i.id}" class="inline-form"><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required aria-label="Issue photo"><input name="caption" required maxlength="500" placeholder="What does this show?"><button class="secondary">Add evidence</button></form></article>`}).join("")||"<p>No active-work issues have been reported.</p>"}</section><form data-form="work-issue" data-agreement="${request.agreement.id}" class="form-grid"><label>Category<select name="category"><option value="hidden_condition">Hidden condition</option><option value="damaged_material">Damaged material</option><option value="access">Access problem</option><option value="weather">Weather</option><option value="safety">Safety</option><option value="scope_discovery">Scope discovery</option><option value="mistake">Mistake</option><option value="other">Other</option></select></label><label class="wide">Short title<input name="title" required minlength="3" maxlength="180"></label><label class="wide">What was discovered and what is affected?<textarea name="detail" required minlength="10" maxlength="4000"></textarea></label><label><input type="checkbox" name="continue" checked> Unaffected work can continue</label><button class="primary wide">Report issue</button></form>`);}catch(error){notify(error.message);}}
+function changeOrderModal(issueId){openModal(`<span class="eyebrow">Proposed difference</span><h2>Change only what the issue requires.</h2><form data-form="change-order" data-issue="${issueId}" class="form-grid"><label class="wide">Added or removed scope<textarea name="scope_delta" required></textarea></label><label>Time change (minutes)<input name="time_delta_minutes" type="number" value="0"></label><label>Cash change<input name="cash_delta" type="number" step="0.01" value="0"></label><label class="wide">Barter change<input name="barter_delta" placeholder="Additional cleanup in exchange for materials"></label><label class="wide">Schedule impact<input name="schedule_delta" placeholder="Adds one workday after materials arrive"></label><button class="primary wide">Send for counterparty approval</button></form>`);}
+
 function compareOffersModal(request) {
   openModal(
     `<span class="eyebrow">Proposal comparison</span><h2>Compare the whole exchange.</h2><div class="comparison">${request.offers.map((o) => `<article><h3>${esc(o.provider)}</h3><b>${modeLabel(o.mode)}</b><dl><dt>Scope</dt><dd>${esc(o.gives)}</dd><dt>Exclusions</dt><dd>${esc(o.exclusions || "None stated")}</dd><dt>Exchange</dt><dd>${esc(o.wants)}</dd><dt>Duration</dt><dd>${esc(o.duration)}</dd><dt>Responsibilities</dt><dd>${esc(JSON.stringify(o.responsibilities || {}))}</dd><dt>Expires</dt><dd>${o.expires_at ? new Date(o.expires_at).toLocaleDateString() : "No expiration"}</dd></dl><form data-form="proposal-question" data-offer="${o.id}" class="inline-form"><input name="body" required placeholder="Ask about this proposal"><button class="secondary">Ask</button></form><button class="primary full" data-accept="${o.id}" data-request="${request.id}">Select proposal</button></article>`).join("")}</div>`,
@@ -1304,6 +1313,7 @@ document.addEventListener("click", (event) => {
   if (action === "schedule")
     scheduleCoordinationModal(state.requests.find((x) => x.id === state.selectedId));
   if(action==="ledger")agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));
+  if(action==="change-orders")changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId));
   if (action === "compare-offers")
     compareOffersModal(state.requests.find((x) => x.id === state.selectedId));
   if (action === "publish-completion")
@@ -1860,6 +1870,9 @@ document.addEventListener("click", (event) => {
   if(calendarExport){const stamp=x=>new Date(x).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");const clean=x=>String(x||"").replace(/[\\;,\n]/g," ");const ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WorkTrade//Schedule//EN\r\nBEGIN:VEVENT\r\nUID:${calendarExport.dataset.calendarExport}@worktrade\r\nDTSTAMP:${stamp(new Date())}\r\nDTSTART:${stamp(calendarExport.dataset.start)}\r\nDTEND:${stamp(calendarExport.dataset.end)}\r\nSUMMARY:${clean(calendarExport.dataset.title)}\r\nLOCATION:${clean(calendarExport.dataset.location)}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"}));link.download="worktrade-schedule.ics";link.click();URL.revokeObjectURL(link.href);}
   const ledgerAction=event.target.closest("[data-ledger-action]");if(ledgerAction){const[actionName,id]=ledgerAction.dataset.ledgerAction.split(":");manageLedgerItem(id,actionName).then(()=>agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId))).then(()=>notify("Shared item approved")).catch(error=>notify(error.message));}
   const ledgerStatus=event.target.closest("[data-ledger-status]");if(ledgerStatus)ledgerStatusModal(ledgerStatus.dataset.ledgerStatus);
+  const proposeChange=event.target.closest("[data-propose-change]");if(proposeChange)changeOrderModal(proposeChange.dataset.proposeChange);
+  const changeResponse=event.target.closest("[data-change-response]");if(changeResponse){const[choice,id]=changeResponse.dataset.changeResponse.split(":");respondChangeOrder(id,choice==="accept").then(loadRemoteWorkspace).then(()=>changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId))).then(()=>notify(`Change ${choice}ed`)).catch(error=>notify(error.message));}
+  const issueAction=event.target.closest("[data-issue-action]");if(issueAction){const[actionName,id]=issueAction.dataset.issueAction.split(":");const allowed=actionName!=="escalate"||confirm("Escalate this issue and place the whole agreement in dispute?");if(allowed)manageWorkIssue(id,actionName).then(loadRemoteWorkspace).then(()=>{closeModal();notify(actionName==="escalate"?"Issue escalated to dispute":"Issue closed")}).catch(error=>notify(error.message));}
   const openCircle = event.target.closest("[data-open-circle]");
   if (openCircle) {
     const circle = state.circleHub.circles.find(
@@ -2659,6 +2672,15 @@ document.addEventListener("submit", async (event) => {
   }
   if(form.dataset.form==="ledger-receipt"){
     const file=form.elements.receipt.files[0];if(!file||file.size>10485760)return notify("Choose a JPG, PNG, or WebP under 10 MB.");try{await uploadLedgerReceipt(form.dataset.agreement,form.dataset.item,file);await agreementLedgerModal(state.requests.find(x=>x.id===state.selectedId));notify("Receipt or item photo added");}catch(error){notify(error.message);}
+  }
+  if(form.dataset.form==="work-issue"){
+    try{await reportWorkIssue(form.dataset.agreement,{category:data.get("category"),title:data.get("title"),detail:data.get("detail"),milestone_id:"",obligation_id:"",unaffected_work_can_continue:data.has("continue")});await changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId));notify("Work issue documented");}catch(error){notify(error.message);}
+  }
+  if(form.dataset.form==="change-order"){
+    try{await proposeChangeOrder(form.dataset.issue,{scope_delta:data.get("scope_delta"),time_delta_minutes:Number(data.get("time_delta_minutes"))||0,cash_delta_cents:Math.round((Number(data.get("cash_delta"))||0)*100),barter_delta:data.get("barter_delta"),schedule_delta:data.get("schedule_delta")});await changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId));notify("Change order sent for approval");}catch(error){notify(error.message);}
+  }
+  if(form.dataset.form==="issue-evidence"){
+    const file=form.elements.photo.files[0];if(!file||file.size>10485760)return notify("Choose a JPG, PNG, or WebP under 10 MB.");try{await uploadWorkIssueEvidence(form.dataset.agreement,form.dataset.issue,file,data.get("caption"));await changeOrderHubModal(state.requests.find(x=>x.id===state.selectedId));notify("Private issue evidence added");}catch(error){notify(error.message);}
   }
   if (form.dataset.form === "proposal-question") {
     try {

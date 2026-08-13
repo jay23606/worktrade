@@ -135,6 +135,10 @@ try {
 
   await rpc(owner.token, "perform_agreement_action", { target_agreement_id: agreementId, expected_version: agreement.agreement.version, requested_action: "transition", payload: { status: "active" } });
   rows = await rpc(owner.token, "get_my_agreements", {}); agreement = rows[0];
+  const issueId=await rpc(provider.token,"report_work_issue",{target_agreement_id:agreementId,payload:{category:"hidden_condition",title:"Wall blocking discovered",detail:"A concealed masonry block requires different anchors and additional fitting time.",milestone_id:"",obligation_id:"",unaffected_work_can_continue:true}});
+  const changeId=await rpc(provider.token,"propose_change_order",{target_issue_id:issueId,payload:{scope_delta:"Use masonry anchors for the affected shelf",time_delta_minutes:45,cash_delta_cents:1800,barter_delta:"",schedule_delta:"No date change"}});
+  let changeHub=await rpc(owner.token,"get_change_order_hub",{target_agreement_id:agreementId});assert.equal(changeHub.issues[0].orders[0].id,changeId);assert.equal(changeHub.baseline.version,agreement.agreement.version);
+  await rpc(owner.token,"respond_change_order",{target_change_order_id:changeId,accept:true});rows=await rpc(owner.token,"get_my_agreements",{});agreement=rows[0];assert.match(agreement.agreement.scope_snapshot,/masonry anchors/);changeHub=await rpc(owner.token,"get_change_order_hub",{target_agreement_id:agreementId});assert.equal(changeHub.issues[0].status,"resolved");
   await request("/rest/v1/project_messages", { token: provider.token, method: "POST", headers: { Prefer: "return=minimal" }, body: { request_id: requestId, author_id: provider.id, body: "Materials are ready; arrival is scheduled for Saturday." } });
   notifications=await rpc(owner.token,"get_my_notifications",{});
   assert.equal(notifications.some((row)=>row.notification.kind==="message"),true);
