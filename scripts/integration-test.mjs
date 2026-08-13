@@ -147,7 +147,7 @@ try {
   await rpc(decliner.token, "set_my_profile", { payload: { display_name: decliner.name, location_text: "Richmond, VA", bio: "Decline-path test account", needs: ["Gardening"], offers: ["Carpentry"] } });
   const projectMatches = await rpc(owner.token, "recommend_profiles_for_request", { target_request_id: requestId });
   const projectProvider = projectMatches.find((item) => item.id === decliner.id);
-  assert.ok(projectProvider?.score >= 30);
+  assert.ok(projectProvider?.score >= 30, `expected a strong project match: ${JSON.stringify(projectMatches)}`);
   assert.ok(projectProvider.reasons.includes("Matches required skills"));
   assert.ok(await rpc(owner.token, "notify_project_matches", { target_request_id: requestId }) >= 1);
   let remoteRequest = (await request(`/rest/v1/work_requests?id=eq.${requestId}&select=*`, { token:owner.token }))[0];
