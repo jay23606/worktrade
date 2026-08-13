@@ -141,11 +141,11 @@ test("local discovery exposes privacy-safe filters and saved alerts", async ({ p
   const form = page.locator('form[data-form="network-search"]');
   await expect(form.getByLabel("Where")).toBeVisible();
   await form.getByLabel("Where").selectOption("nearby");
-  await form.getByLabel("Travel radius").selectOption("25");
+  await expect(form.getByRole("button", { name: "Carpentry" })).toBeVisible();
   await form.locator('select[name="availability"]').selectOption("weekend");
   await form.locator('select[name="sort"]').selectOption("distance");
   await form.getByRole("button", { name: "Find people" }).click();
-  await expect(page.getByText(/Exact addresses are never used or revealed/)).toBeVisible();
+  await expect(page.getByText(/does not collect coordinates or reveal exact addresses/)).toBeVisible();
 });
 
 test("posting dialog is labeled, traps focus, and restores focus", async ({

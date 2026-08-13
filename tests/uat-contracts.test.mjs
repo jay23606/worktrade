@@ -106,6 +106,14 @@ test("local discovery redacts profile location and stores privacy-safe alerts", 
   assert.match(sql, /save_network_search_v2/);
 });
 
+test("skill discovery normalizes aliases and explains reciprocal fit", () => {
+  assert.match(sql,/create table public\.skill_aliases/);
+  assert.match(sql,/canonical_skill/);
+  assert.match(sql,/'match_reasons'/);
+  assert.match(sql,/'matched_offers'/);
+  assert.match(app,/does not collect coordinates or reveal exact addresses/);
+});
+
 test("moderation data is private and restrictions guard interaction writes", () => {
   assert.match(sql, /moderation_actions_immutable/);
   assert.match(sql, /staff authorization required/);

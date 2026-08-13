@@ -590,9 +590,11 @@ function hydrateLocalDiscovery() {
   const form = main.querySelector('form[data-form="network-search"]');
   if (!form) return;
   form.classList.add("local-discovery");
+  const discoveryShortcuts = ["Carpentry", "Auto repair", "Electrical", "Landscaping", "Web design", "Photography"];
   form.innerHTML = `<label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Search skills, needs, or names"></label><label>Where<select name="mode"><option value="either">Nearby or remote</option><option value="nearby">Nearby only</option><option value="remote">Remote only</option></select></label><label>Travel radius<select name="radius"><option value="10">10 km</option><option value="25">25 km</option><option value="40">40 km</option><option value="80">80 km</option><option value="160">160 km</option></select></label><label>Availability<select name="availability"><option value="">Any time</option><option value="now">Available now</option><option value="week">This week</option><option value="weekend">Weekends</option><option value="evening">Evenings</option></select></label><label>Exchange<select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select></label><label>Sort<select name="sort"><option value="fit">Reciprocal fit</option><option value="distance">Distance band</option><option value="availability">Availability</option><option value="newest">Newest</option></select></label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save alert</button>` : ""}<p class="location-privacy">Distance is shown only as an approximate band. Exact addresses are never used or revealed.</p>`;
   form.elements.mode.value = state.networkMode;
-  form.elements.radius.value = String(state.networkRadius);
+  form.innerHTML = `<label class="search"><span>⌕</span><input name="query" aria-label="Search the work network" value="${esc(state.networkQuery || "")}" placeholder="Try carpenter, mechanic, web design…"></label><label>Where<select name="mode"><option value="either">Nearby or remote</option><option value="nearby">Same general area</option><option value="remote">Remote only</option></select></label><label>Availability<select name="availability"><option value="">Any time</option><option value="now">Available now</option><option value="week">This week</option><option value="weekend">Weekends</option><option value="evening">Evenings</option></select></label><label>Exchange<select name="exchange" aria-label="Exchange type"><option value="">Any exchange</option><option value="barter">Barter</option><option value="cash">Cash</option><option value="hybrid">Cash + barter</option></select></label><label>Sort<select name="sort"><option value="fit">Reciprocal fit</option><option value="distance">Area match</option><option value="availability">Availability</option><option value="newest">Newest</option></select></label><button class="secondary">Find people</button>${state.session ? `<button type="button" class="text-btn" data-action="save-search">Save alert</button>` : ""}<div class="skill-shortcuts" aria-label="Popular skill searches">${discoveryShortcuts.map((x) => `<button type="button" class="chip" data-skill-search="${x}">${x}</button>`).join("")}</div><p class="location-privacy">Nearby means the same member-provided general area. WorkTrade does not collect coordinates or reveal exact addresses.</p>`;
+  form.elements.mode.value = state.networkMode;
   form.elements.availability.value = state.networkAvailability;
   form.elements.exchange.value = state.networkExchange;
   form.elements.sort.value = state.networkSort;
@@ -1823,6 +1825,11 @@ document.addEventListener("click", (event) => {
       loadNetwork();
     }
   }
+  const skillSearch = event.target.closest("[data-skill-search]");
+  if (skillSearch) {
+    state.networkQuery = skillSearch.dataset.skillSearch;
+    loadNetwork();
+  }
   const openCircle = event.target.closest("[data-open-circle]");
   if (openCircle) {
     const circle = state.circleHub.circles.find(
@@ -2622,7 +2629,7 @@ document.addEventListener("submit", async (event) => {
     state.networkExchange = data.get("exchange") || "";
     state.networkMode = data.get("mode") || "either";
     state.networkRemote = state.networkMode === "remote";
-    state.networkRadius = Number(data.get("radius")) || 40;
+    state.networkRadius = 40;
     state.networkAvailability = data.get("availability") || "";
     state.networkSort = data.get("sort") || "fit";
     await loadNetwork();

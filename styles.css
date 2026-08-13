@@ -101,3 +101,4 @@ body{background:radial-gradient(circle at 85% -5%,color-mix(in srgb,var(--green2
 @media(max-width:600px){.feedback-button{font-size:0;width:40px;height:40px;padding:0}.feedback-button:after{content:"?";font-size:1rem}}
 .feedback-button{min-width:44px;min-height:44px}
 @media(max-width:600px){.feedback-button{width:44px;height:44px}}
+.skill-shortcuts{display:flex;gap:.35rem;flex:1 1 100%;overflow:auto;padding:.15rem 0}.skill-shortcuts .chip{min-height:38px}.local-discovery .location-privacy{flex:1 1 100%}

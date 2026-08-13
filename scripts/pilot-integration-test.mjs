@@ -44,6 +44,8 @@ try {
   assert.match(invite.code,/^WT-[A-F0-9]{32}$/);
   await rpc(member.token,"redeem_pilot_invite",{invite_code:invite.code.toLowerCase()});
   assert.equal((await rpc(member.token,"get_pilot_access")).member,true);
+  const discovery = await rpc(member.token,"discover_profiles",{search_text:"carpenter",exchange_filter:null,remote_only:false});
+  assert.ok(Array.isArray(discovery));
   const feedbackId = await rpc(member.token,"submit_pilot_feedback",{feedback_category:"confusing",feedback_body:"The connected pilot feedback lifecycle needs a clear explanation.",feedback_view:"workspace",feedback_stage:"proposed",feedback_context:{test:true}});
   assert.ok(feedbackId);
   await assert.rejects(() => rpc(outsider.token,"redeem_pilot_invite",{invite_code:invite.code}), /invalid or no longer available/i);
