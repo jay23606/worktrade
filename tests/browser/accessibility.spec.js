@@ -61,6 +61,16 @@ test("community experience centers practical local coordination", async ({ page 
   await expect(page.getByRole("heading", { name: /Useful work starts with people/ })).toBeVisible();
   await expect(page.getByText("Nearby & transport")).toBeVisible();
   await expect(page.getByText("Tools & equipment")).toBeVisible();
+  const actionSpacing = await page.locator(".person-card-actions").first().evaluate((actions) => {
+    const probe = document.createElement("button");
+    probe.className = "text-btn";
+    probe.textContent = "Follow";
+    actions.append(probe);
+    const style = getComputedStyle(actions);
+    return { display: style.display, gap: parseFloat(style.columnGap) };
+  });
+  expect(actionSpacing.display).toBe("flex");
+  expect(actionSpacing.gap).toBeGreaterThanOrEqual(12);
   await expect(page.getByText(/neighborhood, maker space, nonprofit/)).toBeVisible();
   await page.locator('[data-nav="profile"]').last().click();
   await page.getByRole("button", { name: "Improve my matches" }).click();
