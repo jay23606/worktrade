@@ -123,6 +123,7 @@ import {
 const STORAGE_KEY = "worktrade:v1";
 const MATCH_FEEDBACK_KEY = "worktrade:match-feedback:v1";
 const PROJECT_NOTIFICATION_KEY = "worktrade:project-notifications:v1";
+const EXAMPLES_KEY = "worktrade:examples-hidden:v1";
 const saved = (() => {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -148,6 +149,7 @@ const store = createStore({
   notifications: initial.notifications || [],
   notificationPreferences: null,
   projectNotificationSettings: (() => { try { return JSON.parse(localStorage.getItem(PROJECT_NOTIFICATION_KEY)) || {}; } catch { return {}; } })(),
+  examplesHidden: localStorage.getItem(EXAMPLES_KEY) === "true",
   networkProfiles: [],
   networkActivity: [],
   networkQuery: "",
@@ -286,6 +288,7 @@ function shell(content, eyebrow = "Local work exchange") {
 function renderDiscover() {
   const filtered = state.requests.filter(
     (request) =>
+      (!state.examplesHidden || state.remote) &&
       request.status === "open" &&
       !(state.profile.blocked || []).includes(request.ownerId) &&
       (state.category === "All" || request.category === state.category) &&
@@ -299,6 +302,7 @@ function renderDiscover() {
       <div class="hero-actions"><button class="primary" data-action="post">Post work</button><button class="secondary" data-nav="network">Explore the network</button></div></div>
       <div class="hero-visual"><img src="assets/worktrade-hero.webp" alt="Neighbors sharing tools and skills while building and repairing together"><div class="balance-card"><span>Community pulse</span><strong>${state.requests.length} active stories</strong><div><b>12</b> skills offered <b>8</b> needs matched</div><p>No platform credits. People agree on value together.</p></div></div>
     </section>
+    ${!state.remote && !state.examplesHidden ? `<div class="example-banner"><div><b>These are removable examples.</b><span>They demonstrate building, diagnosis, and an active project without pretending to be local listings.</span></div><button class="text-btn" data-action="hide-examples">Hide examples</button></div>` : ""}
     <section class="controls"><label class="search"><span>⌕</span><input id="search" value="${esc(state.query)}" placeholder="Search work, skills, or outcomes"></label><div class="chips">${categories.map((c) => `<button class="chip ${state.category === c ? "active" : ""}" data-category="${c}">${c}</button>`).join("")}</div></section>
     <div class="section-title"><div><span class="eyebrow">Open requests</span><h2>What can you help move forward?</h2></div><span>${filtered.length} matches</span></div>
     <div class="request-grid">${filtered.map(requestCard).join("") || `<div class="empty"><h3>No matching work</h3><p>Try another skill or category.</p></div>`}</div>
@@ -487,12 +491,30 @@ function renderWorkspace() {
   );
   const completed = state.requests.filter((r) => r.status === "completed");
   const journey = buildJourneyActions(active, state.networkInbox?.invitations || []);
+  const activation = activationChecklist(posted, active);
   return shell(
-    `<div class="section-title"><div><span class="eyebrow">My work</span><h1>Keep every commitment visible.</h1></div><button class="primary" data-action="post">Post work</button></div>
+    `<div class="section-title"><div><span class="eyebrow">My work</span><h1>${activation.complete ? "Keep every commitment visible." : "Start with one useful exchange."}</h1></div><button class="primary" data-action="post">Post work</button></div>
+    ${activation.complete ? "" : activationPanel(activation)}
     <div class="stats"><div><b>${needsAction.length}</b><span>Need your action</span></div><div><b>${active.length}</b><span>Active agreements</span></div><div><b>${posted.filter((r) => r.status === "draft").length}</b><span>Draft requests</span></div><div><b>${state.myOffers.filter((o) => o.status === "pending").length}</b><span>Pending proposals</span></div></div>
     ${journeyPanel(journey)}${dashboardGroup("Needs your action", needsAction)}${dashboardGroup("Requests I posted", posted, true)}${offerDashboard()}${dashboardGroup("Active work", active)}${dashboardGroup("Completed history", completed)}`,
     "Personal workspace",
   );
+}
+
+function activationChecklist(posted = [], active = []) {
+  const profile = state.profile;
+  const steps = [
+    { id: "profile", label: "Complete your work profile", detail: "Add a short introduction, general location, and availability.", done: Boolean(profile.bio && profile.location && profile.availability), action: "onboarding", button: "Complete profile" },
+    { id: "value", label: "Describe what you offer and need", detail: "Specific skills, goods, equipment, and access produce better reciprocal matches.", done: (profile.offers || []).length > 0 && (profile.needs || []).length > 0, action: "onboarding", button: "Add offers and needs" },
+    { id: "matches", label: "Review your first matches", detail: "Every score explains both directions of the possible exchange.", done: Object.keys(state.matchFeedback || {}).length > 0 || state.view === "matches", nav: "matches", button: "See matches" },
+    { id: "contact", label: "Contact one possible collaborator", detail: "An invitation states what you need and what you can offer before messaging opens.", done: (state.networkInbox?.invitations || []).length > 0 || state.myOffers.length > 0, nav: "network", button: "Find a collaborator" },
+    { id: "work", label: "Post or propose real work", detail: "Define the desired result, responsibilities, exclusions, timing, and fair value.", done: posted.length > 0 || state.myOffers.length > 0 || active.length > 0, action: "post", button: "Post work" },
+  ];
+  return { steps, complete: steps.every((step) => step.done), completed: steps.filter((step) => step.done).length };
+}
+
+function activationPanel(activation) {
+  return `<section class="activation-panel"><div class="activation-head"><div><span class="eyebrow">First exchange checklist</span><h2>${activation.completed} of ${activation.steps.length} steps complete</h2><p>WorkTrade reveals advanced tools when the work needs them. You only need these fundamentals to begin.</p></div><div class="activation-progress" role="progressbar" aria-label="First exchange progress" aria-valuemin="0" aria-valuemax="${activation.steps.length}" aria-valuenow="${activation.completed}"><span style="width:${activation.completed / activation.steps.length * 100}%"></span></div></div><ol>${activation.steps.map((step) => `<li class="${step.done ? "done" : ""}"><span>${step.done ? "✓" : ""}</span><div><b>${step.label}</b><small>${step.detail}</small></div>${step.done ? `<em>Complete</em>` : `<button class="secondary" ${step.action ? `data-action="${step.action}"` : `data-nav="${step.nav}"`}>${step.button}</button>`}</li>`).join("")}</ol></section>`;
 }
 
 function requestJourneyAction(request) {
@@ -1015,13 +1037,27 @@ function moderationAppealModal(restrictionId) {
 
 function renderProfile() {
   const p = state.profile;
+  const quality = profileQuality(p);
   return shell(
     `<section class="profile-head"><span class="avatar giant">${p.initials}</span><div><span class="eyebrow">Your WorkTrade profile</span><h1>${esc(p.name)}</h1><p>${esc(p.bio)}</p><small>${esc(p.location)}</small></div><div class="profile-actions"><button class="primary" data-action="onboarding">Improve my matches</button><button class="secondary profile-edit" data-action="edit-profile">Edit profile</button></div></section>
+    <section class="profile-quality"><div><span class="eyebrow">Profile readiness</span><h2>${quality.score}% ready for useful matches</h2><p>${quality.missing.length ? `Next improvement: ${esc(quality.missing[0])}.` : "Your profile gives collaborators enough context to start a grounded conversation."}</p></div><div class="quality-meter"><span style="width:${quality.score}%"></span></div>${quality.missing.length ? `<ul>${quality.missing.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : ""}</section>
     <div class="two-col"><section class="list-panel"><span class="eyebrow">I can offer</span><h2>Skills, goods, and access</h2><div class="editable-list">${p.offers.map((x, i) => `<span>${esc(x)}<button data-remove="offers:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="offers" class="inline-form"><input name="item" required placeholder="Add something you can offer"><button class="secondary">Add</button></form></section>
     <section class="list-panel warm"><span class="eyebrow">I need</span><h2>Things that could move you forward</h2><div class="editable-list">${p.needs.map((x, i) => `<span>${esc(x)}<button data-remove="needs:${i}" aria-label="Remove ${esc(x)}">×</button></span>`).join("")}</div><form data-form="profile-item" data-list="needs" class="inline-form"><input name="item" required placeholder="Add something you need"><button class="secondary">Add</button></form></section></div>
     <section class="proof"><span class="eyebrow">Proof of work</span><h2>A reputation grounded in real outcomes.</h2><div class="proof-grid"><div><b>Storefront deck restoration</b><span>Carpentry · Exterior finishing</span><p>Verified by Nia Brooks</p></div><div><b>Product launch photography</b><span>Photography · Art direction</span><p>Verified by Maya Chen</p></div></div>${backendConfigured ? `<div class="account-panel" id="account-panel"><p>Checking account…</p></div>` : `<div class="account-panel"><b>Device-local demonstration</b><p>Real accounts become available when this installation is connected to its own Supabase project.</p></div>`}<button class="danger-text" data-action="reset">Reset demo data</button></section>`,
     "Profile and capabilities",
   );
+}
+
+function profileQuality(profile) {
+  const checks = [
+    [profile.bio && profile.bio.length >= 30, "Add a short introduction about how you work"],
+    [profile.location, "Add a general location or mark yourself remote"],
+    [profile.availability, "Describe when you are usually available"],
+    [(profile.offers || []).length >= 2, "List at least two specific things you can offer"],
+    [(profile.needs || []).length >= 1, "Add something you genuinely need"],
+    [(profile.preferredExchangeModes || []).length > 0, "Choose acceptable exchange types"],
+  ];
+  return { score: Math.round(checks.filter(([done]) => done).length / checks.length * 100), missing: checks.filter(([done]) => !done).map(([, text]) => text) };
 }
 
 function matchTerms(values = []) {
@@ -1142,8 +1178,10 @@ function postModal() {
 }
 
 function offerModal(id) {
-  openModal(`<span class="eyebrow">Trade proposal</span><h2>Make the exchange clear.</h2><p>Describe both sides. A good proposal values scope, risk, materials, and time without forcing everything into cash.</p><form data-form="offer" data-id="${id}" class="form-grid">
+  openModal(`<span class="eyebrow">Guided proposal · four clear parts</span><h2>Make the exchange clear.</h2><p>The requester can accept these terms as an agreement, so name uncertainties now. Mutual confirmation protects both people if anything changes later.</p><form data-form="offer" data-id="${id}" class="form-grid">
+    <div class="wide proposal-step"><b>1 · Value</b><span>Choose how value moves between both people.</span></div>
     <label>Exchange<select name="mode"><option value="hybrid">Cash + barter</option><option value="barter">Barter</option><option value="cash">Cash</option></select></label><label>Cash component<input name="cash" type="number" min="0" placeholder="0"></label>
+    <div class="wide proposal-step"><b>2 · Scope</b><span>State the result you will deliver and what is outside this proposal.</span></div>
     <label class="wide">What will you provide?<textarea name="gives" required placeholder="Scope and deliverables"></textarea></label><label class="wide">What is excluded?<textarea name="exclusions" placeholder="Permits, electrical work, finish materials…"></textarea></label><label class="wide">What would you receive?<input name="wants" required placeholder="$400 plus bookkeeping help"></label><label>Expected duration<input name="duration" required placeholder="Two weekends"></label><label>Offer expires<input name="expires_at" type="date"></label><label>Provider supplies<input name="provider_supplies" placeholder="Tools, labor, fasteners"></label><label>Requester supplies<input name="requester_supplies" placeholder="Site access, lumber, power"></label><label class="wide">Proposed milestones, one per line<textarea name="milestones" placeholder="Confirm measurements\nBuild components\nInstall and review"></textarea></label><label class="wide">Questions before committing<textarea name="questions" placeholder="Is weekend access available?"></textarea></label><button class="primary wide">Send proposal</button></form>`);
 }
 
@@ -1483,6 +1521,11 @@ document.addEventListener("click", (event) => {
     state.matchFeedback = Object.fromEntries(Object.entries(state.matchFeedback).filter(([, value]) => value !== "dismissed"));
     localStorage.setItem(MATCH_FEEDBACK_KEY, JSON.stringify(state.matchFeedback));
     notify("Hidden matches restored");
+  }
+  if (action === "hide-examples") {
+    state.examplesHidden = true;
+    localStorage.setItem(EXAMPLES_KEY, "true");
+    notify("Example work hidden");
   }
   if (action === "edit-request")
     editRequestModal(

@@ -163,6 +163,22 @@ test("inbox groups events and routes messages to project activity", async ({ pag
   await expect(page.getByText(/required actions remain in your inbox/)).toBeVisible();
 });
 
+test("first-use activation explains the path to a credible exchange", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Primary" }).locator('[data-nav="workspace"]').click();
+  const activation = page.locator(".activation-panel");
+  await expect(activation.getByRole("heading", { name: /steps complete/ })).toBeVisible();
+  await expect(activation.getByText("Complete your work profile", { exact: true })).toBeVisible();
+  await expect(activation.getByText("Post or propose real work", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Discover" }).click();
+  await expect(page.getByText("These are removable examples.")).toBeVisible();
+  await page.getByRole("heading", { name: "Build a backyard greenhouse" }).click();
+  await page.getByRole("button", { name: "Propose a trade" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("1 · Value", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("2 · Scope", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/Mutual confirmation protects both people/)).toBeVisible();
+});
+
 test("local discovery exposes privacy-safe filters and saved alerts", async ({ page }) => {
   await page.getByRole("navigation", { name: "Primary" }).locator('[data-nav="network"]').click();
   const form = page.locator('form[data-form="network-search"]');

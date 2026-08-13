@@ -33,6 +33,7 @@ WorkTrade is a community platform for getting useful work done through cash, bar
 | Guided project path        | Connected             | Agreement → Schedule → Prepare → Work → Changes → Complete, with one contextual action and explicit ready, blocked, waiting, and available states |
 | Active project workspace   | Connected             | Compact Overview, unified Activity, Exchange, and Files sections keep current work visible without an endless detail page |
 | Action inbox               | Connected             | Groups required actions, messages, and updates; routes into project context; supports read state, global delivery settings, and per-project routine-update muting |
+| First-use activation       | Connected             | Adaptive five-step checklist, profile-readiness guidance, reciprocal match setup, removable examples, and a guided first proposal grounded in actual account milestones |
 | Evidence and reputation    | Connected             | Private evidence, contextual reviews, verified completion stories, public portfolios             |
 | Social network             | Connected             | Two-way match scores and explanations, follows, saves, feedback, invitations, activity, and strong-match notifications |
 | Local discovery            | Connected             | Nearby/remote modes, normalized skill aliases, explainable reciprocal ranking, availability and sort filters, coarse location bands, privacy controls, and saved alerts |
@@ -160,7 +161,7 @@ The hosted integration tests create temporary users, exercise invitation accepta
 
 Do not place the secret key in GitHub Pages configuration or public CI logs. See [docs/UAT_REPORT.md](docs/UAT_REPORT.md) for automated coverage and the remaining manual checks.
 
-Browser UAT runs 68 checks across desktop, tablet, phone, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, accessible names, target sizes, primary navigation, invite-only onboarding, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
+Browser UAT runs 72 checks across desktop, tablet, phone, and a 200%-zoom-equivalent viewport. It covers serious/critical axe findings, horizontal overflow, accessible names, target sizes, primary navigation, invite-only onboarding, first-use activation, guided proposals, project workspace and inbox routing, modal labeling and focus trapping, focus restoration after rerenders, safety guidance, and duplicate-submit prevention. CI retains traces and screenshots only when a check fails.
 
 ## Deployment
 
