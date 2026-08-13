@@ -1621,6 +1621,7 @@ document.addEventListener("click", (event) => {
     state.view = nav.dataset.nav;
     state.selectedId = null;
     state.projectDetailTab = "overview";
+    if (state.view === "messages" && state.session) loadNetwork();
     return;
   }
   const conversation = event.target.closest("[data-conversation]");
@@ -3818,3 +3819,7 @@ async function bootstrapBackend() {
   }
 }
 bootstrapBackend();
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.session) loadNetwork();
+});

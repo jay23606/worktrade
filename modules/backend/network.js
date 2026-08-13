@@ -165,6 +165,7 @@ export async function subscribeToMessages(onChange) {
   assertBackend(client);
   return client.channel("worktrade-messages")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "introduction_messages" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "collaboration_invitations" }, onChange)
     .subscribe();
 }
 

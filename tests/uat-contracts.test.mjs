@@ -279,3 +279,13 @@ test("message attachments and delivery state stay participant-private", async ()
   assert.match(app, /MESSAGE_DRAFT_KEY/);
   assert.match(app, /Shift\+Enter/);
 });
+
+test("conversation requests refresh in realtime and crossed requests open one thread", async () => {
+  const sql = await readFile(new URL("supabase/migrations/20260813073000_realtime_conversation_requests.sql", root), "utf8");
+  assert.match(sql, /supabase_realtime add table public\.collaboration_invitations/);
+  assert.match(sql, /reverse_item[\s\S]*status='accepted'/);
+  assert.match(sql, /delete from public\.collaboration_invitations[\s\S]*remove_id/);
+  const client = await readFile(new URL("modules/backend/network.js", root), "utf8");
+  assert.match(client, /table: "collaboration_invitations"/);
+  assert.match(app, /state\.view === "messages" && state\.session\) loadNetwork\(\)/);
+});

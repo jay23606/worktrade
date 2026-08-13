@@ -1,9 +1,9 @@
-const CACHE = "worktrade-v20260813capfix";
+const CACHE = "worktrade-v20260813realtime";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css?v=20260813photos",
-  "./app.js?v=20260813capfix",
+  "./app.js?v=20260813realtime",
   "./config.js",
   "./data.js",
   "./manifest.webmanifest",
