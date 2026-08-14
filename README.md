@@ -123,6 +123,7 @@ features/coordination-submit-handler.js scheduling, preparation, and work-change
 features/network-submit-handler.js discovery, messaging, invitations, and shared-planning submissions
 features/community-submit-handler.js circle, resource, private-post, and reciprocal-chain submissions
 features/profile-submit-handler.js profile, portfolio, privacy, and onboarding submissions
+features/account-submit-handler.js authentication, preferences, pilot, and moderation submissions
 shell/                         PWA installation, updates, and connectivity lifecycle
 modules/backend.js             stable backend export facade
 modules/backend/               account, request, agreement, network, circle, chain, trust domains

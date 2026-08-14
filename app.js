@@ -24,6 +24,7 @@ import { createCoordinationSubmitHandler } from "./features/coordination-submit-
 import { createNetworkSubmitHandler } from "./features/network-submit-handler.js";
 import { createCommunitySubmitHandler } from "./features/community-submit-handler.js";
 import { createProfileSubmitHandler } from "./features/profile-submit-handler.js";
+import { createAccountSubmitHandler } from "./features/account-submit-handler.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -382,6 +383,7 @@ const handleCoordinationSubmit = createCoordinationSubmitHandler({ getState: () 
 const handleNetworkSubmit = createNetworkSubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, publishCompletion, sendCollaborationInvitation, recordMatchKey, recordMatchEvent, sendContactRequest, sendMessageAttachment, sendIntroductionMessage, manageConversation, saveDiscoveryAlert, updateIntroductionWorkspace, messageDraftKey: MESSAGE_DRAFT_KEY });
 const handleCommunitySubmit = createCommunitySubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, createCircle, saveCircleResource, inviteCircleMember, createCircleRequest, updateCircleSettings, reviseTradeChain, createTradeChain, manageTradeChain });
 const handleProfileSubmit = createProfileSubmitHandler({ getState: () => state, notify, closeModal, persist, updateMyProfile, uploadProfileAvatar, uploadPortfolioImage, loadRemoteWorkspace, loadNetwork, recordOnboardingState, validateOnboardingCapabilities, showOnboardingStep, postModal, onboardingDraftKey: ONBOARDING_DRAFT_KEY });
+const handleAccountSubmit = createAccountSubmitHandler({ getState: () => state, notify, closeModal, openModal, esc, signInWithEmail, redeemPilotInvite, createPilotInvite, submitPilotFeedback, replyToPilotFeedback, managePilotFeedback, myPilotFeedbackModal, pilotDashboardModal, saveNotificationPreferences, deactivateMyAccount, cloneSeed, batchState: (callback) => store.batch(callback), moderateReport, resolveModerationAppeal, submitModerationAppeal, hydrateAccount, bootstrapBackend });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -1104,46 +1106,7 @@ document.addEventListener("submit", async (event) => {
       notify(error.message);
     }
   }
-  if (form.dataset.form === "sign-in") {
-    signInWithEmail(data.get("email"))
-      .then(() => {
-        closeModal();
-        notify("Check your email for the secure link");
-      })
-      .catch((error) => notify(error.message));
-  }
-  if (form.dataset.form === "pilot-invite-redeem") {
-    try {
-      await redeemPilotInvite(data.get("invite_code"));
-      sessionStorage.removeItem("worktrade-pilot-invite");
-      closeModal();
-      await bootstrapBackend();
-      notify("Welcome to the WorkTrade pilot");
-    } catch (error) { notify(error.message); }
-  }
-  if (form.dataset.form === "pilot-invite-create") {
-    try {
-      const invite = await createPilotInvite(
-        data.get("label"), Number(data.get("max_uses")),
-        data.get("expires_at") ? new Date(`${data.get("expires_at")}T23:59:59`).toISOString() : null,
-      );
-      openModal(`<span class="eyebrow">Invite created</span><h2>Copy this code now.</h2><p>Only a secure digest is stored, so it cannot be shown again.</p><div class="invite-code"><code>${esc(invite.code)}</code></div><button class="primary" data-copy-text="${esc(invite.code)}">Copy invite code</button>`);
-    } catch (error) { notify(error.message); }
-  }
-  if (form.dataset.form === "pilot-feedback") {
-    try {
-      await submitPilotFeedback(data.get("category"), data.get("body"), form.dataset.view, form.dataset.stage, { selected_id: state.selectedId || null });
-      closeModal(); notify("Feedback sent privately to the pilot team");
-    } catch (error) { notify(error.message); }
-  }
-  if (form.dataset.form === "pilot-feedback-reply") {
-    try { await replyToPilotFeedback(form.dataset.id, data.get("body")); await myPilotFeedbackModal(); notify("Reply sent"); }
-    catch (error) { notify(error.message); }
-  }
-  if (form.dataset.form === "pilot-feedback-triage") {
-    try { await managePilotFeedback(form.dataset.id, data.get("status"), data.get("severity"), data.get("assignee"), data.get("note"), data.get("reply")); await pilotDashboardModal(); notify("Feedback triage saved"); }
-    catch (error) { notify(error.message); }
-  }
+  if (await handleAccountSubmit(form, data)) return;
   if (await handleProfileSubmit(form, data)) return;
   if (form.dataset.form === "edit-request") {
     try {
@@ -1163,86 +1126,6 @@ document.addEventListener("submit", async (event) => {
       closeModal();
       await loadRemoteWorkspace();
       notify("Request updated with history preserved");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "preferences") {
-    try {
-      if (data.has("browser_notifications") && "Notification" in window && Notification.permission === "default") await Notification.requestPermission();
-      state.notificationPreferences = await saveNotificationPreferences({
-        in_app: data.has("in_app"),
-        email_enabled: data.has("email_enabled"),
-        email_proposals: data.has("email_proposals"),
-        email_messages: data.has("email_messages"),
-        email_agreements: data.has("email_agreements"),
-        email_reminders: data.has("email_reminders"),
-        email_network: data.has("email_network"),
-        email_safety: data.has("email_safety"),
-      });
-      closeModal();
-      notify("Notification preferences saved");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "deactivate") {
-    try {
-      await deactivateMyAccount();
-      const seed = cloneSeed();
-      store.batch(() => {
-        state.session = null;
-        state.remote = false;
-        state.profile = seed.profile;
-        state.requests = seed.requests;
-        state.notifications = [];
-      });
-      closeModal();
-      notify("Account deactivated; showing device demo");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "moderation-decision") {
-    try {
-      await moderateReport(
-        form.dataset.report,
-        data.get("action"),
-        data.get("internal_note"),
-        data.get("reporter_update"),
-        data.get("expires_at")
-          ? new Date(data.get("expires_at")).toISOString()
-          : null,
-      );
-      closeModal();
-      notify("Immutable moderation action recorded");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "appeal-decision") {
-    try {
-      await resolveModerationAppeal(
-        form.dataset.appeal,
-        data.get("decision"),
-        data.get("internal_note"),
-        data.get("member_update"),
-      );
-      closeModal();
-      notify("Appeal decision recorded");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "moderation-appeal") {
-    try {
-      await submitModerationAppeal(
-        form.dataset.restriction,
-        data.get("statement"),
-      );
-      closeModal();
-      await hydrateAccount();
-      notify("Appeal submitted for review");
     } catch (error) {
       notify(error.message);
     }
