@@ -25,6 +25,7 @@ import { createNetworkSubmitHandler } from "./features/network-submit-handler.js
 import { createCommunitySubmitHandler } from "./features/community-submit-handler.js";
 import { createProfileSubmitHandler } from "./features/profile-submit-handler.js";
 import { createAccountSubmitHandler } from "./features/account-submit-handler.js";
+import { createProjectActivitySubmitHandler } from "./features/project-activity-submit-handler.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -384,6 +385,7 @@ const handleNetworkSubmit = createNetworkSubmitHandler({ getState: () => state, 
 const handleCommunitySubmit = createCommunitySubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, createCircle, saveCircleResource, inviteCircleMember, createCircleRequest, updateCircleSettings, reviseTradeChain, createTradeChain, manageTradeChain });
 const handleProfileSubmit = createProfileSubmitHandler({ getState: () => state, notify, closeModal, persist, updateMyProfile, uploadProfileAvatar, uploadPortfolioImage, loadRemoteWorkspace, loadNetwork, recordOnboardingState, validateOnboardingCapabilities, showOnboardingStep, postModal, onboardingDraftKey: ONBOARDING_DRAFT_KEY });
 const handleAccountSubmit = createAccountSubmitHandler({ getState: () => state, notify, closeModal, openModal, esc, signInWithEmail, redeemPilotInvite, createPilotInvite, submitPilotFeedback, replyToPilotFeedback, managePilotFeedback, myPilotFeedbackModal, pilotDashboardModal, saveNotificationPreferences, deactivateMyAccount, cloneSeed, batchState: (callback) => store.batch(callback), moderateReport, resolveModerationAppeal, submitModerationAppeal, hydrateAccount, bootstrapBackend });
+const handleProjectActivitySubmit = createProjectActivitySubmitHandler({ getState: () => state, notify, closeModal, persist, updateRequests, loadRemoteWorkspace, performAgreementAction, addProjectUpdate, sendProjectMessage, submitSafetyReport, updateMyProfile, submitReview, uploadWorkEvidence, welcomeSetupModal });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -918,194 +920,7 @@ document.addEventListener("submit", async (event) => {
       notify("Trade proposal sent");
     }
   }
-  if (form.dataset.form === "hold") {
-    const request = state.requests.find((x) => x.id === form.dataset.id);
-    if (state.remote) {
-      try {
-        await performAgreementAction(
-          "hold",
-          request.agreement.id,
-          request.agreement.version,
-          {
-            kind: data
-              .get("type")
-              .toLowerCase()
-              .replaceAll(" ", "_")
-              .replace("_or_", "_"),
-            owner: data.get("owner"),
-            detail: data.get("detail"),
-            review_at: data.get("reviewDate"),
-          },
-        );
-        closeModal();
-        await loadRemoteWorkspace();
-        notify("Dependency hold added");
-      } catch (error) {
-        notify(error.message);
-      }
-    } else {
-      updateRequests((list) => {
-        const r = list.find((x) => x.id === form.dataset.id);
-        r.hold = {
-          type: data.get("type"),
-          owner: data.get("owner"),
-          detail: data.get("detail"),
-          reviewDate: data.get("reviewDate"),
-        };
-        return list;
-      });
-      closeModal();
-      notify("Dependency hold added");
-    }
-  }
-  if (form.dataset.form === "update") {
-    if (state.remote) {
-      try {
-        await addProjectUpdate(state.selectedId, data.get("text"));
-        form.reset();
-        await loadRemoteWorkspace();
-        notify("Project journal updated");
-      } catch (error) {
-        notify(error.message);
-      }
-    } else {
-      updateRequests((list) => {
-        const r = list.find((x) => x.id === state.selectedId);
-        r.updates.push({
-          id: crypto.randomUUID(),
-          author: state.profile.name,
-          text: data.get("text"),
-          date: "Today",
-        });
-        return list;
-      });
-      form.reset();
-      notify("Update posted");
-    }
-  }
-  if (form.dataset.form === "message") {
-    if (state.remote) {
-      try {
-        await sendProjectMessage(state.selectedId, data.get("text"));
-        form.reset();
-        await loadRemoteWorkspace();
-        notify("Message sent");
-      } catch (error) {
-        notify(error.message);
-      }
-    } else {
-      updateRequests((list) => {
-        const r = list.find((x) => x.id === state.selectedId);
-        r.messages ||= [];
-        r.messages.push({
-          id: crypto.randomUUID(),
-          authorId: "me",
-          author: state.profile.name,
-          text: data.get("text"),
-          date: "Today",
-        });
-        return list;
-      });
-      form.reset();
-      notify("Message sent");
-    }
-  }
-  if (form.dataset.form === "report") {
-    if (state.remote) {
-      try {
-        await submitSafetyReport(
-          "request",
-          form.dataset.id,
-          data.get("reason"),
-          data.get("detail"),
-        );
-        closeModal();
-        notify("Private report submitted for moderator review");
-      } catch (error) {
-        notify(error.message);
-      }
-      return;
-    }
-    updateRequests((list) => {
-      const r = list.find((x) => x.id === form.dataset.id);
-      r.reports ||= [];
-      r.reports.push({
-        id: crypto.randomUUID(),
-        reporterId: "me",
-        reason: data.get("reason"),
-        detail: data.get("detail"),
-        status: "submitted",
-        createdAt: new Date().toISOString(),
-      });
-      return list;
-    });
-    closeModal();
-    notify("Private report recorded for moderator review");
-  }
-  if (form.dataset.form === "profile-item") {
-    const item = String(data.get("item") || "").trim();
-    if (item.length < 2 || item.length > 100) return notify("Use 2–100 characters for each offer or need.", "warning");
-    const profile = structuredClone(state.profile);
-    profile[form.dataset.list].push(item);
-    if (state.remote) {
-      try {
-        await updateMyProfile({
-          display_name: profile.name,
-          location_text: profile.location,
-          bio: profile.bio,
-          needs: profile.needs,
-          offers: profile.offers,
-        });
-        state.profile = profile;
-        form.reset();
-        notify("Profile updated");
-      } catch (error) {
-        notify(error.message);
-      }
-    } else {
-      state.profile = profile;
-      persist();
-      form.reset();
-      notify("Profile updated");
-    }
-  }
-  if (form.dataset.form === "review") {
-    try {
-      await submitReview({
-        agreement_id: form.dataset.agreement,
-        subject_id: form.dataset.subject,
-        reliability: Number(data.get("reliability")),
-        communication: Number(data.get("communication")),
-        work_quality: Number(data.get("work_quality")),
-        exchange_fairness: Number(data.get("exchange_fairness")),
-        body: data.get("body"),
-      });
-      closeModal();
-      notify("Contextual review published");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "evidence") {
-    const file = form.elements.photo.files[0];
-    if (!file || file.size > 10485760)
-      return notify("Choose a JPG, PNG, or WebP under 10 MB.");
-    try {
-      await uploadWorkEvidence(form.dataset.agreement, file, {
-        skill: data.get("skill"),
-        description: data.get("description"),
-      });
-      form.reset();
-      await loadRemoteWorkspace();
-      if (!state.profile.onboardingComplete && !state.profile.onboardingSkipped && !sessionStorage.getItem("worktrade:onboarding-shown")) {
-        sessionStorage.setItem("worktrade:onboarding-shown", "true");
-        setTimeout(welcomeSetupModal, 150);
-      }
-      notify("Work evidence added");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
+  if (await handleProjectActivitySubmit(form, data)) return;
   if (await handleAccountSubmit(form, data)) return;
   if (await handleProfileSubmit(form, data)) return;
   if (form.dataset.form === "edit-request") {
