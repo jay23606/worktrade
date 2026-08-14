@@ -5,7 +5,7 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("application shell delegates matching and PWA lifecycle to feature modules", async () => {
-  const [app, matching, messages, network, projects, workspace, communities, profile, dialogs, operations, coordination, notifications, clickHandler, projectClickHandler, socialClickHandler, communityClickHandler, profileClickHandler, managementClickHandler, coordinationClickHandler, coordinationSubmitHandler, networkSubmitHandler, communitySubmitHandler, pwa, deployment, worker] = await Promise.all([
+  const [app, matching, messages, network, projects, workspace, communities, profile, dialogs, operations, coordination, notifications, clickHandler, projectClickHandler, socialClickHandler, communityClickHandler, profileClickHandler, managementClickHandler, coordinationClickHandler, coordinationSubmitHandler, networkSubmitHandler, communitySubmitHandler, profileSubmitHandler, pwa, deployment, worker] = await Promise.all([
     readFile(new URL("app.js", root), "utf8"),
     readFile(new URL("features/matching.js", root), "utf8"),
     readFile(new URL("features/messages.js", root), "utf8"),
@@ -28,6 +28,7 @@ test("application shell delegates matching and PWA lifecycle to feature modules"
     readFile(new URL("features/coordination-submit-handler.js", root), "utf8"),
     readFile(new URL("features/network-submit-handler.js", root), "utf8"),
     readFile(new URL("features/community-submit-handler.js", root), "utf8"),
+    readFile(new URL("features/profile-submit-handler.js", root), "utf8"),
     readFile(new URL("shell/pwa.js", root), "utf8"),
     readFile(new URL(".github/workflows/pages.yml", root), "utf8"),
     readFile(new URL("service-worker.js", root), "utf8"),
@@ -55,6 +56,7 @@ test("application shell delegates matching and PWA lifecycle to feature modules"
   assert.match(coordinationSubmitHandler, /handleCoordinationSubmit/);
   assert.match(networkSubmitHandler, /handleNetworkSubmit/);
   assert.match(communitySubmitHandler, /handleCommunitySubmit/);
+  assert.match(profileSubmitHandler, /handleProfileSubmit/);
   assert.match(network, /circleDetail, renderChainHub/);
   assert.match(pwa, /applyConnectivityState/);
   assert.match(deployment, /cp -r features shell dist/);
@@ -65,5 +67,6 @@ test("application shell delegates matching and PWA lifecycle to feature modules"
   assert.match(worker, /features\/coordination-submit-handler\.js/);
   assert.match(worker, /features\/network-submit-handler\.js/);
   assert.match(worker, /features\/community-submit-handler\.js/);
-  assert.ok(app.split(/\r?\n/).length < 1850, "app.js must keep shrinking as feature modules are extracted");
+  assert.match(worker, /features\/profile-submit-handler\.js/);
+  assert.ok(app.split(/\r?\n/).length < 1700, "app.js must keep shrinking as feature modules are extracted");
 });

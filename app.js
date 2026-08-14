@@ -23,6 +23,7 @@ import { createCoordinationClickHandler } from "./features/coordination-click-ha
 import { createCoordinationSubmitHandler } from "./features/coordination-submit-handler.js";
 import { createNetworkSubmitHandler } from "./features/network-submit-handler.js";
 import { createCommunitySubmitHandler } from "./features/community-submit-handler.js";
+import { createProfileSubmitHandler } from "./features/profile-submit-handler.js";
 import { initializePwa } from "./shell/pwa.js";
 import {
   confirmAgreement,
@@ -380,6 +381,7 @@ const handleCoordinationClick = createCoordinationClickHandler({ getState: () =>
 const handleCoordinationSubmit = createCoordinationSubmitHandler({ getState: () => state, notify, closeModal, loadRemoteWorkspace, setAgreementSchedule, proposeScheduleWindow, saveMyAvailability, saveLedgerItem, manageLedgerItem, uploadLedgerReceipt, reportWorkIssue, proposeChangeOrder, uploadWorkIssueEvidence, agreementLedgerModal, changeOrderHubModal });
 const handleNetworkSubmit = createNetworkSubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, publishCompletion, sendCollaborationInvitation, recordMatchKey, recordMatchEvent, sendContactRequest, sendMessageAttachment, sendIntroductionMessage, manageConversation, saveDiscoveryAlert, updateIntroductionWorkspace, messageDraftKey: MESSAGE_DRAFT_KEY });
 const handleCommunitySubmit = createCommunitySubmitHandler({ getState: () => state, notify, closeModal, loadNetwork, createCircle, saveCircleResource, inviteCircleMember, createCircleRequest, updateCircleSettings, reviseTradeChain, createTradeChain, manageTradeChain });
+const handleProfileSubmit = createProfileSubmitHandler({ getState: () => state, notify, closeModal, persist, updateMyProfile, uploadProfileAvatar, uploadPortfolioImage, loadRemoteWorkspace, loadNetwork, recordOnboardingState, validateOnboardingCapabilities, showOnboardingStep, postModal, onboardingDraftKey: ONBOARDING_DRAFT_KEY });
 
 let renderedLocation = null;
 let pendingRenderFocus = null;
@@ -1142,119 +1144,7 @@ document.addEventListener("submit", async (event) => {
     try { await managePilotFeedback(form.dataset.id, data.get("status"), data.get("severity"), data.get("assignee"), data.get("note"), data.get("reply")); await pilotDashboardModal(); notify("Feedback triage saved"); }
     catch (error) { notify(error.message); }
   }
-  if (form.dataset.form === "profile") {
-    const profile = {
-      ...structuredClone(state.profile),
-      name: data.get("display_name"),
-      location: data.get("location_text"),
-      bio: data.get("bio"),
-      workRadius: Number(data.get("work_radius_km")) || null,
-      remoteAvailable: data.has("remote_available"),
-      availability: data.get("availability_text"),
-      workRadius: Number(data.get("work_radius_km")) || null,
-      resources: data.get("resources_text") || "",
-      locationVisibility: data.get("location_visibility") || "region",
-      resources: data.get("resources_text"),
-      visibility: data.get("profile_visibility"),
-    };
-    try {
-      if (state.remote)
-        await updateMyProfile({
-          display_name: profile.name,
-          location_text: profile.location,
-          bio: profile.bio,
-          needs: profile.needs,
-          offers: profile.offers,
-          work_radius_km: profile.workRadius,
-          remote_available: profile.remoteAvailable,
-          preferred_exchange_modes: ["cash", "barter", "hybrid"],
-          availability_text: profile.availability,
-          location_visibility: profile.locationVisibility,
-          resources_text: profile.resources,
-          profile_visibility: profile.visibility,
-        });
-      const avatar = form.elements.avatar?.files?.[0];
-      if (state.remote && avatar) await uploadProfileAvatar(avatar, state.profile.avatarPath);
-      state.profile = profile;
-      if (state.remote && avatar) await loadRemoteWorkspace();
-      if (!state.remote) persist();
-      closeModal();
-      notify("Profile saved");
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-  if (form.dataset.form === "portfolio-photo") {
-    try {
-      const photo = form.elements.photo.files[0];
-      if (!photo) return notify("Choose a photo", "warning");
-      const oldPath = form.dataset.path;
-      await uploadPortfolioImage(form.dataset.entry, photo, oldPath);
-      await loadRemoteWorkspace();
-      notify("Portfolio photo added", "success");
-    } catch (error) { notify(error.message); }
-  }
-  if (form.dataset.form === "onboarding") {
-    const splitList = (value) => value.split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
-    if (!validateOnboardingCapabilities(form)) {
-      showOnboardingStep(form, 2);
-      return;
-    }
-    const exchanges = data.getAll("exchange");
-    if (!exchanges.length) return notify("Choose at least one way to exchange value.", "warning");
-    const profile = {
-      ...structuredClone(state.profile),
-      name: data.get("display_name") || state.profile.name,
-      offers: splitList(data.get("offers")),
-      needs: splitList(data.get("needs")),
-      location: data.get("location_text"),
-      availability: data.get("availability_text"),
-      workRadius: Number(data.get("work_radius_km")) || null,
-      resources: data.get("resources_text") || "",
-      locationVisibility: data.get("location_visibility") || "region",
-      visibility: data.get("profile_visibility") || state.profile.visibility || "public",
-      remoteAvailable: data.has("remote_available"),
-      preferredExchangeModes: exchanges,
-      firstGoal: data.get("first_goal") || "find_help",
-      onboardingComplete: true,
-    };
-    try {
-      if (state.remote)
-        await updateMyProfile({
-          display_name: profile.name,
-          location_text: profile.location,
-          bio: profile.bio,
-          needs: profile.needs,
-          offers: profile.offers,
-          work_radius_km: profile.workRadius,
-          remote_available: profile.remoteAvailable,
-          preferred_exchange_modes: data.has("flexible") ? ["cash", "barter", "hybrid"] : exchanges,
-          availability_text: profile.availability,
-          location_visibility: profile.locationVisibility,
-          resources_text: profile.resources,
-          profile_visibility: profile.visibility,
-        });
-      if (state.remote) await recordOnboardingState(profile.firstGoal, "complete");
-      const avatar = form.elements.avatar?.files?.[0];
-      if (state.remote && avatar) await uploadProfileAvatar(avatar, state.profile.avatarPath);
-      state.profile = profile;
-      if (state.remote && avatar) await loadRemoteWorkspace();
-      if (!state.remote) persist();
-      localStorage.removeItem(ONBOARDING_DRAFT_KEY);
-      closeModal();
-      if (state.remote) await loadNetwork();
-      if (profile.firstGoal === "post_work") {
-        state.view = "discover";
-        setTimeout(postModal, 0);
-        notify("Profile saved. Tell the community what you need.", "success");
-      } else {
-        state.view = "matches";
-        notify(profile.firstGoal === "offer_help" ? "Here’s work you may be able to help with" : "Your first matches are ready", "success");
-      }
-    } catch (error) {
-      notify(error.message);
-    }
-  }
+  if (await handleProfileSubmit(form, data)) return;
   if (form.dataset.form === "edit-request") {
     try {
       await updateRequest(form.dataset.id, Number(form.dataset.version), {
